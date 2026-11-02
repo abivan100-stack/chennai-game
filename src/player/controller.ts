@@ -1,20 +1,32 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { Animator } from '../characters/animator';
+import type { CharacterAsset } from '../characters/catalog';
 import type { Input } from '../core/input';
 
 const RADIUS = 0.35;
 const HALF_HEIGHT = 0.5; // half of the straight middle part; total height = 2 * (0.5 + 0.35) = 1.7 m
-const WALK_SPEED = 4; // m/s
-const RUN_SPEED = 8;
+const SKIN = 0.05; // character-controller gap: the capsule hovers this far above the ground
+const WALK_SPEED = 2; // m/s
+const RUN_SPEED = 6;
 const JUMP_SPEED = 6;
 const GRAVITY = 20; // stronger than 9.81 so jumps feel snappy
 const ACCEL = 10; // higher = reaches target speed faster
 const DECEL = 12;
 const TURN_RATE = 12;
 
+// Animation tuning. Clip speeds = how fast the Mixamo clip travelled before root motion was
+// stripped (walk: 1.68 m in 1.03 s, run: 3.42 m in 0.63 s); playback scales to match real speed.
+const CLIP_SPEED = { walk: 1.63, run: 5.4 };
+const RUN_ABOVE = (WALK_SPEED + RUN_SPEED) / 2;
+const MOVE_ABOVE = 0.2;
+const JUMP_START = 0.45; // s into the Mixamo jump clip where the feet leave the ground
+const FALL_AFTER = 0.15; // s airborne (without jumping) before the fall pose kicks in
+
 /**
- * Third-person walker: Rapier kinematic capsule + KinematicCharacterController
- * (handles sliding along walls, steps and slopes). We own velocity and gravity.
+ * Third-person walker: Rapier kinematic capsule (invisible collider) + KinematicCharacterController
+ * (slides along walls, climbs steps/slopes). We own velocity and gravity; the animated model
+ * just follows the capsule.
  */
 export class PlayerController {
   readonly mesh = new THREE.Group();
@@ -24,34 +36,30 @@ export class PlayerController {
   readonly position = new THREE.Vector3();
 
   private readonly ctrl: RAPIER.KinematicCharacterController;
+  private readonly animator: Animator;
   private readonly vel = new THREE.Vector3();
   private readonly wish = new THREE.Vector3();
   private grounded = false;
+  private jumped = false;
+  private airTime = 0;
 
-  constructor(world: RAPIER.World, scene: THREE.Scene, spawn: THREE.Vector3) {
+  constructor(world: RAPIER.World, scene: THREE.Scene, spawn: THREE.Vector3, hero: CharacterAsset) {
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z),
     );
     this.collider = world.createCollider(RAPIER.ColliderDesc.capsule(HALF_HEIGHT, RADIUS), this.body);
 
-    this.ctrl = world.createCharacterController(0.05);
+    this.ctrl = world.createCharacterController(SKIN);
     this.ctrl.enableAutostep(0.4, 0.2, true);
     this.ctrl.enableSnapToGround(0.3);
     this.ctrl.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(45));
 
-    // Placeholder look: capsule body + a "nose" so facing direction is visible.
-    const capsule = new THREE.Mesh(
-      new THREE.CapsuleGeometry(RADIUS, HALF_HEIGHT * 2, 4, 12),
-      new THREE.MeshStandardMaterial({ color: 0x2f6fd6, roughness: 0.6 }),
-    );
-    const nose = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.12, 0.25),
-      new THREE.MeshStandardMaterial({ color: 0xffd9a8 }),
-    );
-    nose.position.set(0, 0.55, RADIUS);
-    capsule.castShadow = nose.castShadow = true;
-    this.mesh.add(capsule, nose);
+    // The model's feet are at its origin; drop it from capsule centre to the ground.
+    hero.scene.position.y -= HALF_HEIGHT + RADIUS + SKIN;
+    this.mesh.add(hero.scene);
     scene.add(this.mesh);
+    this.animator = new Animator(hero.scene, hero.clips);
+    this.animator.play('idle', { fade: 0 });
     this.position.copy(spawn);
   }
 
@@ -72,7 +80,10 @@ export class PlayerController {
     this.vel.x += (this.wish.x - this.vel.x) * k;
     this.vel.z += (this.wish.z - this.vel.z) * k;
 
-    if (this.grounded && input.wasPressed('Space')) this.vel.y = JUMP_SPEED;
+    if (this.grounded && input.wasPressed('Space')) {
+      this.vel.y = JUMP_SPEED;
+      this.jumped = true;
+    }
     this.vel.y -= GRAVITY * dt;
 
     const desiredY = this.vel.y * dt;
@@ -86,16 +97,32 @@ export class PlayerController {
     this.body.setNextKinematicTranslation({ x: t.x + move.x, y: t.y + move.y, z: t.z + move.z });
   }
 
-  /** Sync the mesh to physics and turn it toward the movement direction. Call AFTER world.step(). */
+  /** Sync the model to physics, face the movement direction, pick the animation. Call AFTER world.step(). */
   sync(dt: number) {
     const t = this.body.translation();
     this.position.set(t.x, t.y, t.z);
     this.mesh.position.copy(this.position);
 
-    if (Math.hypot(this.vel.x, this.vel.z) > 0.3) {
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    if (speed > 0.3) {
       const target = Math.atan2(this.vel.x, this.vel.z);
       const delta = Math.atan2(Math.sin(target - this.mesh.rotation.y), Math.cos(target - this.mesh.rotation.y));
       this.mesh.rotation.y += delta * (1 - Math.exp(-TURN_RATE * dt));
     }
+
+    this.airTime = this.grounded ? 0 : this.airTime + dt;
+    if (this.grounded) this.jumped = false;
+    if (this.jumped || this.airTime > FALL_AFTER) {
+      this.animator.play('jump', { once: true, startAt: JUMP_START });
+    } else if (speed > RUN_ABOVE) {
+      this.animator.play('run');
+      this.animator.setSpeed(speed / CLIP_SPEED.run);
+    } else if (speed > MOVE_ABOVE) {
+      this.animator.play('walk');
+      this.animator.setSpeed(THREE.MathUtils.clamp(speed / CLIP_SPEED.walk, 0.5, 2));
+    } else {
+      this.animator.play('idle');
+    }
+    this.animator.update(dt);
   }
 }

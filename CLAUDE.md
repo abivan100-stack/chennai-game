@@ -9,7 +9,8 @@
 - Hosted as a static site on **Cloudflare Pages** (`npm run build` → `dist/`).
 
 ## Status
-Step 1 done: test town (flat 200 m ground, 19 box buildings, road grid), walking character, follow camera, parked placeholder auto ("F - Get in" just logs), IST day/night, adaptive quality, debug panel, HUD placeholders.
+Step 1 done: test town (flat 200 m ground, 19 box buildings, road grid), follow camera, parked placeholder auto ("F - Get in" just logs), IST day/night, adaptive quality, debug panel, HUD placeholders.
+Step 2 done: animated Mixamo hero (idle/walk/run/jump, 0.2 s crossfades) on the invisible capsule; 10 Quaternius NPCs (5 idle, 5 walking block loops), frozen beyond 40 m; loading screen.
 Next: driving the auto (dynamic body / Rapier vehicle controller), then passengers, missions, minimap.
 
 ## Tech stack
@@ -21,15 +22,22 @@ Next: driving the auto (dynamic body / Rapier vehicle controller), then passenge
 ## Folder structure
 ```
 src/
-  main.ts              wiring + per-frame order (input → player → physics → camera → sky → UI → render)
+  main.ts              loading, wiring + per-frame order (input → player → physics → camera → sky → NPCs → UI → render)
   core/
     renderer.ts        WebGLRenderer, scene, camera, resize, render scale (pixel ratio cap 1.5)
     loop.ts            rAF loop, clamped dt
     input.ts           keyboard (KeyboardEvent.code) + mouse deltas, pointer lock
     quality.ts         adaptive quality manager + presets (pure logic, no three imports)
+    assets.ts          GLTFLoader (+ Meshopt decoder) on a shared LoadingManager
+  characters/
+    catalog.ts         which model files exist, rig groups, load + fit to 1.7 m (feet at y=0)
+    animator.ts        AnimationMixer wrapper: named clips, crossfade, speed
   player/
-    controller.ts      kinematic capsule + Rapier KinematicCharacterController
+    controller.ts      kinematic capsule + KinematicCharacterController; drives hero animation state
     camera.ts          orbit follow camera, sphere-cast so it never clips walls
+  npcs/
+    npc.ts             one pedestrian: SkeletonUtils clone, tint/texture variant, idle or path walk
+    crowd.ts           spawn list + per-frame update, freezes NPCs > 40 m from the player
   vehicles/
     auto.ts            placeholder auto rickshaw (2 merged meshes, fixed collider)
   world/
@@ -39,18 +47,46 @@ src/
     solar.ts           IST clock + sun direction over Chennai (pure math)
   ui/
     hud.ts             wallet, mission, context prompt, "click to play"
-    debug.ts           F3 panel: FPS, frame ms, draw calls, tris, quality, IST time, position
-scripts/check.ts       runnable self-check for solar.ts + quality.ts (`npm run check`)
+    debug.ts           F3 panel: FPS, frame/CPU ms, draw calls, tris, quality, IST time, position, NPCs animated
+    loading.ts         loading overlay + progress bar
+scripts/
+  check.ts             runnable self-check for solar.ts + quality.ts (`npm run check`)
+  build-models.mjs     character asset pipeline (`npm run models`)
+  blender/mixamo_to_glb.py   headless Blender FBX → GLB step
+public/models/         optimised GLBs (committed). CREDITS.md lists every asset + license.
+assets-source/         raw FBX/glTF sources (git-ignored, see Asset pipeline)
 ```
 
 ## Commands
 - `npm run dev` — dev server (http://localhost:5173)
 - `npm run build` — typecheck + production build to `dist/`
 - `npm run typecheck` / `npm run check` — tsc only / logic self-check (Node runs the .ts directly)
-- In dev, `window.game` exposes `{ world, player, cam, auto, quality, dayNight }` for console debugging.
+- `npm run models` — rebuild `public/models/` from `assets-source/` (needs Blender 4.4+; set `BLENDER=path` if not at the default Windows path or on PATH)
+- In dev, `window.game` exposes `{ world, player, cam, auto, quality, dayNight, crowd }` for console debugging.
+
+## Asset pipeline (characters)
+Sources live in `assets-source/` (git-ignored; 54 MB hero FBX). `npm run models` does:
+1. **Mixamo FBX → GLB** in headless Blender (`scripts/blender/mixamo_to_glb.py`): strips the `mixamorig:` / `mixamorig1:` bone prefix, removes eyelash cards, exports the character without animation and each clip as skeleton + one action. `inPlace` clips get horizontal Hips motion pinned (Mixamo walk/run travel forward otherwise). The jump clip is also capped so the hips never rise above standing (the physics capsule does the rising).
+2. **Clip cleanup**: hero clips keep only bone rotations + Hips translation, so any Mixamo clip fits any Mixamo body.
+3. **gltf-transform**: weld + meshoptimizer simplify (hero, to < 15k tris), merge all skinned parts into one primitive per material (gltf-transform's `join()` skips skinned meshes, so the script does it), flat-colour materials → one palette texture (NPCs = 1 draw call), metallic forced to 0, alpha hair → MASK, textures 1K WebP, Meshopt compression. Prints a size/triangle report and flags models over budget (hero 15k, NPC 8k tris).
+
+KTX2 textures are not used yet: `toktx` (KTX-Software) isn't installed. To switch: `winget install KhronosGroup.KTX-Software`, change `textureCompress` to `toktx`, add `KTX2Loader` in `core/assets.ts`.
+
+### Add a Mixamo animation to the hero
+1. Mixamo → pick the same character → animation → Download: **FBX Binary, Without Skin, 30 fps**; tick **In Place** if offered.
+2. Save as `assets-source/mixamo/<name>.fbx`, add `{ name, inPlace }` to `HERO.clips` in `scripts/build-models.mjs` and `'<name>.glb'` to `HERO.clips` in `src/characters/catalog.ts`.
+3. `npm run models`, then `animator.play('<name>')`.
+
+### Add a new character
+- **Another Mixamo character**: export FBX Binary *With Skin*, convert like `hero.fbx`. Hero clips work on it unchanged (same bone names after the prefix strip).
+- **New NPC model**: drop the glTF/GLB in `assets-source/<pack>/`, add `{ src, out, rig }` to `NPCS` in `build-models.mjs` and the same id/file/rig to `NPC_MODELS` in `src/characters/catalog.ts`, then use it in `src/npcs/crowd.ts` (`SPAWNS`). Models sharing a `rig` (identical skeleton) share clips; only the first file of each rig keeps them. A model on a **new** skeleton must bring its own `Idle`/`Walk`/`Run` clips (map names in `NPC_CLIPS`) or be retargeted (`SkeletonUtils.retargetClip`).
+- Always add a row to `CREDITS.md`. Only CC0, or CC-BY with credit. No NC / no-redistribution / unclear licenses.
+
+Current sources: Mixamo files from mixamo.com (login required). Quaternius packs: https://quaternius.com/packs/ultimatemodularcharacters.html (men) and https://quaternius.com/packs/ultimatemodularwomen.html (women): Google Drive → Individual Characters → glTF.
 
 ## Performance rules
-- **Draw calls under ~300** per frame (check F3). Currently ~11-13.
+- **Draw calls under ~300** per frame (check F3). Currently ~27 (13 world + hero 2 + NPCs 1 each, plus shadow passes).
+- Characters: hero < 15k tris, NPC < 8k tris, 1 draw call per material. Animate only within `ACTIVE_RADIUS` (40 m).
 - **Instancing** (`InstancedMesh`) for anything repeated: buildings, trees, lamp posts, NPCs, vehicles of the same model.
 - Merge static geometry that shares a material (`mergeGeometries`), like the roads and the auto.
 - **Compressed textures** only: KTX2/Basis (`KTX2Loader`), meshes Draco/meshopt-compressed glTF. No raw PNG/JPG textures larger than 512 px.

@@ -24,6 +24,10 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Raw source art (hero.fbx alone is 54 MB). Optimised output in public/models/ IS committed.
+# Re-create it from the links in CLAUDE.md > Asset pipeline.
+assets-source/
+
 # Browser-automation artifacts
 .playwright-mcp/
 

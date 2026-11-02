@@ -8,6 +8,7 @@ export class DebugPanel {
   private readonly el = document.getElementById('debug')!;
   private readonly text = document.getElementById('debug-text')!;
   private accMs = 0;
+  private cpuMs = 0;
   private frames = 0;
 
   constructor(quality: QualityManager) {
@@ -23,22 +24,27 @@ export class DebugPanel {
     this.el.style.display = this.el.style.display === 'block' ? 'none' : 'block';
   }
 
-  /** Call once per frame after rendering. */
-  update(frameMs: number, renderer: THREE.WebGLRenderer, quality: string, clock: string, pos: THREE.Vector3) {
+  /**
+   * Call once per frame after rendering. cpuMs = main-thread time spent in our frame
+   * (FPS is vsync-capped, so this shows real headroom). extra = more "label: value" lines.
+   */
+  update(frameMs: number, cpuMs: number, renderer: THREE.WebGLRenderer, extra: Record<string, string>) {
     this.accMs += frameMs;
+    this.cpuMs += cpuMs;
     this.frames++;
     if (this.accMs < REFRESH_MS || this.el.style.display !== 'block') return;
     const avg = this.accMs / this.frames;
-    this.accMs = this.frames = 0;
+    const cpu = this.cpuMs / this.frames;
+    this.accMs = this.cpuMs = this.frames = 0;
     const { calls, triangles } = renderer.info.render;
-    this.text.textContent = [
-      `FPS        ${(1000 / avg).toFixed(0)}`,
-      `frame      ${avg.toFixed(1)} ms`,
-      `draw calls ${calls}`,
-      `triangles  ${triangles.toLocaleString()}`,
-      `quality    ${quality}`,
-      `time       ${clock}`,
-      `position   ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`,
-    ].join('\n');
+    const rows: Record<string, string> = {
+      FPS: (1000 / avg).toFixed(0),
+      frame: `${avg.toFixed(1)} ms`,
+      cpu: `${cpu.toFixed(2)} ms`,
+      'draw calls': `${calls}`,
+      triangles: triangles.toLocaleString(),
+      ...extra,
+    };
+    this.text.textContent = Object.entries(rows).map(([k, v]) => `${k.padEnd(11)}${v}`).join('\n');
   }
 }

@@ -1,13 +1,17 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { loadCharacters } from './characters/catalog';
+import { loadingManager } from './core/assets';
 import { enablePointerLock, input } from './core/input';
 import { startLoop } from './core/loop';
 import { QualityManager, SHADOW_MAP_SIZES } from './core/quality';
 import { createRenderer, setRenderScale } from './core/renderer';
+import { Crowd } from './npcs/crowd';
 import { FollowCamera } from './player/camera';
 import { PlayerController } from './player/controller';
 import { DebugPanel } from './ui/debug';
 import { hud } from './ui/hud';
+import { loadingScreen } from './ui/loading';
 import { AutoRickshaw } from './vehicles/auto';
 import { createBuildings } from './world/buildings';
 import { createGround } from './world/ground';
@@ -16,7 +20,8 @@ import { DayNight } from './world/sky';
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 
 async function main() {
-  await RAPIER.init();
+  loadingManager.onProgress = (_url, loaded, total) => loadingScreen.progress(loaded / total);
+  const [, characters] = await Promise.all([RAPIER.init(), loadCharacters()]);
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   const { renderer, scene, camera } = createRenderer();
 
@@ -24,9 +29,10 @@ async function main() {
   createGround(scene, world);
   const buildingCount = createBuildings(scene, world);
   const dayNight = new DayNight(scene);
+  const crowd = new Crowd(scene, characters.npcs);
 
   // Player + camera
-  const player = new PlayerController(world, scene, new THREE.Vector3(0, 1, 6));
+  const player = new PlayerController(world, scene, new THREE.Vector3(0, 1, 6), characters.hero);
   const cam = new FollowCamera(camera, world, player.collider);
   enablePointerLock(renderer.domElement, (locked) => hud.showPlayHint(!locked));
 
@@ -44,13 +50,17 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, quality, dayNight } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, quality, dayNight, crowd } });
 
   hud.setWallet(0);
   hud.setMission("Find your uncle's auto");
-  console.log(`[world] ${buildingCount} buildings`);
+  console.log(`[world] ${buildingCount} buildings, ${crowd.npcs.length} NPCs`);
+
+  await renderer.compileAsync(scene, camera); // compile shaders behind the loading screen, not mid-game
+  loadingScreen.done();
 
   startLoop((dt, frameMs) => {
+    const t0 = performance.now();
     const mouse = input.consumeMouse();
     cam.rotate(mouse.x, mouse.y);
 
@@ -61,6 +71,7 @@ async function main() {
     cam.update(dt, player.position);
 
     dayNight.update(dt, input.isDown('KeyT'), player.position);
+    crowd.update(dt, player.position);
 
     const nearAuto = auto.isNear(player.position, ENTER_RADIUS);
     hud.setPrompt(nearAuto ? 'F - Get in' : null);
@@ -70,9 +81,18 @@ async function main() {
     renderer.render(scene, camera);
 
     quality.sample(frameMs);
-    debug.update(frameMs, renderer, quality.label(), dayNight.clockLabel, player.position);
+    const p = player.position;
+    debug.update(frameMs, performance.now() - t0, renderer, {
+      quality: quality.label(),
+      time: dayNight.clockLabel,
+      position: `${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`,
+      npcs: `${crowd.activeCount}/${crowd.npcs.length} animated`,
+    });
     input.endFrame();
   });
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  loadingScreen.fail('Could not load the game. Check the console (F12) and reload.');
+});

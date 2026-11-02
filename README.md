@@ -39,3 +39,7 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 ## Other scripts
 - `npm run typecheck` runs TypeScript only.
 - `npm run check` runs a small self-check of the sun-position and quality logic.
+- `npm run models` rebuilds the character models in `public/models/` from raw files in `assets-source/` (needs Blender). See CLAUDE.md, "Asset pipeline".
+
+## Credits
+Characters by Adobe Mixamo and Quaternius (CC0). Full list in [CREDITS.md](CREDITS.md).
