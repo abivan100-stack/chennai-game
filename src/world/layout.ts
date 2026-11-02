@@ -298,10 +298,16 @@ export const LANDMARK_LOTS = () => {
 };
 
 /** Tidel Park, Taramani: the glass IT park, facing Taramani Road (block [2, 9]). */
+/**
+ * Tidel Park spans three blocks ([1..3, 9], ~125 m wide); West and East Mada Street's south ends
+ * pass under it through tall gateways (TIDEL_ROADS: the x of each road it bridges).
+ */
 export const TIDEL_LOT = (): Lot => {
-  const b = block(CENTRE, 9);
-  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 's' };
+  const a = block(CENTRE - 1, 9);
+  const b = block(CENTRE + 1, 9);
+  return { x0: a.x0, x1: b.x1, z0: a.z0, z1: a.z1, front: 's' };
 };
+export const TIDEL_ROADS = [-25, 25];
 
 /** The gated community in Perungudi: two phases either side of San Thome High Road's south end. */
 export const COMPLEX_LOTS = (): Lot[] => {
@@ -336,7 +342,7 @@ export const CAFE_LOTS = () => {
     at(1, 6, 'n', 7), // R.A. Puram
     at(1, 9, 'n', 7), // Adyar Main Road
     at(SANTHOME, 8, 's', 12),
-    at(CENTRE + 1, 9, 's', 8), // Taramani, by Tidel Park
+    at(SANTHOME, 9, 's', 6), // Taramani, by Tidel Park
     at(-2, 3, 'w', 4), // Anna Salai
     at(-2, 1, 'w', 6),
     at(SANTHOME, 1, 'e', 4), // Beach Road, by the lighthouse

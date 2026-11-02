@@ -2,11 +2,12 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { createKit, frame, type Frame, type SignDef } from './kit';
 import { GeoBuilder } from './geo';
-import { TIDEL_LOT } from './layout';
+import { SETBACK, TIDEL_LOT, TIDEL_ROADS } from './layout';
 
 /**
- * Tidel Park, Taramani (stylised): Chennai's landmark IT park, in glass. Two glass office wings
- * (16 floors) either side of a taller atrium core, a white concrete frame and crown, an entrance canopy, a
+ * Tidel Park, Taramani (stylised): Chennai's landmark IT park, in glass, ~125 m wide across
+ * three blocks with two roads passing under it. Two glass office wings
+ * (16 floors) either side of a taller atrium core, glass bridges over the roads, a white concrete frame and crown, an entrance canopy, a
  * boom-barrier gate with a security cabin and a car park. Glass reflects the sky by day and
  * the offices light up at night. 5 draw calls.
  */
@@ -66,69 +67,100 @@ export function createTidelPark(scene: THREE.Scene, world: RAPIER.World) {
   const f = frame(TIDEL_LOT());
   const { w, d } = f;
 
-  /** Glass box in the lot frame: four glass walls (UVs in panes / floors), a frame roof slab. */
-  const glassBlock = (fr: Frame, bw: number, h: number, bd: number, u: number, v: number, tint: THREE.Color) => {
+  /** Glass box in the lot frame from height y0: four glass walls (UVs in panes / floors), frame slabs. */
+  const glassBlock = (fr: Frame, bw: number, h: number, bd: number, u: number, v: number, tint: THREE.Color, y0 = 0) => {
     const corners = [[-bw / 2, -bd / 2], [bw / 2, -bd / 2], [bw / 2, bd / 2], [-bw / 2, bd / 2]];
     for (let i = 0; i < 4; i++) {
       const [au, av] = corners[i];
       const [bu, bv] = corners[(i + 1) % 4];
       const len = Math.hypot(bu - au, bv - av);
-      const a = fr.at(u + au, v + av, 0);
-      const b = fr.at(u + bu, v + bv, 0);
+      const a = fr.at(u + au, v + av, y0);
+      const b = fr.at(u + bu, v + bv, y0);
       const out = fr.at(u + (au + bu), v + (av + bv)).sub(fr.at(u, v)).normalize();
       const uu = len / (PANE_W * 2);
       const vv = h / (FLOOR_H * 2);
-      glass.quad(a, b, b.clone().setY(h), a.clone().setY(h), [[0, 0], [uu, 0], [uu, vv], [0, vv]], tint, out);
+      glass.quad(a, b, b.clone().setY(y0 + h), a.clone().setY(y0 + h), [[0, 0], [uu, 0], [uu, vv], [0, vv]], tint, out);
     }
-    box(fr, bw + 0.4, 0.8, bd + 0.4, u, h, v, FRAME, false); // roof slab
-    k.solid(fr, bw, h, bd, u, 0, v);
+    box(fr, bw + 0.4, 0.8, bd + 0.4, u, y0 + h, v, FRAME, false); // roof slab
+    if (y0 > 0) box(fr, bw + 0.4, 0.8, bd + 0.4, u, y0 - 0.8, v, FRAME, false); // soffit over the road
+    else k.solid(fr, bw, h, bd, u, 0, v);
   };
 
-  // Forecourt and car park.
-  box(f, w - 1, 0.03, d - 1, 0, 0, d / 2, ASPHALT, false);
-  let n = 0;
-  for (const v of [6, 12]) for (let u = -w / 2 + 3; u < w / 2 - 3; u += 2.6) {
-    if (n++ % 3 === 2 || Math.abs(u) < 3) continue; // empty bays, and the drive to the door
-    box(f, 1.8, 1.3, 4.2, u, 0.05, v, CARS[n % CARS.length]);
+  // Lot layout across the frontage (u): the two roads pass under the building in gateways.
+  const lot = TIDEL_LOT();
+  const cx = (lot.x0 + lot.x1) / 2;
+  const roadsU = TIDEL_ROADS.map((x) => -(x - cx)); // front 's': u runs towards -x
+  const GAP = SETBACK + 0.5; // road + sidewalks, kept clear at ground level
+  const segments: [number, number][] = []; // ground strips between the roads
+  {
+    const cuts = [...roadsU].sort((p, q) => p - q);
+    let a0 = -w / 2;
+    for (const r of cuts) {
+      segments.push([a0, r - GAP]);
+      a0 = r + GAP;
+    }
+    segments.push([a0, w / 2]);
   }
 
-  // The building: two 16-floor glass wings either side of a taller atrium core, on a podium.
+  // Forecourt, car park, compound walls with a gate in each strip.
+  for (const [s0, s1] of segments) {
+    const mid = (s0 + s1) / 2;
+    const sw = s1 - s0;
+    box(f, sw - 0.6, 0.03, d - 1, mid, 0, d / 2, ASPHALT, false);
+    let n = 0;
+    for (const v of [6, 12]) for (let u = s0 + 3; u < s1 - 3; u += 2.6) {
+      if (n++ % 3 === 2 || Math.abs(u - mid) < 3) continue; // empty bays, and the drive in
+      box(f, 1.8, 1.3, 4.2, u, 0.05, v, CARS[n % CARS.length]);
+    }
+    const side = (sw - 8) / 2;
+    for (const sgn of [-1, 1]) {
+      box(f, side, 1.4, 0.3, mid + sgn * (4 + side / 2), 0, 0.2, FRAME);
+      box(f, 1, 3, 1, mid + sgn * 4, 0, 0.6, FRAME);
+    }
+    for (const u of [s0 + 0.15, s1 - 0.15]) box(f, 0.3, 1.4, d - 0.4, u, 0, d / 2, FRAME);
+    box(f, sw, 1.4, 0.3, mid, 0, d - 0.15, FRAME);
+    tree(f, s0 + 2.2, 16.5, 0.9);
+    tree(f, s1 - 2.2, 16.5, 0.9);
+  }
+  board(f, 1, 0, 3.1, 0.1, 12, 1.4); // main gate, centre strip
+  box(f, 2.4, 2.6, 2.4, 8, 0, 2.5, C(0xe0e0e0)); // security cabin
+  box(f, 6, 0.12, 0.12, 2, 1, 1.4, C(0xd32f2f), false); // boom barrier
+
+  // The building: two broad 16-floor glass wings, a taller atrium in the middle, and glass
+  // bridges over the two roads (16 m clear) joining them into one ~125 m frontage.
   const depth = 50;
-  const bv = 20 + depth / 2; // centre, in from the road
+  const bv = 20 + depth / 2;
   const front = bv - depth / 2;
   const floors = 16;
   const h = floors * FLOOR_H;
-  const wingW = 11;
-  const wingU = w / 2 - 1 - wingW / 2;
-  box(f, w - 1.5, 1.5, depth + 2, 0, 0, bv, FRAME, true); // podium
-  glassBlock(f, wingW, h, depth, -wingU, bv, GLASS_TINT);
-  glassBlock(f, wingW, h, depth, wingU, bv, GLASS_TINT);
-  const coreW = 2 * (wingU - wingW / 2) + 0.4;
-  glassBlock(f, coreW, h + 8, depth - 10, 0, bv, ATRIUM_TINT);
-  // White frame: corner piers on the wings, a tall portal round the atrium, floor bands.
-  for (const s of [-1, 1]) {
-    for (const t of [-1, 1]) box(f, 1.1, h + 1, 1.1, s * (wingU + t * (wingW / 2)), 0, front, FRAME, false);
-    box(f, 1.2, h + 9, 1.2, s * (coreW / 2), 0, front + 4.6, FRAME, false);
+  const CLEAR = 16; // headroom over the roads
+  for (const [s0, s1] of segments) {
+    const mid = (s0 + s1) / 2;
+    const sw = s1 - s0;
+    const core = Math.abs(mid) < 1;
+    box(f, sw - 0.6, 1.5, depth + 2, mid, 0, bv, FRAME, true); // podium
+    glassBlock(f, sw - 1, core ? h + 8 : h, core ? depth - 6 : depth, mid, bv, core ? ATRIUM_TINT : GLASS_TINT);
+    for (const t of [-1, 1]) box(f, 1.2, (core ? h + 8 : h) + 1, 1.2, mid + t * ((sw - 1) / 2), 0, core ? front + 3 : front, FRAME, false);
+    for (let fl = 4; fl <= floors; fl += 4) box(f, sw - 0.6, 0.45, (core ? depth - 6 : depth) + 0.4, mid, fl * FLOOR_H, bv, FRAME, false);
   }
-  for (let fl = 2; fl <= floors; fl += 2) box(f, coreW, 0.35, 0.6, 0, fl * FLOOR_H, front + 4.4, FRAME, false);
-  for (let fl = 4; fl <= floors; fl += 4) for (const s of [-1, 1]) box(f, wingW + 0.4, 0.45, depth + 0.4, s * wingU, fl * FLOOR_H, bv, FRAME, false);
-  // Crown over the atrium carrying the name, and a helipad on one wing.
-  box(f, coreW + 2.4, 5, 1.4, 0, h + 8, front + 4.6, FRAME, false);
-  board(f, 0, 0, h + 8.7, front + 3.85, coreW + 1, 3.6);
-  shape(f, new THREE.CylinderGeometry(4, 4, 0.3, 20), wingU, h + 0.8, bv + 12, C(0x5a5a5a));
-  shape(f, new THREE.TorusGeometry(2.6, 0.18, 4, 24).rotateX(Math.PI / 2), wingU, h + 1, bv + 12, C(0xffd54f));
-  // Entrance canopy, doors, steps.
-  box(f, 14, 0.6, 7, 0, 6, front - 2, FRAME, false);
-  for (const s of [-1, 1]) box(f, 0.7, 6, 0.7, s * 6.3, 0, front - 5, FRAME);
-  box(f, 12, 1.5, 4, 0, 0, front - 1.5, C(0xbdbdbd), false);
-  // Gate: pillars, sign, security cabin, boom barrier.
-  for (const s of [-1, 1]) box(f, 1, 3, 1, s * 4.5, 0, 0.6, FRAME);
-  board(f, 1, 0, 3.1, 0.1, 10, 1.3);
-  box(f, 2.4, 2.6, 2.4, 7, 0, 2.5, C(0xe0e0e0));
-  box(f, 6, 0.12, 0.12, 2, 1, 1.4, C(0xd32f2f), false);
-  const side = (w - 10) / 2;
-  for (const s of [-1, 1]) box(f, side, 1.4, 0.3, s * (5 + side / 2), 0, 0.2, FRAME);
-  for (const u of [-w / 2 + 2, w / 2 - 2]) tree(f, u, 16.5, 0.9);
+  for (const r of roadsU) {
+    glassBlock(f, 2 * GAP + 1, h - CLEAR, depth - 4, r, bv, GLASS_TINT, CLEAR);
+    for (const t of [-1, 1]) box(f, 1.6, CLEAR, 1.6, r + t * (GAP + 0.2), 0, front + 2, FRAME); // gateway piers
+  }
+  // Crown over the atrium carrying the name, helipads on the wings, entrance canopy.
+  const coreW = segments.find(([a0, a1]) => Math.abs((a0 + a1) / 2) < 1)!;
+  const coreWidth = coreW[1] - coreW[0];
+  box(f, coreWidth + 2, 5.5, 1.4, 0, h + 8, front + 3, FRAME, false);
+  board(f, 0, 0, h + 8.7, front + 2.25, coreWidth - 2, 4);
+  for (const [s0, s1] of segments) {
+    const mid = (s0 + s1) / 2;
+    if (Math.abs(mid) < 1) continue;
+    shape(f, new THREE.CylinderGeometry(5, 5, 0.3, 20), mid, h + 0.8, bv + 10, C(0x5a5a5a));
+    shape(f, new THREE.TorusGeometry(3.2, 0.2, 4, 24).rotateX(Math.PI / 2), mid, h + 1, bv + 10, C(0xffd54f));
+  }
+  box(f, 16, 0.6, 7, 0, 6, front - 2, FRAME, false);
+  for (const sgn of [-1, 1]) box(f, 0.7, 6, 0.7, sgn * 7.3, 0, front - 5, FRAME);
+  box(f, 14, 1.5, 4, 0, 0, front - 1.5, C(0xbdbdbd), false);
 
   const setKitNight = k.build(scene);
   const glassMat = new THREE.MeshStandardMaterial({
