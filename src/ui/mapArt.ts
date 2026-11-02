@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { HALF, ROAD_HALF, ROAD_LINES, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE, X_ROADS, Z_ROADS, roadSpans } from '../world/layout';
+import { HALF, POLICE_LOT, ROAD_HALF, ROAD_LINES, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE, X_ROADS, Z_ROADS, roadSpans } from '../world/layout';
 import { SHOP_SIGNS } from '../world/textures';
 
 /** Pixels per metre of the pre-drawn town map. Minimap and phone map crop/scale from it. */
@@ -79,6 +79,14 @@ export function drawTownMap(data: MapData) {
   const kz = (k.z0 + k.z1) / 2;
   g.fillRect(P(kx - 3), P(kz - 3), M(6), M(6));
   label(g, 'Temple Tank', P(kx), P(k.z0 + 4), 12, '#123c55');
+
+  // Police station.
+  const ps = POLICE_LOT();
+  g.fillStyle = '#c9d6ee';
+  g.fillRect(P(ps.x0), P(ps.z0), M(ps.x1 - ps.x0), M(ps.z1 - ps.z0));
+  g.fillStyle = '#1c3f8f';
+  g.fillRect(P(ps.x0 + 2), P(ps.z0 + 1), M(16), M(9));
+  label(g, '🚓 Police Station', P((ps.x0 + ps.x1) / 2), P(ps.z1 - 3), 11, '#0b2a6b');
 
   // Buildings (rotated rectangles in wall colour; old tiled houses get a terracotta roof).
   for (const f of data.footprints) {

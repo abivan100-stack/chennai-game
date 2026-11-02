@@ -30,6 +30,13 @@ import { Weather } from './world/weather';
 import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
 import { route } from './missions/route';
+import { Police } from './combat/police';
+import { Stick, STICK_REACH } from './combat/stick';
+import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
+import { createPoliceStation } from './world/policeStation';
+import { SPEC, type Vehicle } from './vehicles/traffic';
+import { BEATEN } from './npcs/dialogue';
+import { BUSTED_SUB, BUSTED_TITLE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, WASTED_SUB, WASTED_TITLE } from './missions/data';
 import { ROAD_LINES } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
@@ -49,7 +56,11 @@ async function main() {
   const props = createProps(scene, world);
   const townMap = drawTownMap({ footprints: town.footprints, trees: props.treePoints });
   const weather = new Weather(scene);
-  const traffic = new Traffic(scene, world);
+  const traffic = new Traffic(scene, world, characters.npcs);
+  traffic.onSay = (name, line) => hud.say(name, line);
+  const station = createPoliceStation(scene, world);
+  const police = new Police(scene, world, characters.npcs.get('man-casual')!, station.jeepSpot, -Math.PI / 2);
+  const wanted = new Wanted();
   const economy = new Economy();
   const temple = createTemple(scene, world);
   const dayNight = new DayNight(scene);
@@ -63,6 +74,14 @@ async function main() {
   const player = new PlayerController(world, scene, spawn, characters.hero);
   const auto = new AutoRickshaw(scene, world, autoSpot, Math.PI);
   const ride = new Ride(player, auto);
+  const stick = new Stick(characters.hero.scene);
+  let health = 100;
+  /** A traffic vehicle the player took (null = on foot or in uncle's auto). */
+  let stolen: Vehicle | null = null;
+  let stolenFor = 0;
+  /** Seconds left on the ARRESTED / SUTTUTAANGA screen (controls frozen). */
+  let downFor = 0;
+  const NO_INPUT = { ...input, isDown: () => false, wasPressed: () => false };
   const cam = new FollowCamera(camera, world, player.collider);
   cam.yaw = 1.15; // from the east, looking back at the gopuram with the auto in view
   cam.pitch = 0.08;
@@ -124,7 +143,56 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, quality, dayNight, crowd } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, stick, quality, dayNight, crowd, getHealth: () => health, setHealth: (h: number) => (health = h) } });
+
+  // ---- Crime & punishment ------------------------------------------------------------------
+  const takeVehicle = (v: Vehicle) => {
+    const theft = traffic.take(v);
+    stolen = v;
+    stolenFor = 0;
+    player.setAway(true);
+    player.model.visible = false;
+    if (stick.equipped) stick.toggle();
+    cam.mode = 'drive';
+    cam.ignore = v.collider;
+    hud.setSpeed(0);
+    if (theft) {
+      wanted.report('theft');
+      hud.say(POLICE, MSG_THEFT_WARNING);
+      phone.addMessage(POLICE, MSG_THEFT_WARNING);
+    }
+  };
+  const leaveVehicle = () => {
+    if (!stolen) return;
+    const side = new THREE.Vector3(1, 0, 0).applyQuaternion(stolen.group.quaternion);
+    const out = stolen.group.position.clone().addScaledVector(side, SPEC[stolen.kind].width / 2 + 0.8);
+    out.y += 0.2;
+    traffic.release(stolen);
+    stolen = null;
+    player.placeAt(out, Math.atan2(side.x, side.z));
+    player.model.visible = true;
+    player.setAway(false);
+    cam.mode = 'foot';
+    cam.ignore = player.collider;
+    hud.setSpeed(null);
+  };
+  /** Arrested or shot down: fine, then released outside the station. */
+  const knockOut = (busted: boolean) => {
+    const fine = busted ? 500 * Math.max(1, wanted.level) : 300;
+    economy.cash = Math.max(0, economy.cash - fine);
+    showMoney();
+    hud.banner(busted ? BUSTED_TITLE : WASTED_TITLE, (busted ? BUSTED_SUB : WASTED_SUB).replace('{fine}', String(fine)));
+    downFor = 3.5;
+  };
+  const release = () => {
+    hud.banner(null);
+    leaveVehicle();
+    ride.forceOut();
+    player.placeAt(station.releaseSpot, 0);
+    wanted.clear();
+    police.goHome();
+    health = 100;
+  };
 
   showMoney();
   phone.addMessage(UNCLE, MSG_WELCOME);
@@ -140,23 +208,44 @@ async function main() {
     const mouse = input.consumeMouse();
     cam.rotate(mouse.x, mouse.y);
 
-    // --- Interactions (F: auto, E: talk)
-    const nearAuto = ride.phase === 'onFoot' && auto.isNear(player.position, ENTER_RADIUS);
-    const talkTo = player.onFoot && !nearAuto && ride.phase === 'onFoot' ? crowd.nearest : null;
-    if (input.wasPressed('KeyF')) {
-      if (nearAuto) ride.enter();
+    // --- Interactions (F: auto / any vehicle, E: talk, 1: stick, click: swing)
+    const free = downFor <= 0;
+    const onFootFree = free && player.onFoot && ride.phase === 'onFoot' && !stolen;
+    const nearAuto = onFootFree && auto.isNear(player.position, ENTER_RADIUS);
+    const other = onFootFree && !nearAuto ? traffic.enterable(player.position) : null;
+    const talkTo = onFootFree && !nearAuto && !other ? crowd.nearest : null;
+    const stolenSpeed = stolen ? traffic.speedOf(stolen) : 0;
+    if (free && input.wasPressed('KeyF')) {
+      if (stolen) {
+        if (Math.abs(stolenSpeed) < 3) leaveVehicle();
+      } else if (nearAuto) ride.enter();
       else if (ride.canExit) ride.exit();
+      else if (other) takeVehicle(other);
     }
+    if (onFootFree && input.wasPressed('Digit1')) stick.toggle();
+    if (onFootFree && input.wasPressed('Mouse0')) stick.swing();
     if (talkTo && input.wasPressed('KeyE')) {
       const p = talkTo.root.position;
       player.talk(Math.atan2(p.x - player.position.x, p.z - player.position.z), 4.5);
       hud.say(talkTo.name, talkTo.talk());
     }
-    hud.setPrompt(nearAuto ? 'F - Get in' : ride.canExit ? 'F - Get out' : talkTo ? `E - Talk to ${talkTo.name}` : null);
+    const otherName = other ? (other.kind === 'bus' ? 'bus' : other.kind === 'car' ? 'car' : 'auto') : '';
+    hud.setPrompt(
+      !free ? null
+        : stolen ? (Math.abs(stolenSpeed) < 3 ? 'F - Get out' : null)
+        : nearAuto ? 'F - Get in'
+        : ride.canExit ? 'F - Get out'
+        : other ? (other.driver ? `F - Steal the ${otherName} (police will come!)` : `F - Get in the ${otherName}`)
+        : talkTo ? `E - Talk to ${talkTo.name}` : null,
+    );
 
     // --- Simulation: input once per frame, physics in fixed steps
-    player.handleInput(input, cam.yaw);
-    ride.update(dt, input);
+    player.handleInput(free ? input : NO_INPUT, cam.yaw);
+    ride.update(dt, free ? input : NO_INPUT);
+    if (stolen) {
+      const k = free ? input : NO_INPUT;
+      traffic.control(stolen, Number(k.isDown('KeyW')) - Number(k.isDown('KeyS')), Number(k.isDown('KeyA')) - Number(k.isDown('KeyD')), k.isDown('Space'));
+    }
     if (input.wasPressed('KeyP')) phone.toggle();
     if (input.wasPressed('KeyR')) weather.cycleOverride();
     // Traffic stops for the player and the player's auto (and honks at them).
@@ -169,8 +258,13 @@ async function main() {
       player.step(PHYSICS_STEP);
       auto.update(PHYSICS_STEP);
       traffic.step(PHYSICS_STEP);
+      police.step(PHYSICS_STEP);
       world.step();
-      traffic.afterStep(world, [auto.collider, player.collider]);
+      traffic.afterStep(world, [auto.collider, player.collider, police.jeepCollider, ...(stolen ? [stolen.collider] : [])]);
+      police.afterStep();
+      // Ramming the police jeep is an attack on the police.
+      const ram = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;
+      if (ram && police.state !== 'parked') world.contactPair(ram, police.jeepCollider, () => wanted.report('assaultPolice'));
       player.capture();
       auto.capture();
       accumulator -= PHYSICS_STEP;
@@ -178,11 +272,39 @@ async function main() {
     const alpha = accumulator / PHYSICS_STEP; // how far we are into the next physics step
     player.sync(dt, alpha);
     auto.sync(dayNight.night, alpha);
-    traffic.sync(dt, alpha);
+    traffic.sync(dt, alpha, dayNight.night);
+    police.sync(dt, alpha);
+    // The stick swing goes on top of the animation; the blow lands mid-swing.
+    if (stick.update(dt)) {
+      const f = new THREE.Vector3(Math.sin(player.mesh.rotation.y), 0, Math.cos(player.mesh.rotation.y));
+      const reach = (p: THREE.Vector3) => {
+        const dx = p.x - player.position.x;
+        const dz = p.z - player.position.z;
+        const d = Math.hypot(dx, dz);
+        return d < STICK_REACH && (dx * f.x + dz * f.z) / (d || 1) > 0.3;
+      };
+      let crime = false;
+      for (const npc of crowd.npcs) {
+        if (!reach(npc.root.position)) continue;
+        const line = npc.scold(BEATEN);
+        if (line) hud.say(npc.name, line);
+        crime = true;
+      }
+      for (const o of police.officersNear(player.position, STICK_REACH)) {
+        police.hitOfficer(o);
+        wanted.report('assaultPolice');
+      }
+      if (crime) wanted.report('assault');
+    }
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     jobs.update(dt, ride.driving);
     ride.syncPosition();
-    if (ride.driving) {
+    if (stolen) {
+      player.position.copy(stolen.group.position);
+      player.position.y += 1;
+      cam.update(dt, stolen.group.position, traffic.headingOf(stolen));
+      hud.setSpeed(Math.abs(stolenSpeed) * 3.6);
+    } else if (ride.driving) {
       cam.update(dt, auto.group.position, auto.heading);
       hud.setSpeed(Math.abs(auto.speed) * 3.6);
     } else {
@@ -201,7 +323,36 @@ async function main() {
     props.setNight(dayNight.night);
     temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
-    crowd.update(dt, player.position, inAuto ? Math.abs(auto.speed) : player.speed, inAuto);
+    crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto);
+
+    // Police: chase, arrest, shoot. Wanted level fades when they lose you.
+    const vehicleCollider = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;
+    const pev = police.update(dt, {
+      player: player.position,
+      playerSpeed: stolen ? Math.abs(stolenSpeed) : vehicleCollider ? Math.abs(auto.speed) : player.speed,
+      vehicle: vehicleCollider,
+      level: downFor > 0 ? 0 : wanted.level,
+    });
+    wanted.update(dt, pev.seen);
+    if (pev.officerHit) wanted.report('assaultPolice');
+    if (stolen && wanted.level === 1) {
+      stolenFor += dt;
+      if (stolenFor > KEEP_STOLEN_SECONDS) {
+        wanted.report('keepStolen');
+        hud.say(POLICE, MSG_ESCALATE);
+      }
+    }
+    if (pev.damage > 0 && downFor <= 0) {
+      health -= pev.damage;
+      hud.hurt();
+    }
+    if (wanted.level === 0) health = Math.min(100, health + 4 * dt);
+    if (downFor <= 0 && (health <= 0 || pev.busted)) knockOut(pev.busted && health > 0);
+    if (downFor > 0) {
+      downFor -= dt;
+      if (downFor <= 0) release();
+    }
+    hud.setStatus(health, wanted.level);
     if (input.wasPressed('F3')) debug.toggle();
     if (jobs.phase !== 'off') {
       hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);

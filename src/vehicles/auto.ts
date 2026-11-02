@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from '../world/geo';
+import { plateTexture } from './plates';
 
 // ---- Driving feel ---------------------------------------------------------------------------
 const MAX_SPEED = 14; // m/s (~50 km/h, a loaded auto on a city road)
@@ -200,7 +201,7 @@ export class AutoRickshaw {
  * Build the auto rickshaw's meshes into `group` (model space: ground y = 0, front +z).
  * Shared by the player's auto and traffic autos. Returns the parts that animate.
  */
-export function buildAutoModel(group: THREE.Group) {
+export function buildAutoModel(group: THREE.Group, plateText = 'TN 09 AK 4521') {
 const wheels: THREE.Object3D[] = [];
   const yellow = new THREE.MeshStandardMaterial({ color: 0xf5c400, roughness: 0.38, metalness: 0.15 });
   const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.85 });
@@ -210,7 +211,7 @@ const wheels: THREE.Object3D[] = [];
   const headlight = new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0 });
   const tail = new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
   const amber = new THREE.MeshStandardMaterial({ color: 0xff9800, emissive: 0x803000, emissiveIntensity: 0.3 });
-  const plate = new THREE.MeshStandardMaterial({ map: plateTexture(), roughness: 0.5 });
+  const plate = new THREE.MeshStandardMaterial({ map: plateTexture(plateText, 'commercial'), roughness: 0.5 });
 
   const rb = (w: number, h: number, d: number, r: number, x: number, y: number, z: number, rx = 0) =>
     new RoundedBoxGeometry(w, h, d, 3, r).rotateX(rx).translate(x, y, z);
@@ -288,25 +289,4 @@ const wheels: THREE.Object3D[] = [];
     group.add(mesh);
   }
   return { headlight, tail, wheels };
-}
-
-/** Tamil Nadu commercial plate: black text on yellow. */
-function plateTexture() {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 80;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#ffd400';
-  g.fillRect(0, 0, 256, 80);
-  g.strokeStyle = '#111';
-  g.lineWidth = 6;
-  g.strokeRect(3, 3, 250, 74);
-  g.fillStyle = '#111';
-  g.font = '700 44px system-ui, sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText('TN 09 AK 4521', 128, 42);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }

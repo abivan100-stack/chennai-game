@@ -1,8 +1,12 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { Animator } from '../characters/animator';
+import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { block, SETBACK } from '../world/layout';
-import { buildAutoModel } from './auto';
+import { buildAutoModel, SEAT } from './auto';
+import { busModel, carModel } from './models';
+import { randomPlate } from './plates';
 
 const LANE = SETBACK - 2.5; // lane centre: 2.5 m left of the road centre line (we drive on the left)
 const CORNER_R = 4;
@@ -11,8 +15,8 @@ const LOOKAHEAD = 7; // m along the path to judge an upcoming turn
 const HONK_AFTER = 2.5; // s blocked before honking
 const HONK_EVERY = 4;
 
-type Kind = 'auto' | 'car' | 'bus';
-const SPEC: Record<Kind, { speed: number; length: number; width: number; height: number; mass: number }> = {
+export type Kind = 'auto' | 'car' | 'bus';
+export const SPEC: Record<Kind, { speed: number; length: number; width: number; height: number; mass: number }> = {
   auto: { speed: 7, length: 2.6, width: 1.3, height: 1.9, mass: 350 },
   car: { speed: 9, length: 3.8, width: 1.65, height: 1.5, mass: 900 },
   bus: { speed: 6, length: 10, width: 2.5, height: 3.1, mass: 8000 },
@@ -21,6 +25,21 @@ const SPEC: Record<Kind, { speed: number; length: number; width: number; height:
 const KNOCK_SECONDS = 2.5;
 const STEER_GAIN = 5; // yaw rate per radian of heading error
 const GRIP = 0.25; // fraction of the velocity error corrected per step (tyre grip)
+
+/** Handling when the player drives a stolen vehicle (arcade). */
+const HANDLING: Record<Kind, { top: number; accel: number; turn: number }> = {
+  auto: { top: 13, accel: 5, turn: 1.9 },
+  car: { top: 18, accel: 7, turn: 1.6 },
+  bus: { top: 11, accel: 2.5, turn: 0.8 },
+};
+/** Driver's hip position per vehicle (model space). India drives right-hand: driver on the right (-x). */
+const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
+  auto: SEAT,
+  car: new THREE.Vector3(-0.38, 0.78, 0.0),
+  bus: new THREE.Vector3(-0.8, 1.45, 4.0),
+};
+const FLEE_SECONDS = 6;
+const FLEE_SPEED = 3.5;
 
 /** Closed loop with rounded corners, sampled by distance. */
 class Path {
@@ -88,42 +107,13 @@ function blockRoute(i: number, j: number) {
   return new Path([v(b.x1 + LANE, b.z1 + LANE), v(b.x1 + LANE, b.z0 - LANE), v(b.x0 - LANE, b.z0 - LANE), v(b.x0 - LANE, b.z1 + LANE)]);
 }
 
-function carModel(group: THREE.Group, colour: number) {
-  const body = new THREE.MeshStandardMaterial({ color: colour, roughness: 0.35, metalness: 0.4 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x1d2830, roughness: 0.1, metalness: 0.5 });
-  const lower = new THREE.Mesh(new RoundedBoxGeometry(1.65, 0.6, 3.8, 3, 0.15).translate(0, 0.6, 0), body);
-  const cabin = new THREE.Mesh(new RoundedBoxGeometry(1.5, 0.55, 2.1, 3, 0.15).translate(0, 1.15, -0.2), glass);
-  const roof = new THREE.Mesh(new RoundedBoxGeometry(1.45, 0.08, 1.8, 2, 0.04).translate(0, 1.44, -0.25), body);
-  group.add(lower, cabin, roof);
-  return wheels(group, 0.3, [[0.75, 1.25], [-0.75, 1.25], [0.75, -1.25], [-0.75, -1.25]]);
-}
-
-function busModel(group: THREE.Group) {
-  const white = new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.5 });
-  const blue = new THREE.MeshStandardMaterial({ color: 0x1d4fa8, roughness: 0.5 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x22303a, roughness: 0.1, metalness: 0.4 });
-  group.add(
-    new THREE.Mesh(new RoundedBoxGeometry(2.5, 2.6, 10, 3, 0.2).translate(0, 1.85, 0), white),
-    new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.5, 9.9).translate(0, 0.95, 0), blue),
-    new THREE.Mesh(new THREE.BoxGeometry(2.54, 0.9, 9.4).translate(0, 2.3, -0.2), glass),
-    new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.0, 0.05).translate(0, 2.2, 5.0), glass),
-  );
-  return wheels(group, 0.5, [[1.1, 3.4], [-1.1, 3.4], [1.1, -3.2], [-1.1, -3.2]]);
-}
-
-function wheels(group: THREE.Group, r: number, at: number[][]) {
-  const geo = new THREE.CylinderGeometry(r, r, 0.25, 12).rotateZ(Math.PI / 2);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 });
-  return at.map(([x, z]) => {
-    const w = new THREE.Mesh(geo, mat);
-    w.position.set(x, r, z);
-    group.add(w);
-    return w;
-  });
-}
-
-interface Vehicle {
+export interface Vehicle {
   kind: Kind;
+  /** ai = drives its loop; player = stolen and driven by the player; parked = abandoned. */
+  mode: 'ai' | 'player' | 'parked';
+  driver: THREE.Group | null;
+  lights: THREE.MeshStandardMaterial[];
+  ctl: { throttle: number; steer: number; brake: boolean };
   group: THREE.Group;
   wheels: THREE.Object3D[];
   wheelR: number;
@@ -163,7 +153,14 @@ export class Traffic {
   private readonly aheadDir = new THREE.Vector3();
   private audio: AudioContext | null = null;
 
-  constructor(scene: THREE.Scene, world: RAPIER.World) {
+  /** A driver was pulled out of their vehicle and says something. */
+  onSay: (name: string, line: string) => void = () => {};
+  private readonly scene: THREE.Scene;
+  private readonly fleeing: { root: THREE.Group; anim: Animator; dx: number; dz: number; t: number }[] = [];
+
+  constructor(scene: THREE.Scene, world: RAPIER.World, npcs: Map<NpcModelId, CharacterAsset>) {
+    this.scene = scene;
+    const driverModels = [...npcs.values()];
     const fleet: [Kind, number, number, number, number?][] = [
       // kind, block i, j, start fraction, colour
       ['bus', 1, 2, 0.1],
@@ -179,18 +176,19 @@ export class Traffic {
       const group = new THREE.Group();
       let wheelMeshes: THREE.Object3D[];
       let wheelR = 0.21;
-      if (kind === 'auto') wheelMeshes = buildAutoModel(group).wheels;
-      else if (kind === 'car') {
-        wheelMeshes = carModel(group, colour ?? 0xcccccc);
-        wheelR = 0.3;
+      let lights: THREE.MeshStandardMaterial[] = [];
+      if (kind === 'auto') {
+        const m = buildAutoModel(group, randomPlate('commercial'));
+        wheelMeshes = m.wheels;
+        lights = [m.headlight, m.tail];
       } else {
-        wheelMeshes = busModel(group);
-        wheelR = 0.5;
+        const m = kind === 'car' ? carModel(group, colour ?? 0xcccccc) : busModel(group);
+        wheelMeshes = m.wheels;
+        wheelR = m.wheelR;
+        lights = m.lights;
       }
-      group.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
-      });
       scene.add(group);
+      const driver = seatDriver(driverModels[Math.floor(Math.random() * driverModels.length)], group, DRIVER_SEAT[kind]);
       const sp = SPEC[kind];
       // Dynamic body with real mass, kept upright: it can be shoved; it drives by velocity control.
       const path = blockRoute(i, j);
@@ -211,7 +209,8 @@ export class Traffic {
         body,
       );
       this.vehicles.push({
-        kind, group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
+        kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
+        group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
         collider, target: sp.speed, knocked: 0,
         prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
       });
@@ -221,6 +220,7 @@ export class Traffic {
   /** Once per frame: decide each vehicle's target speed (corners, obstacles) and honk. */
   update(dt: number, obstacles: Obstacle[]) {
     for (const veh of this.vehicles) {
+      if (veh.mode !== 'ai') continue;
       const sp = SPEC[veh.kind];
       const p = veh.currPos;
       veh.path.at(veh.s, this.ahead, this.dir);
@@ -260,6 +260,11 @@ export class Traffic {
   /** Each physics step, before world.step(): steer towards the lane, unless just shoved. */
   step(dt: number) {
     for (const veh of this.vehicles) {
+      if (veh.mode === 'parked') continue; // abandoned: just friction and damping
+      if (veh.mode === 'player') {
+        this.drivePlayer(veh, dt);
+        continue;
+      }
       if (veh.knocked > 0) {
         veh.knocked -= dt;
         continue; // let physics push it about
@@ -312,7 +317,18 @@ export class Traffic {
   }
 
   /** Once per frame: blend the last two physics poses into the models, spin the wheels. */
-  sync(dt: number, alpha: number) {
+  sync(dt: number, alpha: number, night = 0) {
+    for (let i = this.fleeing.length - 1; i >= 0; i--) {
+      const f = this.fleeing[i];
+      f.t += dt;
+      f.root.position.x += f.dx * FLEE_SPEED * dt;
+      f.root.position.z += f.dz * FLEE_SPEED * dt;
+      f.anim.update(dt);
+      if (f.t > FLEE_SECONDS) {
+        f.root.removeFromParent();
+        this.fleeing.splice(i, 1);
+      }
+    }
     for (const veh of this.vehicles) {
       veh.group.position.lerpVectors(veh.prevPos, veh.currPos, alpha);
       veh.group.quaternion.slerpQuaternions(veh.prevRot, veh.currRot, alpha);
@@ -320,7 +336,93 @@ export class Traffic {
       const fwd = this.dir.set(0, 0, 1).applyQuaternion(veh.group.quaternion);
       const speed = lv.x * fwd.x + lv.z * fwd.z;
       for (const w of veh.wheels) w.rotation.x += (speed * dt) / veh.wheelR;
+      if (veh.lights[0]) veh.lights[0].emissiveIntensity = veh.mode === 'parked' ? 0 : 0.2 + night * 2.5;
     }
+  }
+
+  // ---- Stealing vehicles ------------------------------------------------------------------
+
+  /** A vehicle you could get into from `p` (on foot), or null. */
+  enterable(p: THREE.Vector3) {
+    let best: Vehicle | null = null;
+    let bestD = Infinity;
+    for (const v of this.vehicles) {
+      const d = Math.hypot(v.currPos.x - p.x, v.currPos.z - p.z) - SPEC[v.kind].length / 2;
+      if (d < 1.8 && d < bestD) {
+        best = v;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  /** Player takes the vehicle. Returns true if that was theft (someone was driving it). */
+  take(v: Vehicle) {
+    const stolen = v.driver !== null;
+    if (v.driver) this.eject(v);
+    v.mode = 'player';
+    v.knocked = 0;
+    v.ctl = { throttle: 0, steer: 0, brake: false };
+    return stolen;
+  }
+
+  /** Player got out: the vehicle stays where it is. */
+  release(v: Vehicle) {
+    v.mode = 'parked';
+  }
+
+  control(v: Vehicle, throttle: number, steer: number, brake: boolean) {
+    v.ctl.throttle = throttle;
+    v.ctl.steer = steer;
+    v.ctl.brake = brake;
+  }
+
+  /** Signed forward speed (m/s) of a vehicle. */
+  speedOf(v: Vehicle) {
+    const lv = v.body.linvel();
+    const f = this.dir.set(0, 0, 1).applyQuaternion(v.group.quaternion);
+    return lv.x * f.x + lv.z * f.z;
+  }
+
+  headingOf(v: Vehicle) {
+    const f = this.dir.set(0, 0, 1).applyQuaternion(v.group.quaternion);
+    return Math.atan2(f.x, f.z);
+  }
+
+  /** Arcade driving for a stolen vehicle: speed along the nose, yaw rate from steering. */
+  private drivePlayer(v: Vehicle, dt: number) {
+    const h = HANDLING[v.kind];
+    const r = v.body.rotation();
+    const yaw = Math.atan2(2 * (r.w * r.y + r.x * r.z), 1 - 2 * (r.y * r.y + r.x * r.x));
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    const lv = v.body.linvel();
+    let speed = lv.x * fx + lv.z * fz;
+    const { throttle, steer, brake } = v.ctl;
+    if (brake) speed *= 1 - Math.min(1, 4 * dt);
+    else if (throttle > 0) speed = speed < -0.3 ? speed + h.accel * 2 * dt : Math.min(h.top, speed + h.accel * dt);
+    else if (throttle < 0) speed = speed > 0.3 ? speed - h.accel * 2 * dt : Math.max(-5, speed - h.accel * 0.7 * dt);
+    else speed *= 1 - Math.min(1, 0.8 * dt);
+    // Tyres kill most sideways slide each step.
+    const side = { x: lv.x - fx * (lv.x * fx + lv.z * fz), z: lv.z - fz * (lv.x * fx + lv.z * fz) };
+    v.body.setLinvel({ x: fx * speed + side.x * 0.8, y: lv.y, z: fz * speed + side.z * 0.8 }, true);
+    const grip = Math.min(1, Math.abs(speed) / 4);
+    v.body.setAngvel({ x: 0, y: steer * h.turn * grip * Math.sign(speed || 1), z: 0 }, true);
+  }
+
+  /** Pull the driver out: they run away from the vehicle, shouting. */
+  private eject(v: Vehicle) {
+    const root = v.driver!;
+    v.driver = null;
+    this.scene.attach(root);
+    const side = new THREE.Vector3(1, 0, 0).applyQuaternion(v.group.quaternion);
+    root.position.copy(v.currPos).addScaledVector(side, SPEC[v.kind].width / 2 + 0.7);
+    root.position.y = 0;
+    root.rotation.set(0, Math.atan2(side.x, side.z), 0);
+    const anim = root.userData.anim as Animator;
+    anim.play('run', { fade: 0.2 });
+    this.fleeing.push({ root, anim, dx: side.x, dz: side.z, t: 0 });
+    this.onSay('Driver', DRIVER_LINES[Math.floor(Math.random() * DRIVER_LINES.length)]);
   }
 
   /** Two short beeps via WebAudio (no sound files). */
@@ -344,4 +446,29 @@ export class Traffic {
       // Audio blocked until the first click; no honk then.
     }
   }
+}
+
+const DRIVER_LINES = ['Dei! En vandi! Thirudan, thirudan!', 'Aiyo! Police-a koopdunga!', 'Ennoda vandi da adhu! Nil!'];
+
+/**
+ * Sit an NPC in the driver's seat in the (retargeted) Driving pose. The pose is set once and the
+ * mixer never updated again, so a seated driver costs almost nothing per frame.
+ */
+function seatDriver(asset: CharacterAsset, parent: THREE.Group, hips: THREE.Vector3) {
+  const body = cloneSkinned(asset.scene);
+  const root = new THREE.Group();
+  root.add(body);
+  root.scale.setScalar(0.95);
+  parent.add(root);
+  const anim = new Animator(body, asset.clips);
+  anim.play('drive', { fade: 0 });
+  anim.update(0.01);
+  parent.updateMatrixWorld(true);
+  const local = parent.worldToLocal(body.getObjectByName('Hips')!.getWorldPosition(new THREE.Vector3()));
+  root.position.add(hips.clone().sub(local));
+  body.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = false;
+  });
+  root.userData.anim = anim;
+  return root;
 }

@@ -8,7 +8,7 @@ let mouseX = 0;
 let mouseY = 0;
 
 /** Keys whose browser default (scroll, find-next) would fight the game. */
-const BLOCK_DEFAULT = new Set(['Space', 'F3', 'ArrowUp', 'ArrowDown']);
+const BLOCK_DEFAULT = new Set(['Space', 'F3', 'ArrowUp', 'ArrowDown', 'Tab']);
 
 addEventListener('keydown', (e) => {
   if (BLOCK_DEFAULT.has(e.code)) e.preventDefault();
@@ -17,6 +17,10 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => held.delete(e.code));
 addEventListener('blur', () => held.clear()); // avoid stuck keys after alt-tab
+// Left click while playing (pointer locked) = 'Mouse0' (the click that locks the pointer doesn't count).
+addEventListener('mousedown', (e) => {
+  if (document.pointerLockElement && e.button === 0) pressed.add('Mouse0');
+});
 addEventListener('mousemove', (e) => {
   if (!document.pointerLockElement) return;
   mouseX += e.movementX;

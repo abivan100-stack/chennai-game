@@ -90,3 +90,13 @@ export function block(i: number, j: number) {
 
 export const TEMPLE_BLOCK = () => block(CENTRE, CENTRE);
 export const TANK_BLOCK = () => block(CENTRE - 1, CENTRE);
+
+/**
+ * Mylapore Police Station: a lot on the north side of Kutchery Road, south of the temple
+ * (block [2, 3]). Building rows leave it empty; world/policeStation.ts builds it.
+ */
+export const POLICE_LOT = () => {
+  const b = block(CENTRE, CENTRE + 1);
+  const mid = (b.x0 + b.x1) / 2;
+  return { x0: mid - 10, x1: mid + 10, z0: b.z1 - 18, z1: b.z1 };
+};

@@ -16,6 +16,7 @@ Step 3 done: proper street (asphalt, lane markings, zebra crossings, raised side
 Step 3b done: Mylapore layout (stylised from the real one): Kapaleeshwarar temple in the centre block (east gopuram on East Mada Street, smaller west gopuram, kavi-striped compound wall, shrine + vimana, pillared mandapam, golden flag post), temple tank west of it (striped steps, water, 16-pillar mandapam), the four Mada Streets + R.K. Mutt Rd / Luz Church Rd / Kutchery Rd / San Thome High Rd with Tamil/English street-name boards; buildings vary in width, depth, floor heights, shop count, sign size and roofline (incl. old tiled-roof houses with a thinnai). Driver's hips are pinned to the seat (Ride.lateUpdate) so entering is one straight move.
 Step 4 done: render interpolation (no stutter from the 60 Hz physics), taxi fares (passenger waits at a named stop, boards the back bench, drop at the destination marker, Chennai-style meter fare + quick-ride tip, wallet), minimap.
 Step 5 done: real town map (building footprints, shops with names, trees, street names, temple, tank) used by a zoomed player-centred minimap and the phone; phone (P) with Orders (accept ride requests), Map, Wallet (earnings, repay Kandasamy's ₹15,000 loan, ₹500/day due, missed-day messages), Messages, Weather; traffic (autos, cars, MTC bus) in left-hand lanes with honking; live Chennai weather from Open-Meteo driving rain, clouds, fog and wet roads (R cycles a test override).
+Step 6 done: every vehicle has a TN number plate and more detail (lights, grille, mirrors, door lines; MTC bus livery + route board); seated drivers (retargeted Driving pose, frozen); steal any vehicle (driver ejected, runs off) -> wanted level (1 star warning/arrest, 2-3 shoot on sight; escalates if you keep it 15 s, hit people, or ram/hit police; fades when out of sight 20 s); police jeep from the Mylapore Police Station on Kutchery Road chases along the road route with lights + siren, khaki officers get out to arrest or shoot (line of sight, tracers); health bar; ARRESTED / SUTTUTAANGA! screen -> fine and release at the station; stick (lathi) weapon.
 Next: losing the auto when payments are missed too often (game over / grace), save game (localStorage), more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -55,10 +56,16 @@ src/
     jobs.ts            TaxiJobs: phone orders; accepted -> waiting -> boarding -> seating -> riding -> alighting
     economy.ts         cash, loan, daily due, missed days (pure logic, checked)
     route.ts           shortest road route over the street-grid junctions (map guide line; checked)
+  combat/
+    wanted.ts          wanted stars: crimes, escalation, escape timer (pure logic, checked)
+    police.ts          police jeep (route chase, siren, light bar) + officers (arrest / shoot)
+    stick.ts           lathi weapon: attached to the hero's hand, procedural swing, strike event
   vehicles/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET / BENCH anchors;
                        buildAutoModel() shared with traffic
+    models.ts          detailed car / MTC bus / police jeep models (merged per material)
+    plates.ts          TN number plates (random registrations, private/commercial/government)
     traffic.ts         AI autos/cars/bus: dynamic bodies driven by velocity control on rounded block loops
                        (left-hand lanes); stop + honk for obstacles; shoved = limp 2.5 s, then rejoin lane
   world/
@@ -68,6 +75,7 @@ src/
     textures.ts        canvas textures: facade/shop tiles (+ night emissive), signs, asphalt, curbs
     ground.ts          ground, roads, markings, raised sidewalks + curbs (+ colliders), edge walls
     buildings.ts       rows of attached shop-houses: 4 merged draw calls, cuboid colliders, setNight()
+    policeStation.ts   Mylapore Police Station (lot reserved in layout.POLICE_LOT)
     props.ts           instanced street lamps (+ light pools), trees, street-name sign posts; colliders
     sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog, `night` factor
     solar.ts           IST clock + sun direction over Chennai (pure math)

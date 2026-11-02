@@ -77,3 +77,13 @@ export const MSG_MISSED = ['Dei! Nethu kattala. Inniku double-aa kattu!', 'Rendu
 /** {paid}, {left} */
 export const MSG_PAID = 'Seri, ₹{paid} vandhuchu. Innum ₹{left} baaki.';
 export const MSG_PAID_OFF = 'Mudinjuthu! Kadan full-aa kattiteenga. Auto ippo full-aa ungaludhu. Vaazhthukkal!';
+
+// ---- Police --------------------------------------------------------------------------------
+export const POLICE = 'Mylapore Police';
+export const MSG_THEFT_WARNING = 'Vandi thirudinadhu theriyum! Udane niruthu, illana arrest. Idhu first warning.';
+export const MSG_ESCALATE = 'Warning-a mathikala. Ippo shoot-at-sight order!';
+export const BUSTED_TITLE = 'ARRESTED';
+export const WASTED_TITLE = 'SUTTUTAANGA!';
+/** {fine} */
+export const BUSTED_SUB = 'Police pidichitaanga. ₹{fine} fine kattitu station-la irundhu veliya vandheenga.';
+export const WASTED_SUB = 'Gun shot-la vizhundhuteenga. Hospital bill ₹{fine}. Station pakkathula irundhu restart.';

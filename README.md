@@ -38,6 +38,9 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 | A / D (in the auto) | Steer |
 | Space (in the auto) | Handbrake |
 | P | Phone: ride orders, map, wallet (repay the loan), messages, weather |
+| F (near any vehicle) | Get in — if someone is driving it, you steal it (police will come!) |
+| 1 | Take out / put away the stick (lathi) |
+| Left click | Swing the stick |
 | R | Cycle test weather: rain / clear / live (debug) |
 | T (hold) | Fast-forward time (debug) |
 | F3 | Debug panel + quality setting |

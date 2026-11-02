@@ -4,6 +4,7 @@ import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/qua
 import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
 import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
 import { route, routeLength } from '../src/missions/route.ts';
+import { LOSE_SECONDS, Wanted } from '../src/combat/wanted.ts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -71,5 +72,19 @@ for (let i = 1; i < r1.length - 2; i++) {
 assert(Math.abs(routeLength(r1) - (3.4 + 21 + 50 + 45 + 25 + 6)) < 1, `shortest route via a Mada St junction: ${routeLength(r1).toFixed(1)}`);
 const r2 = route({ x: 23, z: -10 }, { x: 23, z: 10 }, LINES); // same street
 assert(r2.length === 4 && routeLength(r2) < 25, 'same street: straight along it');
+
+// --- Wanted level ---
+const w = new Wanted();
+assert(w.report('theft') === 1 && !w.shootOnSight, 'theft = warning star, no shooting');
+assert(w.report('keepStolen') === 2 && w.shootOnSight, 'keeping the stolen ride = shoot on sight');
+assert(w.report('assaultPolice') === 3 && w.report('assault') === 3, 'capped at 3 stars');
+w.update(LOSE_SECONDS - 1, false);
+w.update(0.5, true);
+w.update(LOSE_SECONDS - 0.1, false);
+assert(w.level === 3, 'being seen resets the escape timer');
+w.update(0.2, false);
+assert(w.level === 2, 'out of sight long enough: lose a star');
+w.clear();
+assert(w.report('assault') === 1, 'first assault = 1 star');
 
 console.log('check: all passed');

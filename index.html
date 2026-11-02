@@ -19,6 +19,15 @@
         bottom: 18%; left: 50%; transform: translateX(-50%);
         padding: 6px 14px; border-radius: 6px; background: #000a; display: none;
       }
+      #health { top: 92px; right: 16px; width: 150px; height: 9px; border-radius: 5px; background: #0007; overflow: hidden; border: 1px solid #fff8; }
+      #health-fill { height: 100%; width: 100%; background: #3bc45a; transition: width 0.2s; }
+      #stars { top: 106px; right: 16px; font-size: 26px; color: #ffd21f; letter-spacing: 2px; }
+      #stars.flash { animation: starflash 0.6s infinite alternate; }
+      @keyframes starflash { from { opacity: 1; } to { opacity: 0.45; } }
+      #banner { inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #000a; z-index: 8; }
+      #banner b { font: 800 54px system-ui, sans-serif; color: #ff5252; letter-spacing: 2px; }
+      #banner span { font: 500 20px system-ui, sans-serif; color: #fff; max-width: 80vw; text-align: center; }
+      #hurt { inset: 0; background: radial-gradient(ellipse at center, transparent 40%, #c00 100%); opacity: 0; transition: opacity 0.25s; }
       #speed { bottom: 16px; right: 16px; font-size: 28px; display: none; }
       #dialogue {
         bottom: 7%; left: 50%; transform: translateX(-50%); width: min(560px, 90vw); box-sizing: border-box;
@@ -90,6 +99,10 @@
     <div id="prompt" class="ui"></div>
     <div id="dialogue" class="ui"></div>
     <div id="speed" class="ui"></div>
+    <div id="health" class="ui"><div id="health-fill"></div></div>
+    <div id="stars" class="ui"></div>
+    <div id="hurt" class="ui"></div>
+    <div id="banner" class="ui"></div>
     <canvas id="minimap"></canvas>
     <div id="hint" class="ui">Click to play</div>
     <div id="debug" class="ui">

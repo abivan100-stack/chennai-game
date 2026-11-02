@@ -182,6 +182,22 @@ export class Ride {
     m.position.add(hipsLocal.subVectors(this.hipTarget, hipsLocal));
   }
 
+  /** Get out immediately, no animation (arrested / knocked out). */
+  forceOut() {
+    if (this.phase === 'onFoot') return;
+    const wasDriving = this.phase === 'driving';
+    this.player.walkTo(null);
+    this.pinned = false;
+    const out = this.auto.group.localToWorld(this.standPoint(this.tmp).setY(0));
+    this.player.placeAt(out, this.auto.heading + this.outwardYaw);
+    this.player.attachModel();
+    this.player.animator.play('idle', { fade: 0 });
+    this.player.setAway(false);
+    this.auto.park();
+    this.go('onFoot');
+    if (wasDriving) this.onDrivingChange(false);
+  }
+
   /** Keep the player's logical position on the auto while inside (camera, NPCs, prompts). */
   syncPosition() {
     if (this.phase === 'onFoot' || this.phase === 'approach') return;

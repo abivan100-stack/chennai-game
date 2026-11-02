@@ -37,3 +37,6 @@ export const DRIVE_BUMPED = [
 export function nextLine(pool: readonly string[], counter: number) {
   return pool[counter % pool.length];
 }
+
+/** Hit with the stick. */
+export const BEATEN = ['Aiyo amma! Police-a koopduren!', 'Dei, ennada pannura?! Kaapathunga!', 'Rowdy! Rowdy! Yaaravadhu vaanga!'];
