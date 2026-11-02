@@ -6,10 +6,12 @@ import { GeoBuilder } from '../world/geo';
 import { plateTexture } from './plates';
 
 // ---- Driving feel ---------------------------------------------------------------------------
-const MAX_SPEED = 18; // m/s (~65 km/h; autos in Chennai traffic are quick)
+/** Test mode for now: a super-fast auto. Set false for the normal ~65 km/h auto. */
+const TURBO = true;
+const MAX_SPEED = TURBO ? 36 : 18; // m/s (turbo ~130 km/h; normal ~65 km/h)
 const MAX_REVERSE = 4;
-const ENGINE_FORCE = 1250; // N per rear wheel
-const BRAKE = 12;
+const ENGINE_FORCE = TURBO ? 3000 : 1250; // N per rear wheel
+const BRAKE = TURBO ? 22 : 12;
 const HANDBRAKE = 30;
 const ROLLING_BRAKE = 0.6; // engine braking when off the throttle
 const STEER_LOW_SPEED = 0.6; // rad, full lock at walking pace

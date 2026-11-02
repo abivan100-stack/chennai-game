@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
+import { LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
@@ -192,6 +192,7 @@ export function drawTownMap(data: MapData): TownMap {
 
   // Neighbourhood places: a tinted lot, a badge and a label each.
   const pl = PLACE_LOTS();
+  const lm = LANDMARK_LOTS();
   const placeMarks: [{ x0: number; x1: number; z0: number; z1: number }, string, string, string, string][] = [
     [pl.park, '#a5d6a7', '#2e7d32', '❀', 'Nageswara Rao Park'],
     [pl.church, '#e3f2fd', '#1b3a6b', '✝', 'Luz Church'],
@@ -207,6 +208,14 @@ export function drawTownMap(data: MapData): TownMap {
     [COLLEGE_LOT(), '#f3d9cf', '#8d2b1e', '🎓', 'Vivekananda College'],
     [BOAT_CLUB_LOT(), '#c8e6c9', '#0d3b66', '⛵', 'Madras Boat Club'],
     [CAMPUS_LOT(), '#a5d6a7', '#33691e', '🌳', 'Adyar Banyan Campus'],
+    [lm.musicAcademy, '#f3e9d6', '#7a1f1f', '♪', 'Music Academy'],
+    [lm.naradaGanaSabha, '#f3e9d6', '#7a1f1f', '♪', 'Narada Gana Sabha'],
+    [lm.semmozhiPoonga, '#a5d6a7', '#2e7d32', '❀', 'Semmozhi Poonga'],
+    [lm.metro, '#bbdefb', '#1d4fa8', 'M', 'Teynampet Metro'],
+    [lm.ramakrishnaMath, '#f6e3c8', '#8a3b12', '॥', 'Ramakrishna Math'],
+    [lm.vivekanandarIllam, '#f8dde3', '#8a1c3b', 'V', 'Vivekanandar Illam'],
+    [lm.ambedkarManimandapam, '#c5cae9', '#1a3c8f', 'A', 'Ambedkar Manimandapam'],
+    [lm.tholkappiaPoonga, '#a5d6a7', '#33691e', '🌿', 'Tholkappia Poonga'],
   ];
   for (const [lot, fill, colour, letter, name] of placeMarks) {
     g.fillStyle = fill;

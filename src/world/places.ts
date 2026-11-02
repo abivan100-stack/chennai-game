@@ -4,7 +4,8 @@ import { buildAutoModel } from '../vehicles/auto';
 import { PLACE_MENUS } from './food';
 import type { Eatery } from './eateries';
 import { GeoBuilder } from './geo';
-import { BEACH_FAIR, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, FISH_MARKET, PLACE_LOTS, type Lot } from './layout';
+import { frame, type Frame } from './kit';
+import { BEACH_FAIR, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, FISH_MARKET, PLACE_LOTS } from './layout';
 import { jailerPoster } from './posters';
 import { sandY } from './santhome';
 
@@ -93,25 +94,6 @@ function signAtlas() {
   return t;
 }
 
-/**
- * A lot's own frame: u runs along the frontage, v goes inwards from the road (v = 0 at the
- * lot's front edge). yaw turns a box from lot space into world space.
- */
-function frame(lot: Lot) {
-  const yaw = lot.front === 'n' ? 0 : lot.front === 's' ? Math.PI : lot.front === 'e' ? -Math.PI / 2 : Math.PI / 2;
-  const ns = lot.front === 'n' || lot.front === 's';
-  const fx = ns ? (lot.x0 + lot.x1) / 2 : lot.front === 'e' ? lot.x1 : lot.x0;
-  const fz = !ns ? (lot.z0 + lot.z1) / 2 : lot.front === 'n' ? lot.z0 : lot.z1;
-  const c = Math.cos(yaw);
-  const s = Math.sin(yaw);
-  return {
-    yaw,
-    w: ns ? lot.x1 - lot.x0 : lot.z1 - lot.z0,
-    d: ns ? lot.z1 - lot.z0 : lot.x1 - lot.x0,
-    at: (u: number, v: number, y = 0) => new THREE.Vector3(fx + u * c + v * s, y, fz - u * s + v * c),
-  };
-}
-type Frame = ReturnType<typeof frame>;
 
 export function createPlaces(scene: THREE.Scene, world: RAPIER.World) {
   const geo = new GeoBuilder();

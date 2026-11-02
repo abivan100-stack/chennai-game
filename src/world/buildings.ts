@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
+import { LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
 import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
@@ -13,6 +13,20 @@ const STAIR_ROOM_CHANCE = 0.3;
 const OLD_HOUSE_CHANCE = 0.14; // tiled-roof house with a pillared verandah (thinnai), no shop
 const SHOWROOM_CHANCE = 0.08; // one wide shop with a big signboard
 const TILE = 180; // metres: buildings are merged per tile (frustum culling works per tile)
+/**
+ * Each area looks like its real counterpart:
+ *   old    - Mylapore / Santhome shop-houses (2-4 floors, shops + boards, the odd tiled house)
+ *   flats  - Mandaveli / Adyar apartment blocks (3-5 floors, a balcony on every floor)
+ *   commercial - Anna Salai / Teynampet / Dr. Radhakrishnan Salai commercial blocks: 4-7 floors of
+ *            painted concrete, a sunshade (chajja) over every row of windows, a big name board,
+ *            showrooms on the ground floor (no glass towers: Chennai's main roads look like this)
+ *   house  - Alwarpet / R.A. Puram bungalows (1-2 floors, behind compound walls)
+ */
+type Kind = 'old' | 'flats' | 'commercial' | 'house';
+const COMMERCIAL = [0xf3ead2, 0xffffff, 0xe9e4da, 0xf6e3b4, 0xd9dde0, 0xf0d9c4, 0xe6d3b3];
+const BAND = new THREE.Color(0xd6d3cc);
+const FLAT_PALETTE = [0xf5f1e6, 0xe8e2d4, 0xf2d7b6, 0xd9e6ee, 0xf0e0e8, 0xe4edd9];
+
 /** Leafy residential blocks (Alwarpet, R.A. Puram, Adyar): detached houses behind compound walls. */
 const HOUSE = { yard: 3.5, gap: 2.5, width: [9, 15], oldChance: 0.3, wallH: 1.3, gate: 2.2 };
 const YARD_TREE = new THREE.IcosahedronGeometry(1.6, 1).scale(1, 0.85, 1);
@@ -82,16 +96,22 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
-  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS())];
-  function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean, house = false) {
+  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS()), ...Object.values(LANDMARK_LOTS())];
+  function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean, kind: Kind = 'old', yard = false, lowRise = false) {
+    const house = kind === 'house';
+    const office = kind === 'commercial'; // Anna Salai-style commercial block
+    const flats = kind === 'flats';
     // Leave the police station's and supermarkets' lots empty (rotated footprint: swap w/d for east/west facing).
     const hw0 = (facing === 'e' || facing === 'w' ? d : w) / 2;
     const hd0 = (facing === 'e' || facing === 'w' ? w : d) / 2;
     if (reserved.some((lot) => cx + hw0 > lot.x0 && cx - hw0 < lot.x1 && cz + hd0 > lot.z0 && cz - hd0 < lot.z1)) return;
     count++;
     useTile(cx, cz);
-    const oldHouse = !showroom && rand() < (house ? HOUSE.oldChance : OLD_HOUSE_CHANCE);
-    if (house) {
+    const oldHouse = (kind === 'old' || house) && !showroom && rand() < (house ? HOUSE.oldChance : OLD_HOUSE_CHANCE);
+    // Flats sometimes keep a row of shops on the ground floor; offices always have a showroom.
+    const noShops = house || (flats && rand() < 0.7);
+    if (office) showroom = true;
+    if (yard) {
       // Set the house back behind a front yard; a compound wall with a gate on the old front line.
       const yaw0 = YAW[facing];
       const fx = Math.sin(yaw0);
@@ -118,11 +138,15 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       d -= HOUSE.yard;
     }
     const r = rand();
-    const floors = oldHouse ? (r < 0.6 ? 1 : 2) : r < 0.1 ? 1 : r < 0.42 ? 2 : r < 0.78 ? 3 : 4;
-    const groundH = range(3.2, 4.1);
-    const floorH = range(3.0, 3.5);
+    const floors = oldHouse ? (r < 0.6 ? 1 : 2)
+      : house ? (r < 0.45 ? 1 : 2)
+      : flats ? 3 + Math.floor(r * 3)
+      : office ? (lowRise ? 2 + Math.floor(r * 3) : 4 + Math.floor(r * 4))
+      : r < 0.1 ? 1 : r < 0.42 ? 2 : r < 0.78 ? 3 : 4;
+    const groundH = office ? range(4.2, 5) : range(3.2, 4.1);
+    const floorH = office ? range(3.4, 3.8) : range(3.0, 3.5);
     const h = groundH + (floors - 1) * floorH;
-    const wall = new THREE.Color(pick(PALETTE));
+    const wall = new THREE.Color(pick(office ? COMMERCIAL : flats ? FLAT_PALETTE : PALETTE));
     const fp: Footprint = { cx, cz, w, d, yaw: YAW[facing], color: `#${wall.getHexString()}`, shop: null, shops: [], oldHouse, h };
     footprints.push(fp);
     const m = new THREE.Matrix4().makeRotationY(YAW[facing]).setPosition(cx, 0, cz);
@@ -152,7 +176,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       const out = N(wl.n[0], wl.n[1]);
       const windowsU = Math.max(1, Math.round(wl.len / 3)) / 2; // the facade tile is 2 windows wide
       const g = [P(ax, 0, az), P(bx, 0, bz), P(bx, groundH, bz), P(ax, groundH, az)];
-      if (wl.front && !oldHouse && !house) {
+      if (wl.front && !oldHouse && !noShops) {
         const u1 = bays / 2 + shopShift;
         shops.quad(g[0], g[1], g[2], g[3], [[shopShift, 0], [u1, 0], [u1, 1], [shopShift, 1]], wall, out);
       } else if (wl.front) {
@@ -164,6 +188,28 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
         const u = [P(ax, groundH, az), P(bx, groundH, bz), P(bx, h, bz), P(ax, h, az)];
         const v1 = (floors - 1) / 2; // the facade tile is 2 floors high
         facade.quad(u[0], u[1], u[2], u[3], [[0, 0], [windowsU, 0], [windowsU, v1], [0, v1]], wall, out);
+      }
+    }
+    if (office) {
+      // A concrete sunshade over every row of windows, front and sides.
+      for (let f = 1; f < floors; f++) {
+        const y = groundH + f * floorH - 0.55;
+        box(w + 0.2, 0.08, 0.7, 0, y, hd + 0.3, BAND);
+        if (rand() < 0.5) {
+          box(0.7, 0.08, d, hw + 0.3, y, 0, BAND);
+          box(0.7, 0.08, d, -hw - 0.3, y, 0, BAND);
+        }
+      }
+      // The firm's big name board across the first floor.
+      if (floors > 2) {
+        const idx = Math.floor(rand() * SIGN_COUNT);
+        const [v0, v1] = sign.rowV(idx);
+        const bw = Math.min(w - 1, 10);
+        const bh = Math.min(2, bw / 4.5);
+        const y = groundH + 0.6;
+        const z = hd + 0.04;
+        const s = [P(-bw / 2, y, z), P(bw / 2, y, z), P(bw / 2, y + bh, z), P(-bw / 2, y + bh, z)];
+        signs.quad(s[0], s[1], s[2], s[3], [[0, v0], [1, v0], [1, v1], [0, v1]], wall, N(0, 1));
       }
     }
 
@@ -205,9 +251,9 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       }
 
       // Sunshade over the shops, one signboard per shop sized to its width (houses: none).
-      if (!house) box(w, 0.1, 0.8, 0, groundH - 0.05, hd + 0.4, wall);
+      if (!noShops) box(w, 0.1, 0.8, 0, groundH - 0.05, hd + 0.4, office ? BAND : wall);
       const bayW = w / bays;
-      for (let bay = 0; bay < (house ? 0 : bays); bay++) {
+      for (let bay = 0; bay < (noShops ? 0 : bays); bay++) {
         if (!showroom && rand() < 0.1) continue; // the odd shop without a board
         const x = -hw + bayW * (bay + 0.5);
         const sw = bayW - 0.3;
@@ -226,17 +272,21 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     // Balconies on upper floors, in front of a window bay.
     const windowBays = Math.max(1, Math.round(w / 3));
     // A first-floor balcony would sit right in front of the shop signboards, so shops start one floor up.
-    for (let f = fp.shops.length ? 2 : 1; f < floors; f++) {
-      if (rand() > BALCONY_CHANCE) continue;
+    // Flats: a balcony on every floor, in every other bay (one railing colour per building).
+    const flatRail = pick(RAILINGS);
+    for (let f = fp.shops.length ? 2 : 1; f < (office ? 0 : floors); f++) {
       const bayW = w / windowBays;
-      const x = -hw + bayW * (Math.floor(rand() * windowBays) + 0.5);
-      const y = groundH + (f - 1) * floorH;
-      const bw = Math.min(2.4, bayW - 0.2);
-      const rail = pick(RAILINGS);
-      box(bw, 0.12, 0.9, x, y, hd + 0.45, wall);
-      box(bw, 0.9, 0.05, x, y + 0.5, hd + 0.88, rail);
-      box(0.05, 0.9, 0.9, x - bw / 2 + 0.02, y + 0.5, hd + 0.45, rail);
-      box(0.05, 0.9, 0.9, x + bw / 2 - 0.02, y + 0.5, hd + 0.45, rail);
+      const xs = flats ? Array.from({ length: windowBays }, (_, i) => i).filter((i) => i % 2 === 0) : rand() > BALCONY_CHANCE ? [] : [Math.floor(rand() * windowBays)];
+      for (const i of xs) {
+        const x = -hw + bayW * (i + 0.5);
+        const y = groundH + (f - 1) * floorH;
+        const bw = Math.min(2.4, bayW - 0.2);
+        const rail = flats ? flatRail : pick(RAILINGS);
+        box(bw, 0.12, 0.9, x, y, hd + 0.45, wall);
+        box(bw, 0.9, 0.05, x, y + 0.5, hd + 0.88, rail);
+        box(0.05, 0.9, 0.9, x - bw / 2 + 0.02, y + 0.5, hd + 0.45, rail);
+        box(0.05, 0.9, 0.9, x + bw / 2 - 0.02, y + 0.5, hd + 0.45, rail);
+      }
     }
 
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
@@ -249,6 +299,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
 
   /** Fill a street frontage from `a` to `b` with buildings of varied width (and the odd alley). */
   function row(a: number, b: number, place: (start: number, width: number, depth: number, showroom: boolean) => void, houses = false) {
+    // (houses = detached plots with yards: wider, always a gap between them)
     let x = a;
     while (b - x >= 4) {
       const showroom = !houses && rand() < SHOWROOM_CHANCE;
@@ -267,13 +318,19 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     const h = blk.kind === 'houses';
     const { x0, x1, z0, z1, road } = blk;
     const dMax = DEPTH[1] + (h ? HOUSE.yard : 0);
-    if (road.n) row(x0, x1, (s, w, d, sr) => building(w, d, s + w / 2, z0 + d / 2, 'n', sr, h), h);
-    if (road.s) row(x0, x1, (s, w, d, sr) => building(w, d, s + w / 2, z1 - d / 2, 's', sr, h), h);
+    const put = (f: Facing) => (s: number, w: number, d: number, sr: boolean) => {
+      const [kind, lowRise] = areaKind(blk.i, blk.j, f, rand());
+      const cx = f === 'n' || f === 's' ? s + w / 2 : f === 'w' ? x0 + d / 2 : x1 - d / 2;
+      const cz = f === 'e' || f === 'w' ? s + w / 2 : f === 'n' ? z0 + d / 2 : z1 - d / 2;
+      building(w, d, cx, cz, f, sr, kind, h && kind !== 'commercial', lowRise); // showrooms sit on the pavement, no compound wall
+    };
+    if (road.n) row(x0, x1, put('n'), h);
+    if (road.s) row(x0, x1, put('s'), h);
     // Side rows fit between the north/south rows.
     const za = road.n ? z0 + dMax : z0;
     const zb = road.s ? z1 - dMax : z1;
-    if (road.w) row(za, zb, (s, w, d, sr) => building(w, d, x0 + d / 2, s + w / 2, 'w', sr, h), h);
-    if (road.e) row(za, zb, (s, w, d, sr) => building(w, d, x1 - d / 2, s + w / 2, 'e', sr, h), h);
+    if (road.w) row(za, zb, put('w'), h);
+    if (road.e) row(za, zb, put('e'), h);
   }
 
   const fTex = facadeTextures();
@@ -307,3 +364,17 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
 }
 
 const TANK_GEO = new THREE.CylinderGeometry(0.55, 0.55, 1.1, 10);
+
+/**
+ * Which kind of building goes on block (i, j), facing f, like the real area (r = random 0..1).
+ * Returns [kind, lowRise] (lowRise: a 2-4 floor showroom block rather than a 4-7 floor one).
+ */
+function areaKind(i: number, j: number, f: Facing, r: number): [Kind, boolean] {
+  if (i <= -2) return r < 0.7 ? ['commercial', false] : ['old', false]; // Teynampet, Anna Salai
+  if (j === -1 || (j === 0 && f === 'n')) return r < 0.6 ? ['commercial', false] : ['old', false]; // Dr. Radhakrishnan Salai
+  if (i === -1) return f === 'e' && r < 0.75 ? ['commercial', true] : ['house', false]; // Alwarpet: TTK Road showrooms, bungalows behind
+  if (j >= 8) return (j === 8 && f === 's') || (j === 9 && f === 'n') ? (r < 0.6 ? ['commercial', true] : ['flats', false]) : r < 0.65 ? ['flats', false] : ['house', false]; // Adyar
+  if (j >= 6) return r < 0.25 ? ['flats', false] : ['house', false]; // R.A. Puram
+  if (j === 4 || j === 5) return r < 0.6 ? ['flats', false] : ['old', false]; // Mandaveli
+  return ['old', false]; // Mylapore, Santhome
+}

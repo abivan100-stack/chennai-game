@@ -26,6 +26,8 @@ export interface PhoneDeps {
   newGame: () => void;
   /** Pay Kandasamy to get the seized auto back. */
   redeem: () => void;
+  /** Net banking: move money between the bank and your pocket. */
+  bank: (op: 'deposit' | 'withdraw', amount: number) => void;
 }
 
 interface Message {
@@ -275,6 +277,7 @@ export class Phone {
       h('div', { class: 'phone-title' }, 'Wallet'),
       h('div', { class: 'phone-card' }, h('div', { class: 'big' }, rupees(economy.cash)), h('div', { class: 'muted' }, 'cash in hand')),
       h('div', { class: 'phone-card' }, `Today: ${rupees(economy.earnedToday)} earned · ${economy.rides} rides total`),
+      this.bankCard(),
       ...(economy.seized ? [this.seizedCard()] : []),
       h(
         'div',
@@ -286,6 +289,29 @@ export class Phone {
         h('div', { class: 'phone-row' }, payBtn(`Pay ${rupees(DAILY_DUE)}`, DAILY_DUE), payBtn('Pay all cash', Infinity)),
       ),
       this.newGameButton(),
+    );
+  }
+
+  /** Mylapore Co-op Bank app: savings balance, deposit / withdraw from anywhere. */
+  private bankCard() {
+    const { economy } = this.deps;
+    const btn = (label: string, op: 'deposit' | 'withdraw', amount: number, enabled: boolean) => {
+      const b = h('button', { class: 'phone-btn' }, label);
+      if (!enabled) b.setAttribute('disabled', '');
+      b.onclick = () => {
+        this.deps.bank(op, amount);
+        this.render();
+      };
+      return b;
+    };
+    return h(
+      'div',
+      { class: 'phone-card' },
+      h('b', {}, '🏦 Mylapore Co-op Bank'),
+      h('div', {}, `Savings: ${rupees(economy.savings)}`),
+      h('div', { class: 'muted' }, 'Safe from pickpockets; fines come out of it before the kadan grows.'),
+      h('div', { class: 'phone-row' }, btn('Deposit all cash', 'deposit', economy.cash, economy.cash > 0), btn('Withdraw ₹500', 'withdraw', 500, economy.savings > 0)),
+      h('div', { class: 'phone-row' }, btn(`Withdraw all`, 'withdraw', economy.savings, economy.savings > 0)),
     );
   }
 

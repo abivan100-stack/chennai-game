@@ -265,6 +265,34 @@ export const CAMPUS_LOT = (): Lot => {
   return { x0: b.x0, x1: b.x1, z0: RIVER.z1 + 2, z1: b.z1, front: 's' };
 };
 
+/**
+ * Real landmarks (world/landmarks.ts), stylised: Music Academy and Narada Gana Sabha on TTK Road,
+ * Semmozhi Poonga and the Teynampet Metro entrance on Anna Salai, Ramakrishna Math on R.K. Mutt
+ * Road, Vivekanandar Illam (Ice House) on the Beach Road, Ambedkar Manimandapam on Greenways Road
+ * and Tholkappia Poonga (Adyar Eco Park) by the river.
+ */
+export const LANDMARK_LOTS = () => {
+  const lot = (x0: number, x1: number, z0: number, z1: number, front: Front): Lot => ({ x0, x1, z0, z1, front });
+  const ttkN = block(-1, 0);
+  const ttkS = block(-1, 3);
+  const anna = block(-2, 0);
+  const metro = block(-2, 2);
+  const rkm = block(CENTRE - 1, CENTRE + 3);
+  const ice = block(SANTHOME, -1);
+  const green = block(-1, 7);
+  const eco = block(SANTHOME, 7);
+  return {
+    musicAcademy: lot(ttkN.x1 - 30, ttkN.x1, ttkN.z0, ttkN.z0 + 30, 'e'),
+    naradaGanaSabha: lot(ttkS.x1 - 22, ttkS.x1, ttkS.z0, ttkS.z0 + 22, 'e'),
+    semmozhiPoonga: lot(anna.x0, anna.x1, anna.z0, anna.z1, 'w'),
+    metro: lot(metro.x0, metro.x0 + 14, -9, 9, 'w'),
+    ramakrishnaMath: lot(rkm.x0, rkm.x1, rkm.z0, rkm.z1, 'w'),
+    vivekanandarIllam: lot(ice.x1 - 28, ice.x1, ice.z0, ice.z1, 'e'),
+    ambedkarManimandapam: lot(green.x0, green.x1, green.z1 - 28, green.z1, 's'),
+    tholkappiaPoonga: lot(eco.x0, eco.x1, eco.z0, eco.z1, 's'),
+  };
+};
+
 export const POLICE_LOT = () => {
   const b = block(CENTRE, CENTRE + 1);
   const mid = (b.x0 + b.x1) / 2;

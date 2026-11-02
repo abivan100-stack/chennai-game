@@ -58,6 +58,15 @@ export const STOPS: Stop[] = [
   { name: 'Greenways Road', axis: 'z', line: 300, along: -170, side: -1 },
   { name: 'Adyar Banyan Campus', axis: 'z', line: 390, along: 0, side: -1 },
   { name: 'Adyar signal', axis: 'z', line: 390, along: 70, side: -1 },
+  // Landmarks (world/landmarks.ts)
+  { name: 'Music Academy', axis: 'x', line: -145, along: -108, side: -1 },
+  { name: 'Narada Gana Sabha', axis: 'x', line: -145, along: 43, side: -1 },
+  { name: 'Semmozhi Poonga', axis: 'x', line: -265, along: -100, side: 1 },
+  { name: 'Teynampet Metro', axis: 'x', line: -265, along: 0, side: 1 },
+  { name: 'Ramakrishna Math', axis: 'x', line: -70, along: 145, side: 1 },
+  { name: 'Vivekanandar Illam', axis: 'x', line: 125, along: -148, side: -1 },
+  { name: 'Ambedkar Manimandapam', axis: 'z', line: 300, along: -175, side: -1 },
+  { name: 'Tholkappia Poonga', axis: 'z', line: 300, along: 97, side: -1 },
 ];
 export const HOSPITAL = 'Isabel Hospital';
 

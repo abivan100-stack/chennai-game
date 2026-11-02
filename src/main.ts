@@ -37,6 +37,7 @@ import { createMandaveli } from './world/mandaveli';
 import { createPosters } from './world/posters';
 import { createHospital } from './world/hospital';
 import { createPlaces, type Service } from './world/places';
+import { createLandmarks } from './world/landmarks';
 import { CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
@@ -107,6 +108,7 @@ async function main() {
   const posters = createPosters(scene, town.footprints);
   const hospital = createHospital(scene, world);
   const places = createPlaces(scene, world);
+  const landmarks = createLandmarks(scene, world);
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   const upkeep = new Upkeep();
   const signals = createTrafficLights(scene, world);
@@ -346,6 +348,14 @@ async function main() {
     guide: () => guide,
     newGame: () => newGame(),
     redeem: () => redeemAuto(),
+    bank: (op, amount) => {
+      const n = op === 'deposit' ? economy.deposit(amount) : economy.withdraw(amount);
+      if (!n) return;
+      showMoney();
+      sound.coin();
+      const line = (op === 'deposit' ? PLACE_LINES.deposited : PLACE_LINES.withdrew).replace('{n}', n.toLocaleString('en-IN'));
+      phone.notify(`🏦 ${line}`);
+    },
     pay: (amount) => {
       const paid = economy.pay(amount);
       if (!paid) return;
@@ -858,6 +868,7 @@ async function main() {
     if (upkeep.fuel >= 1) fuelWarned = false;
     places.update(dt);
     places.setNight(dayNight.night);
+    landmarks.setNight(dayNight.night);
     // A show lets out at the cinema: a couple of ride orders from there.
     const hour = Math.floor(istTime(dayNight.timeMs).hours);
     if (hour !== lastShowHour) {
