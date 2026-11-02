@@ -42,6 +42,7 @@ import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
 import { createCafes } from './world/cafes';
 import { createBesantNagar } from './world/besant';
+import { createBeachLife } from './world/beachLife';
 import { TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
@@ -117,9 +118,12 @@ async function main() {
   const gated = createComplex(scene, world);
   const cafes = createCafes(scene, world);
   const besant = createBesantNagar(scene, world);
+  const beachLife = createBeachLife(scene, world, santhome.obstacles);
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
   eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
+  eateries.list.push(...beachLife.eateries); // beach stalls + dessert carts (some move)
+  let stageWasOn = false;
   const upkeep = new Upkeep();
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
@@ -883,6 +887,11 @@ async function main() {
     gated.setNight(dayNight.night);
     cafes.setNight(dayNight.night);
     besant.setNight(dayNight.night);
+    const istHour = istTime(dayNight.timeMs).hours;
+    beachLife.update(dt, istHour, dayNight.night);
+    const stageOn = beachLife.stageOn(istHour);
+    if (stageOn && !stageWasOn) phone.notify(PLACE_LINES.musicNight);
+    stageWasOn = stageOn;
     // A show lets out at the cinema: a couple of ride orders from there.
     const hour = Math.floor(istTime(dayNight.timeMs).hours);
     if (hour !== lastShowHour) {

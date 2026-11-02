@@ -198,6 +198,8 @@ export function createSanthome(scene: THREE.Scene, world: RAPIER.World) {
     },
     /** Food carts on the beach (for later: buying snacks there). World positions at the cart counter. */
     carts,
+    /** Everything standing on the sand (lighthouse, carts, huts, boats, palms): keep new props clear. */
+    obstacles,
     /** A nice spot on the promenade facing the sea (+x) (for spawning / missions). */
     beachSpot: new THREE.Vector3((PROM_X0 + PROM_X1) / 2, PROM_Y, 10),
     /** Lighthouse: where you press E to go up (outside the door) and where you arrive on the gallery. */

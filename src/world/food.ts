@@ -56,6 +56,15 @@ export const PLACE_MENUS = {
       { name: 'Masala tea', price: 50, energy: 8, seconds: 4, color: '#c79a5b' },
     ],
   },
+  dessert: {
+    kind: 'shop', greet: 'Sweet-aa edhaavadhu? Rose milk, jigarthanda, kulfi, ellam iruku!',
+    items: [
+      { name: 'Rose milk', price: 40, energy: 12, seconds: 4, color: '#f8a5c2' },
+      { name: 'Jigarthanda', price: 70, energy: 18, seconds: 5, color: '#c69c6d' },
+      { name: 'Malai kulfi', price: 50, energy: 14, seconds: 4, color: '#f3e3b0' },
+      { name: 'Falooda', price: 120, energy: 25, seconds: 6, color: '#ff8fab' },
+    ],
+  },
   fair: {
     kind: 'shop', greet: 'Sundal, bajji, ice cream! Fair-ku vandheenga, saapdunga!',
     items: [

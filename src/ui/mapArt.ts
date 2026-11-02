@@ -112,6 +112,8 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'PERUNGUDI', x: 0, z: 630, kind: 'landmark' });
   labels.push({ text: 'BESANT NAGAR', x: 97, z: 470, kind: 'landmark' });
   labels.push({ text: "Elliot's Beach", x: 165, z: 540, kind: 'landmark' });
+  badge(g, P(170), P(600), '#14213d', '♫');
+  labels.push({ text: 'Music stage (6-10 pm)', x: 170, z: 608, kind: 'landmark' });
   labels.push({ text: 'VELACHERY', x: -205, z: 610, kind: 'landmark' });
 
   /** A band `half` wide either side of each road's centre line, over the road's length. */

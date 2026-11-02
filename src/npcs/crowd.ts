@@ -127,6 +127,10 @@ const SPAWNS: Spawn[] = [
   ...crowdOf(['Techie Sharmila', 'Techie Naveen', 'Delivery boy Imran'], { block: [3, 9], lane: LANE_B, hours: [[8, 20.5]] }),
   // Velachery gated community residents.
   ...crowdOf(['Resident Anand', 'Resident Kavitha', 'Watchman Gurkha', 'Resident Sid'], { block: [-2, 10], lane: LANE_A, hours: [[6, 9], [16.5, 21.5]] }),
+  // Beach events: the music night audience, a beach cricket game, kite flyers.
+  ...crowdOf(['Fan Deepak', 'Fan Swetha', 'Fan Karthi', 'Fan Monisha', 'Fan Ajay', 'Fan Ritu', 'Fan Gautham', 'Fan Leela'], { loop: [[152, 592], [162, 592], [162, 608], [152, 608]], y: 0.1, hours: [[18, 22]] }),
+  ...crowdOf(['Batsman Dinesh', 'Bowler Vicky', 'Fielder Sam', 'Fielder Bala', 'Keeper Ashok'], { loop: [[155, 196], [166, 196], [166, 224], [155, 224]], y: 0.1, hours: [[15, 18]], pace: 'run' }),
+  ...crowdOf(['Kite flyer Raja', 'Kite flyer Pavithra', 'Kite flyer Sundar'], { loop: [[150, -130], [172, -130], [172, -100], [150, -100]], y: 0.1, hours: [[15, 18.5]] }),
   // Luz Church Road shoppers.
   ...crowdOf(['Shopper Indira', 'Flower seller Ponni'], { block: [1, 1], lane: LANE_B, hours: [[7, 21]] }),
 ];

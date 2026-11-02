@@ -107,6 +107,7 @@ export const PLACE_LINES = {
   standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
   showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
   tidelRush: '💻 Tidel Park shift mudinjiduchu! IT makkal auto-ku wait pannuraanga.',
+  musicNight: "🎶 Elliot's Beach-la music night start aachu! Live band, kites, dessert carts - vaanga!",
   collegeRush: '🎓 College rush! Vivekananda College-la students auto-ku wait pannuraanga.',
   lowFuel: 'Petrol kammiyaa irukku! R.K. Mutt Road bunk-ku ponga.',
   noFuel: 'Petrol theernthuduchu! Mella thallikittu bunk-ku ponga.',
