@@ -40,6 +40,7 @@ export class PlayerController {
   private readonly vel = new THREE.Vector3();
   private readonly wish = new THREE.Vector3();
   private grounded = false;
+  private moveSpeed = 0; // actual horizontal speed after collisions (drives animation)
   private jumped = false;
   private airTime = 0;
 
@@ -61,6 +62,11 @@ export class PlayerController {
     this.animator = new Animator(hero.scene, hero.clips);
     this.animator.play('idle', { fade: 0 });
     this.position.copy(spawn);
+  }
+
+  /** Horizontal speed the player is trying to move at (m/s). */
+  get speed() {
+    return Math.hypot(this.vel.x, this.vel.z);
   }
 
   /** Read input and queue this frame's movement. Call BEFORE world.step(). */
@@ -90,6 +96,9 @@ export class PlayerController {
     this.ctrl.computeColliderMovement(this.collider, { x: this.vel.x * dt, y: desiredY, z: this.vel.z * dt });
     const move = this.ctrl.computedMovement();
     this.grounded = this.ctrl.computedGrounded();
+    // Smoothed so brushing along a wall doesn't flicker between walk and idle.
+    const actual = dt > 0 ? Math.hypot(move.x, move.z) / dt : 0;
+    this.moveSpeed += (actual - this.moveSpeed) * (1 - Math.exp(-15 * dt));
     if (this.grounded && this.vel.y < 0) this.vel.y = 0;
     if (desiredY > 0 && move.y < desiredY * 0.5) this.vel.y = 0; // bumped head
 
@@ -103,13 +112,13 @@ export class PlayerController {
     this.position.set(t.x, t.y, t.z);
     this.mesh.position.copy(this.position);
 
-    const speed = Math.hypot(this.vel.x, this.vel.z);
-    if (speed > 0.3) {
+    if (this.speed > 0.3) {
       const target = Math.atan2(this.vel.x, this.vel.z);
       const delta = Math.atan2(Math.sin(target - this.mesh.rotation.y), Math.cos(target - this.mesh.rotation.y));
       this.mesh.rotation.y += delta * (1 - Math.exp(-TURN_RATE * dt));
     }
 
+    const speed = this.moveSpeed; // pressing into a wall = idle, not running on the spot
     this.airTime = this.grounded ? 0 : this.airTime + dt;
     if (this.grounded) this.jumped = false;
     if (this.jumped || this.airTime > FALL_AFTER) {

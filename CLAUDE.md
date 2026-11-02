@@ -11,6 +11,7 @@
 ## Status
 Step 1 done: test town (flat 200 m ground, 19 box buildings, road grid), follow camera, parked placeholder auto ("F - Get in" just logs), IST day/night, adaptive quality, debug panel, HUD placeholders.
 Step 2 done: animated Mixamo hero (idle/walk/run/jump, 0.2 s crossfades) on the invisible capsule; 10 Quaternius NPCs (5 idle, 5 walking block loops), frozen beyond 40 m; loading screen.
+Step 2b done: NPC behaviours and interactions: E to talk (NPC faces you, waves, Tanglish line), running into NPCs makes them flinch and complain, NPCs block the player (kinematic capsules, ignored by the camera), walkers pause and wait, a jogger, standers fidget/watch/wave.
 Next: driving the auto (dynamic body / Rapier vehicle controller), then passengers, missions, minimap.
 
 ## Tech stack
@@ -36,8 +37,12 @@ src/
     controller.ts      kinematic capsule + KinematicCharacterController; drives hero animation state
     camera.ts          orbit follow camera, sphere-cast so it never clips walls
   npcs/
-    npc.ts             one pedestrian: SkeletonUtils clone, tint/texture variant, idle or path walk
-    crowd.ts           spawn list + per-frame update, freezes NPCs > 40 m from the player
+    npc.ts             one pedestrian: SkeletonUtils clone, tint/texture variant, kinematic capsule;
+                       behaviour (walk/jog loops, corner pauses, wait for player, fidget, watch, wave)
+                       + talk() / bump() reactions
+    crowd.ts           spawn list (names, models, paths), nearest-talkable + bump detection,
+                       freezes NPCs > 40 m from the player
+    dialogue.ts        Tanglish line pools (pure data)
   vehicles/
     auto.ts            placeholder auto rickshaw (2 merged meshes, fixed collider)
   world/
@@ -79,6 +84,7 @@ KTX2 textures are not used yet: `toktx` (KTX-Software) isn't installed. To switc
 
 ### Add a new character
 - **Another Mixamo character**: export FBX Binary *With Skin*, convert like `hero.fbx`. Hero clips work on it unchanged (same bone names after the prefix strip).
+- NPC clip names used in code: `idle`, `idle2`, `walk`, `run`, `wave`, `hit` (mapped from the Quaternius names in `NPC_CLIPS`). A new rig must provide all of them.
 - **New NPC model**: drop the glTF/GLB in `assets-source/<pack>/`, add `{ src, out, rig }` to `NPCS` in `build-models.mjs` and the same id/file/rig to `NPC_MODELS` in `src/characters/catalog.ts`, then use it in `src/npcs/crowd.ts` (`SPAWNS`). Models sharing a `rig` (identical skeleton) share clips; only the first file of each rig keeps them. A model on a **new** skeleton must bring its own `Idle`/`Walk`/`Run` clips (map names in `NPC_CLIPS`) or be retargeted (`SkeletonUtils.retargetClip`).
 - Always add a row to `CREDITS.md`. Only CC0, or CC-BY with credit. No NC / no-redistribution / unclear licenses.
 

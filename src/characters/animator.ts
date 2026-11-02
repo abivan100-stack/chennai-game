@@ -4,6 +4,7 @@ const DEFAULT_FADE = 0.2; // seconds
 
 export interface PlayOptions {
   once?: boolean; // play one time and hold the last frame (jumps)
+  then?: string; // with once: clip to crossfade to when this one finishes (wave -> idle)
   startAt?: number; // seconds into the clip
   fade?: number;
 }
@@ -16,17 +17,26 @@ export class Animator {
   private readonly mixer: THREE.AnimationMixer;
   private readonly actions = new Map<string, THREE.AnimationAction>();
   private current: THREE.AnimationAction | null = null;
+  private then = '';
   currentName = '';
 
   constructor(root: THREE.Object3D, clips: THREE.AnimationClip[]) {
     this.mixer = new THREE.AnimationMixer(root);
     for (const clip of clips) this.actions.set(clip.name, this.mixer.clipAction(clip));
+    this.mixer.addEventListener('finished', (e) => {
+      if (e.action === this.current && this.then) this.play(this.then);
+    });
+  }
+
+  has(name: string) {
+    return this.actions.has(name);
   }
 
   /** Crossfade to a clip. No-op if it is already playing. */
   play(name: string, opts: PlayOptions = {}) {
     const next = this.actions.get(name);
     if (!next || next === this.current) return;
+    this.then = opts.then ?? '';
     next.reset();
     next.setLoop(opts.once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
     next.clampWhenFinished = !!opts.once;

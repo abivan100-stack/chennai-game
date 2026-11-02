@@ -18,6 +18,12 @@
         bottom: 18%; left: 50%; transform: translateX(-50%);
         padding: 6px 14px; border-radius: 6px; background: #000a; display: none;
       }
+      #dialogue {
+        bottom: 7%; left: 50%; transform: translateX(-50%); width: min(560px, 90vw); box-sizing: border-box;
+        padding: 10px 16px; border-radius: 6px; border-left: 4px solid #f2c200; background: #000c;
+        font-weight: 400; display: none;
+      }
+      #dialogue b { color: #f2c200; }
       #hint { top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; }
       #debug {
         bottom: 16px; left: 16px; padding: 8px 10px; border-radius: 6px; background: #000b;
@@ -44,6 +50,7 @@
     <div id="mission" class="ui"></div>
     <div id="wallet" class="ui"></div>
     <div id="prompt" class="ui"></div>
+    <div id="dialogue" class="ui"></div>
     <div id="hint" class="ui">Click to play</div>
     <div id="debug" class="ui">
       <pre id="debug-text"></pre>

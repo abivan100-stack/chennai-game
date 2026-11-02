@@ -29,7 +29,8 @@ async function main() {
   createGround(scene, world);
   const buildingCount = createBuildings(scene, world);
   const dayNight = new DayNight(scene);
-  const crowd = new Crowd(scene, characters.npcs);
+  const crowd = new Crowd(scene, world, characters.npcs);
+  crowd.onSay = (name, line) => hud.say(name, line);
 
   // Player + camera
   const player = new PlayerController(world, scene, new THREE.Vector3(0, 1, 6), characters.hero);
@@ -71,11 +72,14 @@ async function main() {
     cam.update(dt, player.position);
 
     dayNight.update(dt, input.isDown('KeyT'), player.position);
-    crowd.update(dt, player.position);
+    crowd.update(dt, player.position, player.speed);
 
+    // Context interactions: the auto wins over people when both are in reach.
     const nearAuto = auto.isNear(player.position, ENTER_RADIUS);
-    hud.setPrompt(nearAuto ? 'F - Get in' : null);
+    const talkTo = nearAuto ? null : crowd.nearest;
+    hud.setPrompt(nearAuto ? 'F - Get in' : talkTo ? `E - Talk to ${talkTo.name}` : null);
     if (nearAuto && input.wasPressed('KeyF')) console.log('entered auto');
+    if (talkTo && input.wasPressed('KeyE')) hud.say(talkTo.name, talkTo.talk());
     if (input.wasPressed('F3')) debug.toggle();
 
     renderer.render(scene, camera);

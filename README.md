@@ -33,6 +33,7 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 | Shift | Run |
 | Space | Jump |
 | F | Get in the auto (when close) |
+| E | Talk to a nearby person |
 | T (hold) | Fast-forward time (debug) |
 | F3 | Debug panel + quality setting |
 

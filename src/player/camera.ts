@@ -50,7 +50,8 @@ export class FollowCamera {
 
     const hit = this.world.castShape(
       this.pivot, { x: 0, y: 0, z: 0, w: 1 }, this.dir, this.probe,
-      0, DISTANCE, false, undefined, undefined, this.ignore,
+      // Kinematic bodies (NPCs, later moving vehicles) don't push the camera in.
+      0, DISTANCE, false, RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC, undefined, this.ignore,
     );
     const allowed = hit ? Math.max(0.3, hit.time_of_impact) : DISTANCE;
     this.distance = allowed < this.distance

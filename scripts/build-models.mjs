@@ -49,7 +49,8 @@ const NPCS = [
   { src: 'quaternius/women/Formal.gltf', out: 'npc-woman-formal', rig: 'qwomen' },
   { src: 'quaternius/women/Suit.gltf', out: 'npc-woman-suit', rig: 'qwomen' },
 ];
-const NPC_CLIPS = { Idle: 'idle', Walk: 'walk', Run: 'run' }; // source name -> game name
+// source name -> game name
+const NPC_CLIPS = { Idle: 'idle', Idle_Neutral: 'idle2', Walk: 'walk', Run: 'run', Wave: 'wave', HitRecieve: 'hit' };
 
 const io = new NodeIO()
   .registerExtensions(ALL_EXTENSIONS)
