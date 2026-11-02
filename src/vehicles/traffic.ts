@@ -230,6 +230,10 @@ export class Traffic {
       ['bike', 0, 7, 0.5, 0x212121],
       ['auto', 3, 8, 0.2],
       ['bus', 1, 8, 0.6],
+      // Taramani (Tidel Park)
+      ['car', 2, 9, 0.3, 0xf4f4f4],
+      ['auto', 1, 9, 0.6],
+      ['car', 3, 9, 0.1, 0x37474f],
     ];
     for (const [kind, i, j, start, colour] of fleet) {
       const group = new THREE.Group();

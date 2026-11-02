@@ -17,6 +17,9 @@ export const CINEMA = 'Kamadhenu Cinemas';
 export const COLLEGE = 'Vivekananda College';
 /** Game hours when classes start / end: students want autos (ride orders from the college). */
 export const COLLEGE_RUSH = [9, 16];
+export const TIDEL = 'Tidel Park';
+/** Office hours at Tidel Park: IT folks want autos to the MRTS and home. */
+export const TIDEL_RUSH = [9, 18, 19];
 
 export const STOPS: Stop[] = [
   { name: 'Kapaleeshwarar Temple', axis: 'x', line: 25, along: 8, side: -1 },
@@ -67,6 +70,9 @@ export const STOPS: Stop[] = [
   { name: 'Vivekanandar Illam', axis: 'x', line: 125, along: -148, side: -1 },
   { name: 'Ambedkar Manimandapam', axis: 'z', line: 300, along: -175, side: -1 },
   { name: 'Tholkappia Poonga', axis: 'z', line: 300, along: 97, side: -1 },
+  // Taramani
+  { name: TIDEL, axis: 'z', line: 480, along: 0, side: -1 },
+  { name: 'Taramani Road', axis: 'z', line: 480, along: -110, side: 1 },
 ];
 export const HOSPITAL = 'Isabel Hospital';
 
@@ -88,6 +94,7 @@ export const PLACE_LINES = {
   standBusy: 'Ippo oru sawaari irukke anna, adha mudinga first.',
   standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
   showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
+  tidelRush: '💻 Tidel Park shift mudinjiduchu! IT makkal auto-ku wait pannuraanga.',
   collegeRush: '🎓 College rush! Vivekananda College-la students auto-ku wait pannuraanga.',
   lowFuel: 'Petrol kammiyaa irukku! R.K. Mutt Road bunk-ku ponga.',
   noFuel: 'Petrol theernthuduchu! Mella thallikittu bunk-ku ponga.',

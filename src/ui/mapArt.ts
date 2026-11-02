@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
+import { TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
@@ -104,6 +104,7 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'TEYNAMPET', x: -235, z: 50, kind: 'landmark' });
   labels.push({ text: 'R.A. PURAM', x: -48, z: 270, kind: 'landmark' });
   labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'landmark' });
+  labels.push({ text: 'TARAMANI', x: -48, z: 440, kind: 'landmark' });
 
   /** A band `half` wide either side of each road's centre line, over the road's length. */
   const bands = (half: number, colour: string, only?: boolean) => {
@@ -216,6 +217,7 @@ export function drawTownMap(data: MapData): TownMap {
     [lm.vivekanandarIllam, '#f8dde3', '#8a1c3b', 'V', 'Vivekanandar Illam'],
     [lm.ambedkarManimandapam, '#c5cae9', '#1a3c8f', 'A', 'Ambedkar Manimandapam'],
     [lm.tholkappiaPoonga, '#a5d6a7', '#33691e', '🌿', 'Tholkappia Poonga'],
+    [TIDEL_LOT(), '#cfe3ee', '#0d3b66', '💻', 'Tidel Park'],
   ];
   for (const [lot, fill, colour, letter, name] of placeMarks) {
     g.fillStyle = fill;

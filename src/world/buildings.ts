@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
+import { TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
 import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
@@ -96,7 +96,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
-  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS()), ...Object.values(LANDMARK_LOTS())];
+  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS()), ...Object.values(LANDMARK_LOTS()), TIDEL_LOT()];
   function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean, kind: Kind = 'old', yard = false, lowRise = false) {
     const house = kind === 'house';
     const office = kind === 'commercial'; // Anna Salai-style commercial block
@@ -373,6 +373,7 @@ function areaKind(i: number, j: number, f: Facing, r: number): [Kind, boolean] {
   if (i <= -2) return r < 0.7 ? ['commercial', false] : ['old', false]; // Teynampet, Anna Salai
   if (j === -1 || (j === 0 && f === 'n')) return r < 0.6 ? ['commercial', false] : ['old', false]; // Dr. Radhakrishnan Salai
   if (i === -1) return f === 'e' && r < 0.75 ? ['commercial', true] : ['house', false]; // Alwarpet: TTK Road showrooms, bungalows behind
+  if (j >= 9) return f === 'n' ? ['commercial', true] : r < 0.55 ? ['commercial', false] : ['flats', false]; // Taramani: IT offices + flats; Adyar Main Road shops
   if (j >= 8) return (j === 8 && f === 's') || (j === 9 && f === 'n') ? (r < 0.6 ? ['commercial', true] : ['flats', false]) : r < 0.65 ? ['flats', false] : ['house', false]; // Adyar
   if (j >= 6) return r < 0.25 ? ['flats', false] : ['house', false]; // R.A. Puram
   if (j === 4 || j === 5) return r < 0.6 ? ['flats', false] : ['old', false]; // Mandaveli

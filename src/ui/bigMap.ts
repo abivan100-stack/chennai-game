@@ -61,7 +61,7 @@ export class BigMap {
       + '<div style="margin-top:8px;color:#666;font-size:12px">Wheel / + − zoom · WASD pan · C centre · Tab close</div>';
     const title = document.createElement('div');
     title.style.cssText = 'position:absolute;left:24px;top:18px;color:#fff;font:800 22px system-ui,sans-serif;text-shadow:0 2px 6px #000;';
-    title.textContent = 'Mylapore · Santhome · Mandaveli · Alwarpet · R.A. Puram · Adyar';
+    title.textContent = 'Mylapore · Santhome · Mandaveli · Alwarpet · R.A. Puram · Adyar · Taramani';
     this.root.append(this.canvas, legend, title);
     document.body.append(this.root);
     this.g = this.canvas.getContext('2d')!;

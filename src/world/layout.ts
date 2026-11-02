@@ -14,7 +14,8 @@
  *   - West of R.K. Mutt Road: the Buckingham Canal (MRTS above it, bridges where the roads
  *     cross), then Alwarpet (TTK Road, bungalows) and Teynampet (Eldams Road, Anna Salai).
  *   - North: Dr. Radhakrishnan Salai. South of Mandaveli: R.A. Puram, Greenways Road, the Adyar
- *     river (bridges on every north-south road, the boat club on its bank) and Adyar beyond it.
+ *     river (bridges on every north-south road, the boat club on its bank) and Adyar beyond it;
+ *     then Taramani: Tidel Park on Taramani Road, where the OMR IT corridor begins.
  * Block grid indices keep the original Mylapore numbering (temple = [2, 2]); the new areas to
  * the west and north get negative indices.
  * Directions: -z = north, +x = east.
@@ -23,11 +24,11 @@
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
 /** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
-export const BOUNDS = { x0: -300, x1: 250, z0: -160, z1: 420 };
+export const BOUNDS = { x0: -300, x1: 250, z0: -160, z1: 540 };
 /** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
 export const X_LINES = [-265, -205, -145, -70, -25, 25, 70, 125];
 /** Roads running east-west (centre line z = c). They end at the Beach Road. */
-export const Z_LINES = [-130, -70, -25, 25, 70, 125, 180, 240, 300, 390];
+export const Z_LINES = [-130, -70, -25, 25, 70, 125, 180, 240, 300, 390, 480];
 /** Water the roads cross on bridges: the canal (north-south strip) and the Adyar river (east-west). */
 export const CANAL = { x0: -121, x1: -109 };
 export const RIVER = { z0: 318, z1: 346 };
@@ -80,6 +81,7 @@ export const Z_ROADS: Record<number, [string, string]> = {
   [240]: ['R.A. Puram 2nd Main Road', 'ஆர்.ஏ. புரம் 2வது பிரதான சாலை'],
   [300]: ['Greenways Road', 'கிரீன்வேஸ் சாலை'],
   [390]: ['Adyar Main Road', 'அடையார் பிரதான சாலை'],
+  [480]: ['Taramani Road (to OMR)', 'தரமணி சாலை'],
 };
 
 /**
@@ -117,7 +119,7 @@ const SANTHOME = 4; // block column between San Thome High Road and the Beach Ro
 const I0 = X_LINES.filter((c) => c < -70).length;
 const J0 = Z_LINES.filter((c) => c < -70).length;
 /** Alwarpet (just past the canal) and R.A. Puram / Adyar are leafy: houses behind compound walls. */
-const housesAt = (i: number, j: number) => i === -1 || (j >= 6 && i <= SANTHOME);
+const housesAt = (i: number, j: number) => i === -1 || (j >= 6 && j <= 8 && i <= SANTHOME); // Taramani (j >= 9) is offices
 
 /** City blocks between roads: lot rectangles (inside the sidewalks) + what goes there. */
 export function blocks(): Block[] {
@@ -291,6 +293,12 @@ export const LANDMARK_LOTS = () => {
     ambedkarManimandapam: lot(green.x0, green.x1, green.z1 - 28, green.z1, 's'),
     tholkappiaPoonga: lot(eco.x0, eco.x1, eco.z0, eco.z1, 's'),
   };
+};
+
+/** Tidel Park, Taramani: the glass IT park, facing Taramani Road (block [2, 9]). */
+export const TIDEL_LOT = (): Lot => {
+  const b = block(CENTRE, 9);
+  return { x0: b.x0, x1: b.x1 + 0, z0: b.z0 + 12, z1: b.z1, front: 's' };
 };
 
 export const POLICE_LOT = () => {
