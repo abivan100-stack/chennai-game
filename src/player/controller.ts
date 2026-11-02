@@ -16,6 +16,11 @@ const GRAVITY = 20; // stronger than 9.81 so jumps feel snappy
 const ACCEL = 10; // higher = reaches target speed faster
 const DECEL = 12;
 const TURN_RATE = 12;
+const LEAN_MAX = 0.16; // rad of body lean into a turn at speed
+const LEAN_PER = 0.035; // lean per (rad/s of turning x m/s of speed)
+const LEAN_RATE = 8;
+const HEAD_MAX = 0.9; // rad the head turns towards where the camera looks
+const HEAD_RATE = 5;
 
 // Animation tuning. Clip speeds = how fast the Mixamo clip travelled before root motion was
 // stripped (walk: 1.68 m in 1.03 s, run: 3.42 m in 0.63 s); playback scales to match real speed.
@@ -63,6 +68,15 @@ export class PlayerController {
   blocking = false;
   /** False when too hungry to run. */
   canRun = true;
+  private lean = 0;
+  private headYaw = 0;
+  private camYaw = 0;
+  private readonly head: THREE.Object3D | null;
+  private readonly neck: THREE.Object3D | null;
+  private readonly lookQ = new THREE.Quaternion();
+  private readonly parentQ = new THREE.Quaternion();
+  private readonly parentInv = new THREE.Quaternion();
+  private static readonly UP = new THREE.Vector3(0, 1, 0);
   /** Walking / running speed multiplier (wading through flood water). */
   speedScale = 1;
   private away = false;
@@ -88,6 +102,8 @@ export class PlayerController {
     scene.add(this.mesh);
     this.animator = new Animator(hero.scene, hero.clips);
     this.animator.play('idle', { fade: 0 });
+    this.head = hero.scene.getObjectByName('Head') ?? null;
+    this.neck = hero.scene.getObjectByName('Neck') ?? null;
     this.position.copy(spawn);
     this.prevPos.copy(spawn);
     this.currPos.copy(spawn);
@@ -175,6 +191,7 @@ export class PlayerController {
 
   /** Read input once per frame. */
   handleInput(input: Input, cameraYaw: number) {
+    this.camYaw = cameraYaw;
     if (this.away) return;
     if (this.walkTarget) {
       this.wish.set(this.walkTarget.x - this.position.x, 0, this.walkTarget.z - this.position.z);
@@ -256,10 +273,17 @@ export class PlayerController {
     let faceYaw: number | null = null;
     if (this.speed > 0.3) faceYaw = Math.atan2(this.vel.x, this.vel.z);
     else if (this.talkTime > 0) faceYaw = this.talkYaw;
+    let turnRate = 0;
     if (faceYaw !== null) {
       const delta = Math.atan2(Math.sin(faceYaw - this.mesh.rotation.y), Math.cos(faceYaw - this.mesh.rotation.y));
-      this.mesh.rotation.y += delta * (1 - Math.exp(-TURN_RATE * dt));
+      const step = delta * (1 - Math.exp(-TURN_RATE * dt));
+      this.mesh.rotation.y += step;
+      turnRate = dt > 0 ? step / dt : 0;
     }
+    // Lean into turns like a person does (roll about the forward axis), more when running.
+    const wantLean = THREE.MathUtils.clamp(-turnRate * speed * LEAN_PER, -LEAN_MAX, LEAN_MAX);
+    this.lean += (wantLean - this.lean) * (1 - Math.exp(-LEAN_RATE * dt));
+    this.model.rotation.z = this.actionT > 0 ? 0 : this.lean;
 
     this.talkTime -= dt;
     this.airTime = this.grounded ? 0 : this.airTime + dt;
@@ -273,17 +297,33 @@ export class PlayerController {
       this.animator.play('block', { fade: 0.15 });
     } else if (this.jumped || this.airTime > FALL_AFTER) {
       this.animator.play('jump', { once: true, startAt: JUMP_START });
-    } else if (speed > RUN_ABOVE) {
-      this.animator.play('run');
-      this.animator.setSpeed(speed / CLIP_SPEED.run);
     } else if (speed > MOVE_ABOVE) {
-      this.animator.play('walk');
-      this.animator.setSpeed(THREE.MathUtils.clamp(speed / CLIP_SPEED.walk, 0.5, 2));
+      // Walk and run blended by speed (no pop between them), cycles matched to ground speed.
+      const w = THREE.MathUtils.smoothstep(speed, WALK_SPEED * 1.05, RUN_ABOVE + 0.8);
+      this.animator.locomotion('walk', 'run', w, THREE.MathUtils.clamp(speed / CLIP_SPEED.walk, 0.5, 2), speed / CLIP_SPEED.run);
     } else if (this.talkTime > 0) {
       this.animator.play('talk');
     } else {
       this.animator.play('idle');
     }
     this.animator.update(dt);
+    this.lookAround(dt, speed);
+  }
+
+  /** Turn head and neck towards where the camera is looking (on top of the animation). */
+  private lookAround(dt: number, speed: number) {
+    if (!this.head || !this.neck) return;
+    // Camera forward yaw is cameraYaw + PI (see handleInput); the body faces mesh.rotation.y.
+    const rel = Math.atan2(Math.sin(this.camYaw + Math.PI - this.mesh.rotation.y), Math.cos(this.camYaw + Math.PI - this.mesh.rotation.y));
+    const busy = this.actionT > 0 || this.blocking || speed > RUN_ABOVE;
+    const want = busy || Math.abs(rel) > 2.4 ? 0 : THREE.MathUtils.clamp(rel, -HEAD_MAX, HEAD_MAX);
+    this.headYaw += (want - this.headYaw) * (1 - Math.exp(-HEAD_RATE * dt));
+    if (Math.abs(this.headYaw) < 0.005) return;
+    for (const [bone, share] of [[this.neck, 0.4], [this.head, 0.6]] as const) {
+      bone.parent!.getWorldQuaternion(this.parentQ);
+      this.parentInv.copy(this.parentQ).invert();
+      this.lookQ.setFromAxisAngle(PlayerController.UP, this.headYaw * share);
+      bone.quaternion.premultiply(this.parentInv.multiply(this.lookQ).multiply(this.parentQ));
+    }
   }
 }

@@ -11,7 +11,8 @@ import * as THREE from 'three';
 const KHAKI = [184, 160, 112];
 const CHAPPAL = [92, 56, 32];
 const SKIN_TONE = [0.72, 0.58, 0.47]; // multiplies the (pale) source skin
-const LUNGI = { base: [32, 78, 140], stripe: [36, 120, 82], line: [235, 235, 225], period: 56 };
+// A dark madras-check lungi: navy ground, bottle-green bands, thin cream and maroon lines.
+const LUNGI = { base: [28, 42, 78], band: [26, 74, 58], line: [214, 205, 180], thin: [120, 32, 40], period: 44 };
 
 /** RGB 0-255 -> hue (deg), saturation, value (0-1). */
 function hsv(r: number, g: number, b: number) {
@@ -34,9 +35,13 @@ function lungi(x: number, y: number) {
   const p = LUNGI.period;
   const u = x % p;
   const v = y % p;
-  if (u < 3 || v < 3) return LUNGI.line;
-  const band = (u > p / 2 ? 1 : 0) + (v > p / 2 ? 1 : 0);
-  return band === 1 ? LUNGI.stripe : LUNGI.base;
+  if (u < 2 || v < 2) return LUNGI.line;
+  if (Math.abs(u - p / 2) < 1 || Math.abs(v - p / 2) < 1) return LUNGI.thin;
+  // Where a vertical and a horizontal band cross, the weave reads darker (like real madras).
+  const bu = u > p * 0.62 && u < p * 0.86;
+  const bv = v > p * 0.62 && v < p * 0.86;
+  if (bu && bv) return [LUNGI.band[0] * 0.7, LUNGI.band[1] * 0.7, LUNGI.band[2] * 0.7];
+  return bu || bv ? LUNGI.band : LUNGI.base;
 }
 
 function recolourTexture(old: THREE.Texture) {
@@ -84,8 +89,8 @@ function recolourTexture(old: THREE.Texture) {
       shade = 0.95;
     } else if (hue > 185 && hue < 230 && s > 0.12 && s < 0.7 && v > 0.25) {
       out = lungi(x, y); // denim shorts -> checked lungi
-      shade = Math.min(1.2, v / 0.7);
-    } else if (s < 0.2 && v > 0.42 && y > h * 0.35) {
+      shade = Math.min(1.25, 0.35 + v * 0.9); // keep the folds' shading
+    } else if (s < 0.25 && v > 0.4 && y > h * 0.33) {
       out = CHAPPAL; // white sneakers (and their grey soles) -> brown leather chappals
       shade = Math.min(1, v + 0.15);
     } else if (hue >= 0 && hue < 45 && s > 0.12 && s < 0.6 && v > 0.3) {
@@ -111,21 +116,74 @@ function recolourTexture(old: THREE.Texture) {
   return tex;
 }
 
-/** Thundu: a checked cotton towel draped over the left shoulder (front + back flaps). */
+/** Thundu: cream cotton with a red-and-maroon border along both long edges, faint weave. */
 function towelTexture() {
   const c = document.createElement('canvas');
-  c.width = c.height = 64;
+  c.width = 64;
+  c.height = 256;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#f4f1e8';
-  g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#c62828';
-  for (let i = 0; i < 64; i += 16) {
-    g.fillRect(i, 0, 4, 64);
-    g.fillRect(0, i, 64, 4);
+  g.fillStyle = '#eee6d2';
+  g.fillRect(0, 0, 64, 256);
+  g.fillStyle = 'rgba(120, 100, 70, 0.08)';
+  for (let y = 0; y < 256; y += 3) g.fillRect(0, y, 64, 1);
+  for (const x of [3, 55]) {
+    g.fillStyle = '#b3202a';
+    g.fillRect(x, 0, 6, 256);
+    g.fillStyle = '#5a1018';
+    g.fillRect(x + 1, 0, 1, 256);
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+/**
+ * The towel as one draped strip (model space): hangs down the chest, curves over the left
+ * shoulder, hangs down the back. A segmented ribbon, so it reads as cloth, not boxes.
+ */
+function towelGeometry(shoulder: THREE.Vector3) {
+  const W = 0.13;
+  const SEGS = 24;
+  const FRONT = 0.3; // hanging length in front / behind
+  const R = 0.105; // half the shoulder's depth
+  const top = shoulder.y + 0.075;
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= SEGS; i++) {
+    const t = i / SEGS;
+    let y: number;
+    let z: number;
+    if (t < 0.35) {
+      const k = (0.35 - t) / 0.35;
+      z = R + 0.015 * k; // falls slightly away from the chest
+      y = top - FRONT * k;
+    } else if (t > 0.65) {
+      const k = (t - 0.65) / 0.35;
+      z = -R - 0.01 * k;
+      y = top - FRONT * 0.8 * k;
+    } else {
+      const a = ((t - 0.35) / 0.3) * Math.PI;
+      z = R * Math.cos(a);
+      y = top + 0.03 * Math.sin(a);
+    }
+    pts.push(new THREE.Vector3(shoulder.x + 0.045, y, shoulder.z + z));
+  }
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  pts.forEach((p, i) => {
+    pos.push(p.x - W / 2, p.y, p.z, p.x + W / 2, p.y, p.z);
+    uv.push(0, i / SEGS, 1, i / SEGS);
+    if (i < SEGS) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
 
 /**
@@ -154,7 +212,10 @@ export function applyChennaiLook(model: THREE.Object3D) {
   model.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const mat = o.material as THREE.MeshStandardMaterial;
-    if (mat.name === 'Ch42_Body' && mat.map) mat.map = recolourTexture(mat.map);
+    if (mat.name === 'Ch42_Body' && mat.map) {
+      mat.map = recolourTexture(mat.map);
+      mat.roughness = 0.82; // cotton and skin: matte, so the environment light doesn't make it look wet
+    }
   });
 
   // Measure the bind pose in model space to place the props.
@@ -168,15 +229,9 @@ export function applyChennaiLook(model: THREE.Object3D) {
   const neck = inModel('Neck');
   if (!head || !shoulder || !neck) return;
 
-  // Thundu over the left shoulder: front flap and back flap hanging from the shoulder.
-  const towelMat = new THREE.MeshStandardMaterial({ map: towelTexture(), roughness: 0.9, side: THREE.DoubleSide });
-  const flap = new THREE.BoxGeometry(0.12, 0.34, 0.008);
-  for (const side of [1, -1]) {
-    const m = new THREE.Mesh(flap, towelMat);
-    attach(model, 'LeftShoulder', m, new THREE.Vector3(shoulder.x + 0.05, shoulder.y - 0.09, shoulder.z + side * 0.105), new THREE.Euler(side * 0.08, 0, 0));
-  }
-  const top = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.008, 0.22), towelMat);
-  attach(model, 'LeftShoulder', top, new THREE.Vector3(shoulder.x + 0.05, shoulder.y + 0.08, shoulder.z));
+  // Thundu draped over the left shoulder (geometry in model space, so it's attached at the origin).
+  const towelMat = new THREE.MeshStandardMaterial({ map: towelTexture(), roughness: 0.95, side: THREE.DoubleSide });
+  attach(model, 'LeftShoulder', new THREE.Mesh(towelGeometry(shoulder), towelMat), new THREE.Vector3());
 
   // Face details, relative to the head bone (base of the skull): front of the face is ~0.1 m forward.
   const dark = new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 0.9 });

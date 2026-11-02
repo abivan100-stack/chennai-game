@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { loadCharacters } from './characters/catalog';
 import { loadingManager } from './core/assets';
 import { enablePointerLock, input } from './core/input';
@@ -55,6 +56,8 @@ import { SEA_X, X_LINES, Z_LINES } from './world/layout';
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const AUTOSAVE_MS = 10_000;
+const ENV_DAY = 0.35; // environment (reflection) light by day...
+const ENV_NIGHT = 0.06; // ...and at night
 const HIT_REACT_COOLDOWN = 1.5; // s between hit flinches
 const MAX_STEPS = 4; // per frame; beyond this the game slows down instead of spiralling
 const HIT_STOP = { punch: 0.05, swing: 0.08, kick: 0.09 }; // seconds the world freezes when a blow lands
@@ -66,6 +69,9 @@ async function main() {
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = PHYSICS_STEP;
   const { renderer, scene, camera } = createRenderer();
+  // Soft image-based light: gives skin, cloth and paint real reflections instead of flat shading.
+  // Generated once from three's built-in room scene (no download); its strength follows the sun.
+  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 
   // World
   const ground = createGround(scene, world);
@@ -590,6 +596,7 @@ async function main() {
     dayNight.cloud = weather.cloud;
     ground.setWet(weather.rain);
     dayNight.update(dt, input.isDown('KeyT'), player.position);
+    scene.environmentIntensity = ENV_NIGHT + (ENV_DAY - ENV_NIGHT) * (1 - dayNight.night);
     // New IST day: settle the moneylender's daily amount.
     const settled = economy.tickDay(Math.floor(istTime(dayNight.timeMs).day));
     if (settled === 'missed') phone.addMessage(LENDER, MSG_MISSED[Math.min(economy.missedDays, MSG_MISSED.length) - 1]);

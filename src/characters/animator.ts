@@ -19,6 +19,9 @@ export class Animator {
   private current: THREE.AnimationAction | null = null;
   private then = '';
   currentName = '';
+  /** Walk/run blend in progress (see locomotion()). */
+  private loco: { a: THREE.AnimationAction; b: THREE.AnimationAction } | null = null;
+  private locoIn = 1;
 
   constructor(root: THREE.Object3D, clips: THREE.AnimationClip[]) {
     this.mixer = new THREE.AnimationMixer(root);
@@ -36,6 +39,13 @@ export class Animator {
   play(name: string, opts: PlayOptions = {}) {
     const next = this.actions.get(name);
     if (!next || next === this.current) return;
+    if (this.loco) {
+      // Leaving the walk/run blend: fade both cycles out together.
+      const fade = opts.fade ?? DEFAULT_FADE;
+      this.loco.a.fadeOut(fade);
+      this.loco.b.fadeOut(fade);
+      this.loco = null;
+    }
     this.then = opts.then ?? '';
     next.reset();
     next.setLoop(opts.once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
@@ -49,6 +59,38 @@ export class Animator {
     this.currentName = name;
   }
 
+  /**
+   * Blend two looping cycles (walk -> run) by weight w (0 = all a, 1 = all b), phase-locked so the
+   * feet stay in step while the mix changes. rateA / rateB: each clip's playback speed on its own
+   * (matched to ground speed); the shared phase advances at their weighted average.
+   */
+  locomotion(a: string, b: string, w: number, rateA: number, rateB: number) {
+    const A = this.actions.get(a);
+    const B = this.actions.get(b);
+    if (!A || !B) return;
+    if (!this.loco) {
+      const fade = DEFAULT_FADE;
+      this.current?.fadeOut(fade);
+      this.current = null;
+      this.currentName = 'locomotion';
+      for (const x of [A, B]) {
+        x.reset();
+        x.setLoop(THREE.LoopRepeat, Infinity);
+        x.clampWhenFinished = false;
+        x.play();
+      }
+      this.loco = { a: A, b: B };
+      this.locoIn = 0;
+    }
+    const da = A.getClip().duration;
+    const db = B.getClip().duration;
+    const cyclesPerSec = (1 - w) * (rateA / da) + w * (rateB / db);
+    A.timeScale = cyclesPerSec * da;
+    B.timeScale = cyclesPerSec * db;
+    A.setEffectiveWeight((1 - w) * this.locoIn);
+    B.setEffectiveWeight(w * this.locoIn);
+  }
+
   /** Playback speed of the current clip (e.g. match walk cycle to movement speed). */
   setSpeed(scale: number) {
     if (this.current) this.current.timeScale = scale;
@@ -60,6 +102,12 @@ export class Animator {
   }
 
   update(dt: number) {
+    if (this.loco) {
+      this.locoIn = Math.min(1, this.locoIn + dt / DEFAULT_FADE);
+      // Lock run's phase to walk's so both feet land together.
+      const { a, b } = this.loco;
+      b.time = (a.time / a.getClip().duration) * b.getClip().duration;
+    }
     this.mixer.update(dt);
   }
 }
