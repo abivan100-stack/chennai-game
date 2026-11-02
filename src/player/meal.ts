@@ -201,6 +201,7 @@ export class Meal {
         this.hipTarget.copy(this.standSpot).setY(this.standSpot.y + HIPS_STANDING);
         this.hipTarget.lerp(this.tmp.copy(e.seat).setY(e.seat.y + HIPS_ABOVE_SEAT), smooth(this.t / SIT_SECONDS));
         if (this.t < SIT_SECONDS) return;
+        this.player.animator.play('sit_idle', { fade: 0.4 }); // relaxed seated loop (Mixamo Sitting)
         this.go('swivelIn');
         return;
       case 'swivelIn':

@@ -46,6 +46,11 @@ const HERO = {
     { name: 'combo', inPlace: true },
     { name: 'kick', inPlace: true },
     { name: 'block', inPlace: true },
+    { name: 'death', inPlace: true }, // Falling Back Death: shot / fainted
+    { name: 'kneel', inPlace: true }, // Kneel: arrested
+    { name: 'kneel_idle', inPlace: true }, // Kneeling Idle: hands-on-knees while arrested
+    { name: 'hit_react', inPlace: true }, // Hit Reaction: punched / shot
+    { name: 'sit_idle', inPlace: true }, // Sitting: seated idle (hotel stool)
     // exit_car.fbx (Mixamo "Exiting Car") is in assets-source but unused: it's a 5.8 s car-door
     // swing; getting out of the auto mirrors getting in with stand_up instead.
   ],

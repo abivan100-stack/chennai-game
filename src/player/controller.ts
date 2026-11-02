@@ -150,6 +150,19 @@ export class PlayerController {
     return true;
   }
 
+  /**
+   * Force a full-body clip for `seconds` (falling down, kneeling for arrest, a hit flinch),
+   * cutting off whatever was playing. `then` chains a looping clip after it.
+   */
+  forceAction(clip: string, seconds: number, then?: string, speed = 1) {
+    this.actionT = seconds;
+    this.actionElapsed = 0;
+    this.lunge = null;
+    this.talkTime = 0;
+    this.animator.play(clip, { once: true, fade: 0.1, then });
+    this.animator.setSpeed(speed);
+  }
+
   /** In the middle of an attack. */
   get acting() {
     return this.actionT > 0;

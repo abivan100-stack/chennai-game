@@ -29,6 +29,7 @@ import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
 import { Sound } from './audio/sound';
+import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
@@ -54,6 +55,7 @@ import { SEA_X, X_LINES, Z_LINES } from './world/layout';
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const AUTOSAVE_MS = 10_000;
+const HIT_REACT_COOLDOWN = 1.5; // s between hit flinches
 const MAX_STEPS = 4; // per frame; beyond this the game slows down instead of spiralling
 const HIT_STOP = { punch: 0.05, swing: 0.08, kick: 0.09 }; // seconds the world freezes when a blow lands
 const HIT_STOP_SCALE = 0.05; // how slow the world runs during it
@@ -99,6 +101,7 @@ async function main() {
   const spawn = saved ? new THREE.Vector3(saved.player.x, saved.player.y + 0.05, saved.player.z) : new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
   const autoSpot = saved ? new THREE.Vector3(saved.auto.x, 0, saved.auto.z) : new THREE.Vector3(25 - 4.2, 0, -4); // tight to the kerb so traffic can pass
   const player = new PlayerController(world, scene, spawn, characters.hero);
+  applyChennaiLook(player.model); // khaki shirt, lungi, chappals, thundu, vibhuti
   if (saved) player.mesh.rotation.y = saved.player.yaw;
   const auto = new AutoRickshaw(scene, world, autoSpot, saved ? saved.auto.heading : Math.PI);
   const ride = new Ride(player, auto);
@@ -314,7 +317,8 @@ async function main() {
     phone.addMessage(LENDER, MSG_REDEEMED);
     hud.say(LENDER, MSG_REDEEMED);
   };
-  let fallen = false; // shot / fainted: lying on the ground until released
+  let fallen = false; // knocked out on foot: kneeling / lying until released
+  let hitReactCooldown = 0;
   if (economy.seized) seizeAuto(); // loaded a save where it had been taken
   /** Arrested or shot down: fine, then released outside the station. */
   const knockOut = (cause: 'busted' | 'shot' | 'starved') => {
@@ -329,10 +333,12 @@ async function main() {
     closeMenu();
     basket = [];
     downFor = 3.5;
-    fallen = cause !== 'busted' && player.onFoot && !stolen;
+    // On foot: kneel for the arrest, or fall flat when shot / fainting (Mixamo clips).
+    fallen = player.onFoot && !stolen && ride.phase === 'onFoot';
+    if (fallen) player.forceAction(cause === 'busted' ? 'kneel' : 'death', 3.6, cause === 'busted' ? 'kneel_idle' : undefined);
   };
   const release = () => {
-    if (fallen) player.attachModel(); // stand back up
+    if (fallen) player.animator.play('idle', { fade: 0.3 }); // back on your feet
     fallen = false;
     hud.banner(null);
     leaveVehicle();
@@ -563,12 +569,6 @@ async function main() {
     }
     if (stolen) pinHips(stolen.group, DRIVER_SEAT[stolen.kind]);
     if (stolen && (stolen.kind === 'bike' || stolen.kind === 'scooter')) straddle(stolen.kind === 'bike' ? 0.32 : 0.12);
-    if (fallen && downFor > 0) {
-      // Collapse backwards over half a second (pivot at the feet), then lie still.
-      const k = THREE.MathUtils.smoothstep(3.5 - downFor, 0, 0.5);
-      player.model.rotation.x = -Math.PI / 2 * k;
-      player.model.position.y = -CAPSULE_LIFT + 0.12 * k;
-    }
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     meal.lateUpdate(); // seated hips + hand-to-mouth
     jobs.update(dt, ride.driving);
@@ -631,7 +631,13 @@ async function main() {
     if (hurt > 0 && downFor <= 0) {
       health -= hurt;
       hud.hurt();
+      // Flinch (Mixamo Hit Reaction), but not so often that gunfire stun-locks you.
+      if (hurt > 2 && health > 0 && player.onFoot && !player.acting && !meal.busy && hitReactCooldown <= 0) {
+        player.forceAction('hit_react', 0.45, undefined, 1.6);
+        hitReactCooldown = HIT_REACT_COOLDOWN;
+      }
     }
+    hitReactCooldown -= dt;
     if (wanted.level === 0 && energy.value > 0) health = Math.min(100, health + 4 * dt); // no healing on an empty stomach
     const starving = energy.value <= 0;
     if (downFor <= 0 && (health <= 0 || pev.busted)) knockOut(pev.busted && health > 0 ? 'busted' : starving ? 'starved' : 'shot');
