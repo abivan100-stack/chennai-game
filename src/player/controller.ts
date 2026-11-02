@@ -69,6 +69,9 @@ export class PlayerController {
     this.ctrl.enableAutostep(0.4, 0.2, true);
     this.ctrl.enableSnapToGround(0.3);
     this.ctrl.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(45));
+    // Walking into a vehicle gives it a (person-sized) shove.
+    this.ctrl.setApplyImpulsesToDynamicBodies(true);
+    this.ctrl.setCharacterMass(80);
 
     this.model.add(hero.scene);
     this.attachModel();

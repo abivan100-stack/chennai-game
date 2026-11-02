@@ -168,7 +168,9 @@ async function main() {
     while (accumulator >= PHYSICS_STEP) {
       player.step(PHYSICS_STEP);
       auto.update(PHYSICS_STEP);
+      traffic.step(PHYSICS_STEP);
       world.step();
+      traffic.afterStep(world, [auto.collider, player.collider]);
       player.capture();
       auto.capture();
       accumulator -= PHYSICS_STEP;
@@ -176,6 +178,7 @@ async function main() {
     const alpha = accumulator / PHYSICS_STEP; // how far we are into the next physics step
     player.sync(dt, alpha);
     auto.sync(dayNight.night, alpha);
+    traffic.sync(dt, alpha);
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     jobs.update(dt, ride.driving);
     ride.syncPosition();

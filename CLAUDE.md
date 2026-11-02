@@ -59,7 +59,8 @@ src/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET / BENCH anchors;
                        buildAutoModel() shared with traffic
-    traffic.ts         AI autos/cars/bus: rounded block loops, left-hand lanes, stop for obstacles, honk
+    traffic.ts         AI autos/cars/bus: dynamic bodies driven by velocity control on rounded block loops
+                       (left-hand lanes); stop + honk for obstacles; shoved = limp 2.5 s, then rejoin lane
   world/
     layout.ts          street grid numbers + street names, roadSpans(), blocks() (kind: shops/temple/tank)
     temple.ts          Kapaleeshwarar temple + tank (gopurams, walls, shrine, mandapams, steps, water)
