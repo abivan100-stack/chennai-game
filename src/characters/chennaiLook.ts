@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /**
  * Dresses the Mixamo hero (red tee, denim shorts, white sneakers) as a Chennai guy in a
- * full-sleeve shirt, full-length trousers and formal shoes, with browner skin, a moustache and
+ * full-sleeve checked shirt, blue jeans and brown shoes, with browner skin, a moustache and
  * vibhuti + kumkum.
  *
  * The model's forearms and shins are bare skin, so the texture is repainted per BODY PART: each
@@ -11,11 +11,11 @@ import * as THREE from 'three';
  * wrists and ankles. Done once at load; the mesh and animations are untouched.
  */
 
-const SHIRT = [150, 182, 214]; // light-blue cotton shirt
-const PANTS = [52, 56, 66]; // charcoal trousers
-const SHOES = [58, 38, 28]; // dark-brown leather shoes
+// Checked shirt: maroon ground, navy bands, thin cream lines (one check every CHECK texels).
+const CHECK = { base: [128, 30, 44], band: [30, 42, 86], line: [226, 214, 188], period: 28 };
+const JEANS = [44, 68, 108]; // blue denim (mid-dark wash)
+const SHOES = [74, 44, 26]; // brown leather shoes
 const SKIN_TONE = [0.72, 0.58, 0.47]; // multiplies the (pale) source skin
-const SHIRT_STRIPE = 9; // texels between the shirt's faint vertical stripes
 const WAIST_ABOVE_HIPS = 0.05; // m above the hip joint where the shirt meets the trousers (the belt line)
 const BELT_HEIGHT = 0.04;
 const HERO_HEIGHT = 1.7; // the model's height in metres (catalog fits every character to this)
@@ -30,6 +30,24 @@ function partOf(bone: string): Part {
   if (/UpLeg|Leg/.test(bone) || bone === 'Hips') return 'pants';
   if (/Arm|Spine|Shoulder/.test(bone)) return 'shirt';
   return 'none'; // head, neck, eyes
+}
+
+/** Madras-style check at texel (x, y). */
+function check(x: number, y: number) {
+  const p = CHECK.period;
+  const u = x % p;
+  const v = y % p;
+  if (u === 0 || v === 0) return CHECK.line;
+  const bu = u > p * 0.55 && u < p * 0.85;
+  const bv = v > p * 0.55 && v < p * 0.85;
+  if (bu && bv) return [CHECK.band[0] * 0.75, CHECK.band[1] * 0.75, CHECK.band[2] * 0.75]; // where bands cross
+  return bu || bv ? CHECK.band : CHECK.base;
+}
+
+/** Cheap repeatable 0..1 noise per texel. */
+function hash(x: number, y: number) {
+  const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return n - Math.floor(n);
 }
 
 /** RGB 0-255 -> hue (deg), saturation, value (0-1). */
@@ -147,11 +165,16 @@ function recolourTexture(old: THREE.Texture, mesh: THREE.SkinnedMesh) {
     const shade = THREE.MathUtils.clamp(0.78 + 0.3 * v, 0.86, 1.1);
     switch (partAt(mask, i)) {
       case 'shirt':
-        paint(i, SHIRT, shade * (x % SHIRT_STRIPE === 0 ? 0.93 : 1));
+        paint(i, check(x, Math.floor(i / 4 / w)), shade);
         break;
-      case 'pants':
-        paint(i, PANTS, shade);
+      case 'pants': {
+        // The shorts were denim already: keep their fabric shading; elsewhere (the shins) add a
+        // faint weave so the jeans don't look painted on.
+        const denim = hue > 185 && hue < 235 && s > 0.1;
+        const weave = 0.94 + 0.08 * hash(x, Math.floor(i / 4 / w));
+        paint(i, JEANS, denim ? THREE.MathUtils.clamp(0.55 + 0.5 * v, 0.8, 1.05) : shade * weave);
         break;
+      }
       case 'shoes':
         paint(i, SHOES, THREE.MathUtils.clamp(0.7 + 0.5 * v, 0.75, 1.15));
         break;
