@@ -356,18 +356,23 @@ export class TaxiJobs {
     }
   }
 
+  /** A plain ride from a named stop (auto stand, cinema crowd). Returns the new order. */
+  addOrderFrom(stopName: string, notify = true) {
+    return this.addOrder(notify, STOPS.find((s) => s.name === stopName), 'ride');
+  }
+
   /** New order (ride / urgent / VIP / parcel) between two stops at least MIN_TRIP apart. */
-  private addOrder(notify: boolean) {
+  private addOrder(notify: boolean, fromStop?: Stop, forceKind?: OrderKind) {
     let r = Math.random();
-    let kind: OrderKind = 'ride';
-    for (const [k, w] of Object.entries(ORDER_WEIGHTS) as [OrderKind, number][]) {
+    let kind: OrderKind = forceKind ?? 'ride';
+    for (const [k, w] of forceKind ? [] : Object.entries(ORDER_WEIGHTS) as [OrderKind, number][]) {
       if ((r -= w) < 0) {
         kind = k;
         break;
       }
     }
     const hospital = STOPS.find((s) => s.name === HOSPITAL)!;
-    const from = rand(STOPS.filter((s) => kind !== 'urgent' || s !== hospital));
+    const from = fromStop ?? rand(STOPS.filter((s) => kind !== 'urgent' || s !== hospital));
     const fp = stopPoint(from, 'kerb');
     const to = kind === 'urgent' ? hospital : rand(STOPS.filter((s) => {
       const p = stopPoint(s, 'kerb');
@@ -390,6 +395,7 @@ export class TaxiJobs {
     };
     this.orders.push(order);
     if (notify) this.onNewOrder(order);
+    return order;
   }
 
   /** The accepted order's passenger (or parcel) appears at the pickup. */

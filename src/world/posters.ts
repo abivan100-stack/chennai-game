@@ -59,7 +59,7 @@ function toTexture(c: HTMLCanvasElement) {
 }
 
 /** Film poster: smoky dark orange, a lone figure, big gold title. */
-function jailerPoster() {
+export function jailerPoster() {
   const [c, g] = canvas();
   const bg = g.createRadialGradient(512, 330, 40, 512, 300, 620);
   bg.addColorStop(0, '#f08a24');

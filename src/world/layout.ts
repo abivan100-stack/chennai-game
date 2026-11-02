@@ -153,6 +153,39 @@ export const HOSPITAL_LOT = () => {
   return { x0: b.x0 + 1, x1: b.x1 - 1, z0: b.z0, z1: b.z0 + 22 };
 };
 
+/**
+ * Neighbourhood places (world/places.ts). Each lot has a `front`: the side facing its road.
+ *   park (Nageswara Rao Park) north of Luz Church Road, Luz Church opposite it;
+ *   vegetable market + auto stand on South Mada Street, south of the tank;
+ *   petrol bunk + mechanic on R.K. Mutt Road; cinema, bank and pharmacy on Kutchery Road.
+ */
+export type Front = 'n' | 's' | 'e' | 'w';
+export interface Lot { x0: number; x1: number; z0: number; z1: number; front: Front }
+export const PLACE_LOTS = () => {
+  const luzN = block(CENTRE - 1, CENTRE - 2);
+  const luzS = block(CENTRE - 1, CENTRE - 1);
+  const tankS = block(CENTRE - 1, CENTRE + 1);
+  const rkm = block(CENTRE - 2, CENTRE + 1);
+  const kutW = block(CENTRE - 1, CENTRE + 2);
+  const kutE = block(CENTRE + 1, CENTRE + 2);
+  const lot = (x0: number, x1: number, z0: number, z1: number, front: Front): Lot => ({ x0, x1, z0, z1, front });
+  return {
+    park: lot(luzN.x0, luzN.x1, luzN.z0, luzN.z1, 's'),
+    church: lot(luzS.x0 + 1, luzS.x1 - 1, luzS.z0, luzS.z0 + 24, 'n'),
+    market: lot(tankS.x0, tankS.x0 + 17.5, tankS.z0, tankS.z0 + 20, 'n'),
+    stand: lot(tankS.x0 + 17.5, tankS.x1, tankS.z0, tankS.z0 + 14, 'n'),
+    bunk: lot(rkm.x0, rkm.x1, rkm.z0, rkm.z0 + 17, 'e'),
+    mechanic: lot(rkm.x0, rkm.x1, rkm.z0 + 18, rkm.z1, 'e'),
+    cinema: lot(kutE.x0, kutE.x1, kutE.z0, kutE.z0 + 24, 'n'),
+    bank: lot(kutW.x0, kutW.x0 + 14, kutW.z0, kutW.z0 + 14, 'n'),
+    pharmacy: lot(kutW.x0 + 15, kutW.x0 + 26, kutW.z0, kutW.z0 + 12, 'n'),
+  };
+};
+
+/** On Santhome beach: the fish market by the fishermen's huts and the evening fair further south. */
+export const FISH_MARKET = { x0: 144, x1: 162, z0: 56, z1: 80 };
+export const BEACH_FAIR = { x0: 144, x1: 186, z0: 100, z1: 138 };
+
 export const POLICE_LOT = () => {
   const b = block(CENTRE, CENTRE + 1);
   const mid = (b.x0 + b.x1) / 2;

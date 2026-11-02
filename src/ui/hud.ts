@@ -20,10 +20,17 @@ export const hud = {
     el.style.display = text ? 'block' : 'none';
   },
   /** Speedometer while driving; null hides it. */
-  setSpeed(kmh: number | null) {
+  /** Speedometer (null hides it); `gauge` = an extra small line (petrol / condition). */
+  setSpeed(kmh: number | null, gauge = '') {
     const el = $('speed');
     el.style.display = kmh === null ? 'none' : 'block';
-    if (kmh !== null) el.textContent = `${Math.round(kmh)} km/h`;
+    if (kmh === null) return;
+    const text = `${Math.round(kmh)} km/h`;
+    if (el.firstChild?.textContent !== text || (el.lastElementChild?.textContent ?? '') !== gauge) {
+      const small = Object.assign(document.createElement('div'), { textContent: gauge });
+      small.style.cssText = 'font-size:14px;opacity:.9;text-align:right';
+      el.replaceChildren(text, ...(gauge ? [small] : []));
+    }
   },
   /** Speech line at the bottom of the screen: "Name: text". Hides itself after a few seconds. */
   say(name: string, text: string) {
@@ -41,7 +48,7 @@ export const hud = {
     $('energy').classList.toggle('low', low);
   },
   /** Order menu at a hotel / shop (null hides it). Rows: "1  Masala dosa  ₹60  +35⚡". */
-  menu(m: { title: string; greet: string; rows: { label: string; price: number; energy: number; affordable: boolean }[] } | null) {
+  menu(m: { title: string; greet: string; keys?: string; rows: { label: string; price: number; energy?: number; note?: string; affordable: boolean }[] } | null) {
     const el = $('menu');
     el.style.display = m ? 'block' : 'none';
     if (!m) return;
@@ -49,10 +56,10 @@ export const hud = {
     const h3 = Object.assign(document.createElement('h3'), { textContent: m.title });
     const rows = m.rows.map((r, i) => {
       const row = div(r.affordable ? 'row' : 'row poor');
-      row.append(div('', `${i + 1}. ${r.label}`), div('', `₹${r.price} · +${r.energy}⚡`));
+      row.append(div('', `${i + 1}. ${r.label}`), div('', [r.price ? `₹${r.price}` : '', r.note ?? `+${r.energy}⚡`].filter(Boolean).join(' · ')));
       return row;
     });
-    el.replaceChildren(h3, div('greet', m.greet), ...rows, div('keys', '1-4 order · E close'));
+    el.replaceChildren(h3, div('greet', m.greet), ...rows, div('keys', m.keys ?? '1-4 order · E close'));
   },
   /** Health 0-100 and wanted stars 0-3. */
   setStatus(health: number, stars: number) {

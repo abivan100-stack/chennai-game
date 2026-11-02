@@ -9,6 +9,7 @@ import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts
 import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
 import { SHOP_SIGNS } from '../src/world/textures.ts';
 import { SignalCycle } from '../src/world/trafficLights.ts';
+import { CRASH_DV, PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from '../src/vehicles/upkeep.ts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -139,5 +140,28 @@ const sc = new SignalCycle();
 assert(sc.length === 37, 'signal cycle is 37 s');
 const at = (t: number) => { sc.t = t; return `${sc.state('ns')}/${sc.state('ew')}`; };
 assert(at(1) === 'green/red' && at(15) === 'amber/red' && at(18) === 'red/red' && at(20) === 'red/green' && at(33) === 'red/amber' && at(36) === 'red/red', 'signal phases: ns green, amber, all red, ew green, amber, all red');
+
+// --- Auto upkeep: petrol, crashes, repair ---
+const upk = new Upkeep();
+upk.drive(1000);
+assert(upk.fuel < TANK && upk.fuel > 0, 'driving burns petrol');
+upk.drive(100_000);
+assert(upk.fuel === 0 && upk.speedFactor < 0.2, 'an empty tank only crawls');
+assert(Math.abs(upk.litresFor(PETROL_PRICE * 2) - 2) < 1e-9 && upk.litresFor(1e6) === TANK, 'petrol money buys litres up to a full tank');
+upk.fill(TANK);
+assert(upk.crash(CRASH_DV - 0.5) === 0, 'braking is not a crash');
+const dmg = upk.crash(CRASH_DV + 4);
+assert(dmg > 0 && upk.condition === 100 - dmg && upk.repairCost === dmg * REPAIR_PRICE, 'a crash dents the auto; repair costs per point');
+upk.repair();
+assert(upk.condition === 100 && upk.speedFactor === 1, 'repaired and fuelled = full speed');
+
+// --- Bank: savings cover fines before the kadan grows; pickpockets only get the cash ---
+const bk = new Economy();
+bk.cash = 1000;
+assert(bk.deposit(600) === 600 && bk.cash === 400 && bk.savings === 600, 'deposit');
+const fineRes = bk.charge(700);
+assert(fineRes.owed === 0 && bk.cash === 0 && bk.savings === 300, 'fine paid from cash, then the bank');
+assert(bk.withdraw(1000) === 300 && bk.cash === 300 && bk.savings === 0, 'withdraw is capped by savings');
+assert(bk.pickpocket(0.25) === 75 && bk.cash === 225, 'pickpocket takes a share of the cash');
 
 console.log('check: all passed');

@@ -36,6 +36,9 @@ import { createSanthome } from './world/santhome';
 import { createMandaveli } from './world/mandaveli';
 import { createPosters } from './world/posters';
 import { createHospital } from './world/hospital';
+import { createPlaces, type Service } from './world/places';
+import { CINEMA, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
+import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
 import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHARGE, SIGNAL_FINE, TRAFFIC_POLICE } from './missions/data';
@@ -103,6 +106,9 @@ async function main() {
   const mandaveli = createMandaveli(scene, world);
   const posters = createPosters(scene, town.footprints);
   const hospital = createHospital(scene, world);
+  const places = createPlaces(scene, world);
+  eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
+  const upkeep = new Upkeep();
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
   const flood = createFlood(scene);
@@ -133,10 +139,11 @@ async function main() {
   const heroHips = player.model.getObjectByName('Hips')!;
   let health = 100;
   if (saved) {
-    economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false }); // older saves had no "seized"
+    economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false, savings: saved.economy.savings ?? 0 }); // older saves lack these
     energy.value = saved.energy;
     health = saved.health;
     dayNight.timeMs = saved.gameMs;
+    if (saved.upkeep) Object.assign(upkeep, saved.upkeep);
   }
   /** A traffic vehicle the player took (null = on foot or in uncle's auto). */
   let stolen: Vehicle | null = null;
@@ -180,8 +187,105 @@ async function main() {
   const closeMenu = () => {
     menuFor = null;
     shelfOpen = null;
+    serviceOpen = null;
     hud.menu(null);
   };
+  // ---- Places: petrol bunk, mechanic, bank, pharmacy, auto stand ----------------------------
+  let serviceOpen: Service | null = null;
+  type Row = { label: string; price: number; note: string; run: () => string };
+  const fill = (money: number): Row => {
+    const litres = upkeep.litresFor(money);
+    const cost = Math.ceil(litres * PETROL_PRICE);
+    return {
+      label: money >= TANK * PETROL_PRICE ? 'Full tank' : `Petrol ₹${money}`,
+      price: cost,
+      note: `${litres.toFixed(1)} L`,
+      run: () => {
+        upkeep.fill(litres);
+        economy.cash -= cost;
+        return PLACE_LINES.filled.replace('{litres}', litres.toFixed(1)).replace('{cost}', String(cost));
+      },
+    };
+  };
+  const serviceMenu = (s: Service): { greet: string; rows: Row[] } => {
+    switch (s.kind) {
+      case 'fuel':
+        if (upkeep.fuel >= TANK - 0.05) return { greet: PLACE_LINES.bunkFull, rows: [] };
+        return { greet: `${PLACE_LINES.bunkGreet} (₹${PETROL_PRICE}/L · tank ${upkeep.fuel.toFixed(1)}/${TANK} L)`, rows: [fill(100), fill(300), fill(TANK * PETROL_PRICE)] };
+      case 'mechanic': {
+        const broken = 100 - upkeep.condition;
+        if (broken < 0.5) return { greet: PLACE_LINES.mechFine, rows: [] };
+        const fix = (points: number, label: string): Row => ({
+          label, price: Math.ceil(points) * REPAIR_PRICE, note: `+${Math.ceil(points)}%`,
+          run: () => {
+            economy.cash -= upkeep.repair(points);
+            return PLACE_LINES.repaired;
+          },
+        });
+        return { greet: `${PLACE_LINES.mechGreet} (condition ${Math.round(upkeep.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : [])] };
+      }
+      case 'bank': {
+        const say = (line: string, n: number) => line.replace('{n}', n.toLocaleString('en-IN'));
+        return {
+          greet: PLACE_LINES.bankGreet.replace('{savings}', economy.savings.toLocaleString('en-IN')),
+          rows: [
+            { label: `Deposit all cash (₹${economy.cash})`, price: 0, note: 'safe from pickpockets', run: () => say(PLACE_LINES.deposited, economy.deposit()) },
+            { label: 'Withdraw ₹500', price: 0, note: '', run: () => (economy.savings > 0 ? say(PLACE_LINES.withdrew, economy.withdraw(500)) : PLACE_LINES.noSavings) },
+            { label: `Withdraw all (₹${economy.savings})`, price: 0, note: '', run: () => (economy.savings > 0 ? say(PLACE_LINES.withdrew, economy.withdraw(economy.savings)) : PLACE_LINES.noSavings) },
+          ],
+        };
+      }
+      case 'pharmacy':
+        return {
+          greet: PLACE_LINES.pharmaGreet,
+          rows: PHARMACY.map((it) => ({
+            label: it.name, price: it.price, note: [it.health ? `+${it.health}❤` : '', it.energy ? `+${it.energy}⚡` : ''].filter(Boolean).join(' '),
+            run: () => {
+              economy.cash -= it.price;
+              health = Math.min(100, health + it.health);
+              energy.eat(it.energy);
+              return PLACE_LINES.healed.replace('{item}', it.name);
+            },
+          })),
+        };
+      case 'stand':
+        return {
+          greet: PLACE_LINES.standGreet,
+          rows: [{
+            label: 'Sawaari edu (take a passenger)', price: 0, note: 'ride from the stand',
+            run: () => {
+              if (jobs.busy) return PLACE_LINES.standBusy;
+              if (jobs.phase === 'off') jobs.start();
+              const o = jobs.addOrderFrom(STAND, false);
+              jobs.accept(o.id);
+              return PLACE_LINES.standRide.replace('{name}', o.name);
+            },
+          }],
+        };
+    }
+  };
+  const openService = (s: Service) => {
+    serviceOpen = s;
+    const m = serviceMenu(s);
+    hud.menu({
+      title: s.name,
+      greet: m.greet,
+      keys: m.rows.length ? `1-${m.rows.length} choose · E close` : 'E close',
+      rows: m.rows.map((r) => ({ label: r.label, price: r.price, note: r.note, affordable: economy.cash >= r.price })),
+    });
+  };
+  const nearService = (p: THREE.Vector3, inAuto: boolean) => {
+    for (const s of places.services) {
+      if (inAuto && !s.inAuto) continue;
+      if (Math.hypot(p.x - s.at.x, p.z - s.at.z) < s.radius) return s;
+    }
+    return null;
+  };
+  let lastAutoSpeed = 0;
+  let crashCooldown = 0;
+  let fuelWarned = false;
+  let lastShowHour = -1;
+
   // Supermarket shopping: pick into the basket at the shelves, pay at the counter.
   let basket: FoodItem[] = [];
   let shelfOpen: Shelf | null = null;
@@ -287,7 +391,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -353,7 +457,10 @@ async function main() {
     showMoney();
     const [title, sub] = cause === 'busted' ? [BUSTED_TITLE, BUSTED_SUB] : cause === 'shot' ? [WASTED_TITLE, WASTED_SUB] : [STARVED_TITLE, STARVED_SUB];
     const onLoan = owed > 0 ? ` Kaasu pathala: ₹${owed} kadan-la serthaachu.` : '';
-    hud.banner(title, sub.replace('{fine}', String(fine)) + onLoan);
+    const lifted = cause === 'busted' ? 0 : economy.pickpocket(PICKPOCKET_SHARE); // bank money is safe
+    showMoney();
+    const lost = lifted > 0 ? PLACE_LINES.pickpocket.replace('{n}', String(lifted)) : '';
+    hud.banner(title, sub.replace('{fine}', String(fine)) + onLoan + lost);
     if (owed > 0) phone.addMessage(LENDER, MSG_FINE_ON_LOAN.replace('{owed}', owed.toLocaleString('en-IN')).replace('{loan}', economy.loan.toLocaleString('en-IN')));
     meal.forceStop();
     closeMenu();
@@ -404,6 +511,7 @@ async function main() {
       health: Math.max(1, health),
       player: { x: p.x, y: p.y, z: p.z, yaw },
       auto: { x: a.x, y: a.y, z: a.z, heading: auto.heading },
+      upkeep: { fuel: upkeep.fuel, condition: upkeep.condition },
     });
   };
   window.setInterval(saveNow, AUTOSAVE_MS);
@@ -500,6 +608,26 @@ async function main() {
         basket = [];
       }
     }
+    // Places: E opens the service menu (on foot, or stopped in the auto for petrol / repairs).
+    const autoStopped = ride.driving && Math.abs(auto.speed) < 1 && free;
+    const service = onFootFree && !nearAuto && !other && !eatery && !store ? nearService(player.position, false)
+      : autoStopped ? nearService(auto.group.position, true) : null;
+    if (serviceOpen && serviceOpen !== service) closeMenu();
+    if (service && input.wasPressed('KeyE')) {
+      if (serviceOpen) closeMenu();
+      else openService(service);
+    } else if (serviceOpen) {
+      const open = serviceOpen;
+      const rows = serviceMenu(open).rows;
+      const row = rows.find((_, n) => input.wasPressed(`Digit${n + 1}`));
+      if (row && economy.cash < row.price) hud.say(open.name, NO_MONEY);
+      else if (row) {
+        hud.say(open.name, row.run());
+        showMoney();
+        sound.coin();
+        openService(open); // refresh balances / tank
+      }
+    }
     // Lighthouse: E at the door takes you up to the gallery, E up there brings you back down.
     const lh = santhome.lighthouse;
     const atLighthouseDoor = onFootFree && Math.hypot(player.position.x - lh.door.x, player.position.z - lh.door.z) < 2.4 && player.position.y < lh.centre.y + 5;
@@ -512,7 +640,7 @@ async function main() {
         player.placeAt(lh.door, Math.PI / 2);
       }
     }
-    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store && !atLighthouseDoor && !onLighthouseTop ? crowd.nearest : null;
+    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store && !service && !atLighthouseDoor && !onLighthouseTop ? crowd.nearest : null;
     const stolenSpeed = stolen ? traffic.speedOf(stolen) : 0;
     if (free && input.wasPressed('KeyF')) {
       if (stolen) {
@@ -522,7 +650,7 @@ async function main() {
       else if (other) takeVehicle(other);
     }
     // (meal.busy: the same key press may have just ordered food from a menu this frame)
-    if (onFootFree && !meal.busy && !menuFor && !shelfOpen && input.wasPressed('Digit1')) melee.toggleStick();
+    if (onFootFree && !meal.busy && !menuFor && !shelfOpen && !serviceOpen && input.wasPressed('Digit1')) melee.toggleStick();
     if (onFootFree && input.wasPressed('Mouse0')) {
       melee.attack(meleeTargets);
       energy.spend(ATTACK_COST);
@@ -542,6 +670,7 @@ async function main() {
       !free ? null
         : stolen ? (Math.abs(stolenSpeed) < 3 ? 'F - Get out' : null)
         : nearAuto ? 'F - Get in'
+        : service && !serviceOpen ? `E - ${service.name}`
         : ride.canExit ? 'F - Get out'
         : other ? (other.driver ? `F - Steal the ${otherName} (police will come!)` : `F - Get in the ${otherName}`)
         : shelf ? (shelfOpen ? null : `E - ${shelf.name} (basket ${basket.length}/${BASKET_MAX})`)
@@ -583,6 +712,19 @@ async function main() {
       if (ram && wanted.level > 0) for (const jc of police.jeepColliders) world.contactPair(ram, jc, () => wanted.report('assaultPolice'));
       player.capture();
       auto.capture();
+      // Uncle's auto: petrol burns with distance; a sudden loss of speed is a crash.
+      const autoSpeed = Math.abs(auto.speed);
+      if (ride.driving) {
+        upkeep.drive(autoSpeed * PHYSICS_STEP);
+        const dmg = upkeep.crash(lastAutoSpeed - autoSpeed);
+        if (dmg > 0 && crashCooldown <= 0) {
+          crashCooldown = 1;
+          sound.hit('kick');
+          cam.shake(0.08);
+          hud.say('Auto', upkeep.condition < 15 ? PLACE_LINES.wrecked : PLACE_LINES.crash.replace('{cond}', String(Math.round(upkeep.condition))));
+        }
+      }
+      lastAutoSpeed = autoSpeed;
       accumulator -= PHYSICS_STEP;
     }
     const alpha = accumulator / PHYSICS_STEP; // how far we are into the next physics step
@@ -624,7 +766,7 @@ async function main() {
       hud.setSpeed(Math.abs(stolenSpeed) * 3.6);
     } else if (ride.driving) {
       cam.update(dt, auto.group.position, auto.heading);
-      hud.setSpeed(Math.abs(auto.speed) * 3.6);
+      hud.setSpeed(Math.abs(auto.speed) * 3.6, `⛽ ${upkeep.fuel.toFixed(1)} L · 🔧 ${Math.round(upkeep.condition)}%`);
     } else {
       cam.update(dt, player.position);
     }
@@ -706,7 +848,25 @@ async function main() {
     const drivingAny = ride.driving || !!stolen;
     const vPos = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
     const vSpeed = stolen ? Math.abs(stolenSpeed) : ride.driving ? Math.abs(auto.speed) : player.speed;
-    auto.speedLimit = flood.slowAt(auto.group.position.x, auto.group.position.z);
+    auto.speedLimit = flood.slowAt(auto.group.position.x, auto.group.position.z) * upkeep.speedFactor;
+    crashCooldown -= dt;
+    if (ride.driving && upkeep.fuel < 1 && !fuelWarned) {
+      fuelWarned = true;
+      hud.say('Auto', upkeep.fuel <= 0 ? PLACE_LINES.noFuel : PLACE_LINES.lowFuel);
+    }
+    if (upkeep.fuel >= 1) fuelWarned = false;
+    places.update(dt);
+    places.setNight(dayNight.night);
+    // A show lets out at the cinema: a couple of ride orders from there.
+    const hour = Math.floor(istTime(dayNight.timeMs).hours);
+    if (hour !== lastShowHour) {
+      if (lastShowHour >= 0 && SHOW_ENDS.includes(hour) && jobs.phase !== 'off') {
+        jobs.addOrderFrom(CINEMA);
+        jobs.addOrderFrom(CINEMA);
+        phone.notify(PLACE_LINES.showOver);
+      }
+      lastShowHour = hour;
+    }
     player.speedScale = flood.slowAt(player.position.x, player.position.z);
     const wet = flood.depthAt(vPos.x, vPos.z) > 0.05;
     if (wet && !wasWet && vSpeed > 2) sound.splash();

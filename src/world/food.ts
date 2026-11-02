@@ -19,6 +19,36 @@ export interface Menu {
   items: FoodItem[];
 }
 
+/** Snack counters at the new places (world/places.ts): eaten standing, like a shop snack. */
+export const PLACE_MENUS = {
+  chai: {
+    kind: 'shop', greet: 'Vaanga anna! Sooda tea, fresh bun.',
+    items: [
+      { name: 'Tea (chai)', price: 15, energy: 8, seconds: 4, color: '#c79a5b' },
+      { name: 'Bun butter jam', price: 30, energy: 18, seconds: 5, color: '#e3b56b' },
+      { name: 'Medhu vada', price: 15, energy: 12, seconds: 4, color: '#b9772f' },
+      { name: 'Sukku malli coffee', price: 20, energy: 9, seconds: 4, color: '#7a4b26' },
+    ],
+  },
+  fish: {
+    kind: 'shop', greet: 'Fresh-aa vandha meen anna! Fry pannittu tharen.',
+    items: [
+      { name: 'Vanjiram fry', price: 120, energy: 40, seconds: 8, color: '#b5652b' },
+      { name: 'Prawn fry', price: 100, energy: 32, seconds: 7, color: '#e07a3c' },
+      { name: 'Nethili fry', price: 60, energy: 22, seconds: 6, color: '#c98a3c' },
+    ],
+  },
+  fair: {
+    kind: 'shop', greet: 'Sundal, bajji, ice cream! Fair-ku vandheenga, saapdunga!',
+    items: [
+      { name: 'Thengai maanga sundal', price: 30, energy: 15, seconds: 5, color: '#e6d27a' },
+      { name: 'Milagai bajji', price: 40, energy: 20, seconds: 5, color: '#d08a2c' },
+      { name: 'Cotton candy', price: 30, energy: 8, seconds: 4, color: '#f7a8c8' },
+      { name: 'Kulfi', price: 35, energy: 10, seconds: 4, color: '#f3e3b0' },
+    ],
+  },
+} satisfies Record<string, Menu>;
+
 export const MENUS: Record<string, Menu> = {
   'Mylai Tiffin Centre': {
     kind: 'hotel',

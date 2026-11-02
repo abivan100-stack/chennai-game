@@ -19,6 +19,8 @@ export class Economy {
   missedDays = 0;
   /** Kandasamy has taken the auto (too many missed days). */
   seized = false;
+  /** Money in the bank: safe from pickpockets, and fines come out of it before the kadan grows. */
+  savings = 0;
   private day: number | null = null;
 
   earn(amount: number) {
@@ -41,11 +43,36 @@ export class Economy {
    * (Kandasamy covers it, at his price). Returns what was paid now and what went on the loan.
    */
   charge(amount: number) {
-    const paid = Math.max(0, Math.min(amount, this.cash));
-    this.cash -= paid;
+    const fromCash = Math.max(0, Math.min(amount, this.cash));
+    this.cash -= fromCash;
+    const fromBank = Math.max(0, Math.min(amount - fromCash, this.savings));
+    this.savings -= fromBank;
+    const paid = fromCash + fromBank;
     const owed = amount - paid;
     this.loan += owed;
     return { paid, owed };
+  }
+
+  /** Put cash in the bank (all of it by default). Returns the amount moved. */
+  deposit(amount = this.cash) {
+    const n = Math.max(0, Math.min(amount, this.cash));
+    this.cash -= n;
+    this.savings += n;
+    return n;
+  }
+
+  withdraw(amount: number) {
+    const n = Math.max(0, Math.min(amount, this.savings));
+    this.savings -= n;
+    this.cash += n;
+    return n;
+  }
+
+  /** Knocked out on the street: someone lifts a share of the cash in your pocket (not the bank). */
+  pickpocket(share: number) {
+    const n = Math.floor(this.cash * share);
+    this.cash -= n;
+    return n;
   }
 
   /** To get a seized auto back: the overdue days plus his penalty. */
@@ -67,8 +94,8 @@ export class Economy {
 
   /** Plain data for the save file. */
   snapshot() {
-    const { cash, loan, rides, earnedToday, paidToday, missedDays, day, seized } = this;
-    return { cash, loan, rides, earnedToday, paidToday, missedDays, day, seized };
+    const { cash, loan, rides, earnedToday, paidToday, missedDays, day, seized, savings } = this;
+    return { cash, loan, rides, earnedToday, paidToday, missedDays, day, seized, savings };
   }
 
   restore(s: ReturnType<Economy['snapshot']>) {

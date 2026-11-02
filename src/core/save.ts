@@ -12,7 +12,9 @@ export interface SaveData {
   v: number;
   savedAt: number; // real time (ms)
   gameMs: number; // in-game clock (ms timestamp, IST shown)
-  economy: { cash: number; loan: number; rides: number; earnedToday: number; paidToday: number; missedDays: number; day: number | null; seized?: boolean };
+  economy: { cash: number; loan: number; rides: number; earnedToday: number; paidToday: number; missedDays: number; day: number | null; seized?: boolean; savings?: number };
+  /** Uncle's auto: petrol (litres) and condition (older saves: full / new). */
+  upkeep?: { fuel: number; condition: number };
   energy: number;
   health: number;
   player: { x: number; y: number; z: number; yaw: number };

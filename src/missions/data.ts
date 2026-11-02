@@ -12,6 +12,9 @@ export interface Stop {
   side: 1 | -1;
 }
 
+export const STAND = 'Mylapore auto stand';
+export const CINEMA = 'Kamadhenu Cinemas';
+
 export const STOPS: Stop[] = [
   { name: 'Kapaleeshwarar Temple', axis: 'x', line: 25, along: 8, side: -1 },
   { name: 'Mylapore Tank bus stop', axis: 'x', line: -70, along: 0, side: 1 },
@@ -32,8 +35,49 @@ export const STOPS: Stop[] = [
   { name: 'Mandaveli MRTS station', axis: 'x', line: -70, along: 160, side: -1 },
   { name: 'Thirumayilai MRTS station', axis: 'x', line: -70, along: -40, side: -1 },
   { name: 'Venkatakrishna Road', axis: 'z', line: 125, along: -50, side: -1 },
+  // Neighbourhood places (world/places.ts)
+  { name: 'Luz Church', axis: 'z', line: -70, along: -40, side: 1 },
+  { name: 'Nageswara Rao Park', axis: 'z', line: -70, along: -52, side: -1 },
+  { name: 'Mylapore vegetable market', axis: 'z', line: 25, along: -55, side: 1 },
+  { name: STAND, axis: 'z', line: 25, along: -38, side: 1 },
+  { name: CINEMA, axis: 'z', line: 70, along: 47, side: 1 },
+  { name: 'Santhome beach fair', axis: 'x', line: 125, along: 112, side: 1 },
 ];
 export const HOSPITAL = 'Isabel Hospital';
+
+// ---- Places: petrol bunk, mechanic, bank, pharmacy, auto stand, cinema --------------------
+export const PLACE_LINES = {
+  bunkGreet: 'Petrol podanuma anna? Evlo-ku?',
+  bunkFull: 'Tank full-aa irukku anna!',
+  filled: '{litres} litre podiyachu. ₹{cost}. Nalla poitu vaanga!',
+  mechGreet: 'Enna anna, auto-va nallaa adichutteenga pola. Paakalaam!',
+  mechFine: 'Auto super condition-la irukku anna, onnum venaam.',
+  repaired: 'Ready anna! Pudhusu maadhiri odum.',
+  bankGreet: 'Balance ₹{savings}. Bank-la vecha kaasu safe!',
+  deposited: '₹{n} bank-la pottaachu.',
+  withdrew: '₹{n} eduthaachu.',
+  noSavings: 'Account-la kaasu illa anna.',
+  pharmaGreet: 'Enna venum anna? Udambu paathukonga.',
+  healed: '{item} saapteenga. Konjam better-aa irukku.',
+  standGreet: 'Stand-la line-la nikkiravanga irukaanga. Sawaari venuma?',
+  standBusy: 'Ippo oru sawaari irukke anna, adha mudinga first.',
+  standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
+  showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
+  lowFuel: 'Petrol kammiyaa irukku! R.K. Mutt Road bunk-ku ponga.',
+  noFuel: 'Petrol theernthuduchu! Mella thallikittu bunk-ku ponga.',
+  crash: 'Dei! Auto-ku adi pattuchu! (condition {cond}%)',
+  wrecked: 'Auto romba damage! Mechanic kitta kaattunga (R.K. Mutt Road).',
+  pickpocket: ' Mayakkathula pocket-la irundha ₹{n} kaanom!',
+};
+/** Share of pocket cash lost when you're knocked out on the street (the bank is safe). */
+export const PICKPOCKET_SHARE = 0.25;
+/** Game hours when a show lets out at the cinema (new ride orders from there). */
+export const SHOW_ENDS = [12, 15, 18, 21];
+export const PHARMACY = [
+  { name: 'Paracetamol + ORS', price: 30, health: 20, energy: 5 },
+  { name: 'Glucose drink', price: 40, health: 8, energy: 25 },
+  { name: 'First-aid kit', price: 150, health: 60, energy: 0 },
+];
 
 // ---- Order types -------------------------------------------------------------------------
 /** ride = normal fare; urgent = to the hospital against the clock (double fare on time);

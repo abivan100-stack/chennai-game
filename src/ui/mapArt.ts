@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, HOSPITAL_LOT, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
+import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
 
@@ -161,6 +161,30 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(hos.x0), P(hos.z0), M(hos.x1 - hos.x0), M(hos.z1 - hos.z0));
   badge(g, P((hos.x0 + hos.x1) / 2), P(hos.z0 + 11), '#d32f2f', 'H');
   labels.push({ text: 'Isabel Hospital', x: (hos.x0 + hos.x1) / 2, z: hos.z0 + 19, kind: 'landmark' });
+
+  // Neighbourhood places: a tinted lot, a badge and a label each.
+  const pl = PLACE_LOTS();
+  const placeMarks: [{ x0: number; x1: number; z0: number; z1: number }, string, string, string, string][] = [
+    [pl.park, '#a5d6a7', '#2e7d32', '❀', 'Nageswara Rao Park'],
+    [pl.church, '#e3f2fd', '#1b3a6b', '✝', 'Luz Church'],
+    [pl.market, '#ffecb3', '#ef6c00', 'V', 'Vegetable market'],
+    [pl.stand, '#fff9c4', '#222222', 'A', 'Auto stand · tea'],
+    [pl.bunk, '#ffccbc', '#d84315', '⛽', 'Petrol bunk'],
+    [pl.mechanic, '#cfd8dc', '#37474f', '🔧', 'Mechanic'],
+    [pl.cinema, '#e1bee7', '#7b1fa2', '🎬', 'Kamadhenu Cinemas'],
+    [pl.bank, '#bbdefb', '#0d47a1', '₹', 'Bank · ATM'],
+    [pl.pharmacy, '#c8e6c9', '#1b5e20', '+', 'Pharmacy'],
+    [FISH_MARKET, '#b3e5fc', '#0277bd', 'F', 'Fish market'],
+    [BEACH_FAIR, '#f8bbd0', '#ad1457', '★', 'Beach fair'],
+  ];
+  for (const [lot, fill, colour, letter, name] of placeMarks) {
+    g.fillStyle = fill;
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const cx = (lot.x0 + lot.x1) / 2;
+    const cz = (lot.z0 + lot.z1) / 2;
+    badge(g, P(cx), P(cz), colour, letter);
+    labels.push({ text: name, x: cx, z: cz + 7, kind: 'landmark' });
+  }
 
   // Supermarkets.
   for (const lot of SUPERMARKET_LOTS()) {

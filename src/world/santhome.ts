@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
+import { BEACH_FAIR, FISH_MARKET } from './layout';
 import { pavingTexture } from './textures';
 
 /*
@@ -62,7 +63,7 @@ function seeded(seed: number) {
 }
 
 /** Beach profile: flat-ish dry sand, a gentle fall to the waterline, then under the sea. */
-function sandY(x: number) {
+export function sandY(x: number) {
   if (x < 140) return 0.12;
   if (x < 196) return 0.12 - ((x - 140) / 56) * 0.09;
   if (x < SHORE_X) return 0.03 - ((x - 196) / (SHORE_X - 196)) * 0.09;
@@ -90,6 +91,9 @@ export function createSanthome(scene: THREE.Scene, world: RAPIER.World) {
   buildCarts(beach, cols, carts, obstacles);
   buildHuts(beach, cols, obstacles);
   buildBoats(beach, cols, obstacles);
+  for (const r of [FISH_MARKET, BEACH_FAIR]) { // keep palms off the fish market and the fair
+    for (let x = r.x0; x <= r.x1; x += 6) for (let z = r.z0; z <= r.z1; z += 6) obstacles.push({ x, z, r: 6 });
+  }
   buildPalms(beach, cols, obstacles);
 
   const wallMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, emissive: 0xfff0d6, emissiveIntensity: 0 });
