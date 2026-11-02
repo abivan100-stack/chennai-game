@@ -18,7 +18,7 @@ const CANAL = { z0: 9, z1: 21, y: -1.1 }; // water strip, sunk below the banks
 const RAIL_Z = 15; // the viaduct runs right over the canal
 const DECK_Y = 9; // rail level
 const SPAN = 16; // m between viaduct piers
-const LINE_X = [-460, 560]; // the line runs well past both ends of town
+const LINE_X = [BOUNDS.z0 - 300, BOUNDS.z1 + 140]; // the line runs well past both ends of town
 const STATION_LEN = 64;
 const STATION_TA = ['திருமயிலை', 'மந்தைவெளி'];
 const STATIONS = MRTS_STATIONS.map(([z, name], i) => ({ x0: z - STATION_LEN / 2, x1: z + STATION_LEN / 2, ta: STATION_TA[i], en: `${name.replace(' MRTS', '').toUpperCase()}  ·  MRTS` }));

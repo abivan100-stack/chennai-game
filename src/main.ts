@@ -39,6 +39,8 @@ import { createHospital } from './world/hospital';
 import { createPlaces, type Service } from './world/places';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
+import { createComplex } from './world/complex';
+import { createCafes } from './world/cafes';
 import { TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
@@ -111,7 +113,10 @@ async function main() {
   const places = createPlaces(scene, world);
   const landmarks = createLandmarks(scene, world);
   const tidel = createTidelPark(scene, world);
+  const gated = createComplex(scene, world);
+  const cafes = createCafes(scene, world);
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
+  eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
   const upkeep = new Upkeep();
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
@@ -872,6 +877,8 @@ async function main() {
     places.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
+    gated.setNight(dayNight.night);
+    cafes.setNight(dayNight.night);
     // A show lets out at the cinema: a couple of ride orders from there.
     const hour = Math.floor(istTime(dayNight.timeMs).hours);
     if (hour !== lastShowHour) {

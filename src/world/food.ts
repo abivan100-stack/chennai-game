@@ -38,6 +38,24 @@ export const PLACE_MENUS = {
       { name: 'Nethili fry', price: 60, energy: 22, seconds: 6, color: '#c98a3c' },
     ],
   },
+  cafe: {
+    kind: 'shop', greet: 'Hi! Welcome. Enna order pannuveenga? Filter coffee is our special.',
+    items: [
+      { name: 'Filter coffee (davara)', price: 40, energy: 10, seconds: 4, color: '#8a5a32' },
+      { name: 'Cold brew', price: 160, energy: 12, seconds: 5, color: '#4a2c17' },
+      { name: 'Paneer tikka sandwich', price: 190, energy: 35, seconds: 8, color: '#e8c27a' },
+      { name: 'Chocolate brownie', price: 120, energy: 22, seconds: 5, color: '#5a3a22' },
+    ],
+  },
+  bakery: {
+    kind: 'shop', greet: 'Fresh-aa oven-la irundhu! Enna venum?',
+    items: [
+      { name: 'Butter croissant', price: 110, energy: 20, seconds: 5, color: '#e3b56b' },
+      { name: 'Sourdough toast + filter coffee', price: 180, energy: 30, seconds: 7, color: '#d9a441' },
+      { name: 'Banana walnut cake', price: 90, energy: 18, seconds: 4, color: '#c98a3c' },
+      { name: 'Masala tea', price: 50, energy: 8, seconds: 4, color: '#c79a5b' },
+    ],
+  },
   fair: {
     kind: 'shop', greet: 'Sundal, bajji, ice cream! Fair-ku vandheenga, saapdunga!',
     items: [

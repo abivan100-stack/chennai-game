@@ -15,7 +15,8 @@
  *     cross), then Alwarpet (TTK Road, bungalows) and Teynampet (Eldams Road, Anna Salai).
  *   - North: Dr. Radhakrishnan Salai. South of Mandaveli: R.A. Puram, Greenways Road, the Adyar
  *     river (bridges on every north-south road, the boat club on its bank) and Adyar beyond it;
- *     then Taramani: Tidel Park on Taramani Road, where the OMR IT corridor begins.
+ *     then Taramani: Tidel Park on Taramani Road, where the OMR IT corridor begins; then
+ *     Perungudi, with a big gated apartment community by the Beach Road.
  * Block grid indices keep the original Mylapore numbering (temple = [2, 2]); the new areas to
  * the west and north get negative indices.
  * Directions: -z = north, +x = east.
@@ -24,11 +25,11 @@
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
 /** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
-export const BOUNDS = { x0: -300, x1: 250, z0: -160, z1: 540 };
+export const BOUNDS = { x0: -300, x1: 250, z0: -160, z1: 660 };
 /** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
 export const X_LINES = [-265, -205, -145, -70, -25, 25, 70, 125];
 /** Roads running east-west (centre line z = c). They end at the Beach Road. */
-export const Z_LINES = [-130, -70, -25, 25, 70, 125, 180, 240, 300, 390, 480];
+export const Z_LINES = [-130, -70, -25, 25, 70, 125, 180, 240, 300, 390, 480, 600];
 /** Water the roads cross on bridges: the canal (north-south strip) and the Adyar river (east-west). */
 export const CANAL = { x0: -121, x1: -109 };
 export const RIVER = { z0: 318, z1: 346 };
@@ -82,6 +83,7 @@ export const Z_ROADS: Record<number, [string, string]> = {
   [300]: ['Greenways Road', 'கிரீன்வேஸ் சாலை'],
   [390]: ['Adyar Main Road', 'அடையார் பிரதான சாலை'],
   [480]: ['Taramani Road (to OMR)', 'தரமணி சாலை'],
+  [600]: ['Perungudi Main Road', 'பெருங்குடி பிரதான சாலை'],
 };
 
 /**
@@ -298,7 +300,47 @@ export const LANDMARK_LOTS = () => {
 /** Tidel Park, Taramani: the glass IT park, facing Taramani Road (block [2, 9]). */
 export const TIDEL_LOT = (): Lot => {
   const b = block(CENTRE, 9);
-  return { x0: b.x0, x1: b.x1 + 0, z0: b.z0 + 12, z1: b.z1, front: 's' };
+  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 's' };
+};
+
+/** The gated community in Perungudi: two phases either side of San Thome High Road's south end. */
+export const COMPLEX_LOTS = (): Lot[] => {
+  const p1 = block(SANTHOME, 10);
+  const p2 = block(CENTRE + 1, 10);
+  return [
+    { x0: p1.x0, x1: p1.x1, z0: p1.z0, z1: p1.z1, front: 'e' }, // Phase 1, gate on the Beach Road
+    { x0: p2.x0, x1: p2.x1, z0: p2.z0, z1: p2.z1, front: 'n' }, // Phase 2, gate on Taramani Road
+  ];
+};
+
+/**
+ * Small lots for the aesthetic cafes and boutiques (world/cafes.ts): TTK Road, Luz, the Beach
+ * Road, R.A. Puram, Adyar, Taramani, Anna Salai. 14 m frontage x 13 m deep each.
+ */
+export const CAFE_LOTS = () => {
+  const at = (i: number, j: number, front: Front, along: number): Lot => {
+    const b = block(i, j);
+    const W = 14;
+    const D = 13;
+    if (front === 'e') return { x0: b.x1 - D, x1: b.x1, z0: b.z0 + along, z1: b.z0 + along + W, front };
+    if (front === 'w') return { x0: b.x0, x1: b.x0 + D, z0: b.z0 + along, z1: b.z0 + along + W, front };
+    if (front === 'n') return { x0: b.x0 + along, x1: b.x0 + along + W, z0: b.z0, z1: b.z0 + D, front };
+    return { x0: b.x0 + along, x1: b.x0 + along + W, z0: b.z1 - D, z1: b.z1, front };
+  };
+  return [
+    at(-1, 1, 'e', 3), // TTK Road
+    at(-1, 4, 'e', 6),
+    at(CENTRE + 1, 0, 's', 8), // Luz Church Road
+    at(SANTHOME, 3, 'e', 2), // Beach Road
+    at(SANTHOME, 5, 'e', 8),
+    at(1, 6, 'n', 7), // R.A. Puram
+    at(1, 9, 'n', 7), // Adyar Main Road
+    at(SANTHOME, 8, 's', 12),
+    at(CENTRE + 1, 9, 's', 8), // Taramani, by Tidel Park
+    at(-2, 3, 'w', 4), // Anna Salai
+    at(-2, 1, 'w', 6),
+    at(SANTHOME, 1, 'e', 4), // Beach Road, by the lighthouse
+  ];
 };
 
 export const POLICE_LOT = () => {

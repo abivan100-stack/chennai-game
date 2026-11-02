@@ -6,7 +6,7 @@ import { TIDEL_LOT } from './layout';
 
 /**
  * Tidel Park, Taramani (stylised): Chennai's landmark IT park, in glass. Two glass office wings
- * either side of a taller atrium core, a white concrete frame and crown, an entrance canopy, a
+ * (16 floors) either side of a taller atrium core, a white concrete frame and crown, an entrance canopy, a
  * boom-barrier gate with a security cabin and a car park. Glass reflects the sky by day and
  * the offices light up at night. 5 draw calls.
  */
@@ -61,7 +61,7 @@ function curtainWall(night: boolean) {
 
 export function createTidelPark(scene: THREE.Scene, world: RAPIER.World) {
   const k = createKit(world, SIGNS);
-  const { box, board, tree } = k;
+  const { box, board, tree, shape } = k;
   const glass = new GeoBuilder();
   const f = frame(TIDEL_LOT());
   const { w, d } = f;
@@ -92,27 +92,35 @@ export function createTidelPark(scene: THREE.Scene, world: RAPIER.World) {
     box(f, 1.8, 1.3, 4.2, u, 0.05, v, CARS[n % CARS.length]);
   }
 
-  // The building: wings either side of a taller atrium core, on a podium.
-  const bv = d - 22;
-  const floors = 11;
+  // The building: two 16-floor glass wings either side of a taller atrium core, on a podium.
+  const depth = 50;
+  const bv = 20 + depth / 2; // centre, in from the road
+  const front = bv - depth / 2;
+  const floors = 16;
   const h = floors * FLOOR_H;
-  box(f, w - 2, 1.2, 38, 0, 0, bv, FRAME, true); // podium
-  glassBlock(f, 11, h, 34, -w / 2 + 7.5, bv, GLASS_TINT);
-  glassBlock(f, 11, h, 34, w / 2 - 7.5, bv, GLASS_TINT);
-  glassBlock(f, w - 26, h + 6, 24, 0, bv, ATRIUM_TINT);
-  // White frame: corner piers and floor bands on the core's front.
+  const wingW = 11;
+  const wingU = w / 2 - 1 - wingW / 2;
+  box(f, w - 1.5, 1.5, depth + 2, 0, 0, bv, FRAME, true); // podium
+  glassBlock(f, wingW, h, depth, -wingU, bv, GLASS_TINT);
+  glassBlock(f, wingW, h, depth, wingU, bv, GLASS_TINT);
+  const coreW = 2 * (wingU - wingW / 2) + 0.4;
+  glassBlock(f, coreW, h + 8, depth - 10, 0, bv, ATRIUM_TINT);
+  // White frame: corner piers on the wings, a tall portal round the atrium, floor bands.
   for (const s of [-1, 1]) {
-    for (const t of [-1, 1]) box(f, 1, h + 1, 1, s * (w / 2 - 2) , 0, bv + t * 17, FRAME, false);
-    box(f, 1, h + 7, 1, s * (w / 2 - 13), 0, bv - 12, FRAME, false);
+    for (const t of [-1, 1]) box(f, 1.1, h + 1, 1.1, s * (wingU + t * (wingW / 2)), 0, front, FRAME, false);
+    box(f, 1.2, h + 9, 1.2, s * (coreW / 2), 0, front + 4.6, FRAME, false);
   }
-  for (let fl = 2; fl <= floors; fl += 2) box(f, w - 25, 0.35, 0.6, 0, fl * FLOOR_H, bv - 12.2, FRAME, false);
-  // Crown: a white frame over the atrium carrying the name.
-  box(f, w - 22, 4, 1.2, 0, h + 6, bv - 12, FRAME, false);
-  board(f, 0, 0, h + 6.6, bv - 12.65, w - 24, 2.8);
+  for (let fl = 2; fl <= floors; fl += 2) box(f, coreW, 0.35, 0.6, 0, fl * FLOOR_H, front + 4.4, FRAME, false);
+  for (let fl = 4; fl <= floors; fl += 4) for (const s of [-1, 1]) box(f, wingW + 0.4, 0.45, depth + 0.4, s * wingU, fl * FLOOR_H, bv, FRAME, false);
+  // Crown over the atrium carrying the name, and a helipad on one wing.
+  box(f, coreW + 2.4, 5, 1.4, 0, h + 8, front + 4.6, FRAME, false);
+  board(f, 0, 0, h + 8.7, front + 3.85, coreW + 1, 3.6);
+  shape(f, new THREE.CylinderGeometry(4, 4, 0.3, 20), wingU, h + 0.8, bv + 12, C(0x5a5a5a));
+  shape(f, new THREE.TorusGeometry(2.6, 0.18, 4, 24).rotateX(Math.PI / 2), wingU, h + 1, bv + 12, C(0xffd54f));
   // Entrance canopy, doors, steps.
-  box(f, 12, 0.5, 6, 0, 5, bv - 15, FRAME, false);
-  for (const s of [-1, 1]) box(f, 0.6, 5, 0.6, s * 5.5, 0, bv - 17.5, FRAME);
-  box(f, 10, 1.2, 4, 0, 0, bv - 19.5, C(0xbdbdbd), false);
+  box(f, 14, 0.6, 7, 0, 6, front - 2, FRAME, false);
+  for (const s of [-1, 1]) box(f, 0.7, 6, 0.7, s * 6.3, 0, front - 5, FRAME);
+  box(f, 12, 1.5, 4, 0, 0, front - 1.5, C(0xbdbdbd), false);
   // Gate: pillars, sign, security cabin, boom barrier.
   for (const s of [-1, 1]) box(f, 1, 3, 1, s * 4.5, 0, 0.6, FRAME);
   board(f, 1, 0, 3.1, 0.1, 10, 1.3);
@@ -120,7 +128,7 @@ export function createTidelPark(scene: THREE.Scene, world: RAPIER.World) {
   box(f, 6, 0.12, 0.12, 2, 1, 1.4, C(0xd32f2f), false);
   const side = (w - 10) / 2;
   for (const s of [-1, 1]) box(f, side, 1.4, 0.3, s * (5 + side / 2), 0, 0.2, FRAME);
-  for (const u of [-w / 2 + 2.5, w / 2 - 2.5]) tree(f, u, 22, 1);
+  for (const u of [-w / 2 + 2, w / 2 - 2]) tree(f, u, 16.5, 0.9);
 
   const setKitNight = k.build(scene);
   const glassMat = new THREE.MeshStandardMaterial({
