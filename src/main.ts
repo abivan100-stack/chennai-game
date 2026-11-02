@@ -37,7 +37,11 @@ import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
 import { DRIVER_SEAT, SPEC, type Vehicle } from './vehicles/traffic';
 import { BEATEN } from './npcs/dialogue';
-import { BUSTED_SUB, BUSTED_TITLE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, WASTED_SUB, WASTED_TITLE } from './missions/data';
+import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
+import { ATTACK_COST, Energy, type Activity } from './player/energy';
+import { Meal } from './player/meal';
+import { createEateries, type Eatery } from './world/eateries';
+import { MEAL_DONE, NO_MONEY } from './world/food';
 import { ROAD_LINES } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
@@ -69,6 +73,8 @@ async function main() {
   const temple = createTemple(scene, world);
   const dayNight = new DayNight(scene);
   const crowd = new Crowd(scene, world, characters.npcs);
+  const eateries = createEateries(scene, world, town.footprints);
+  const energy = new Energy();
   crowd.onSay = (name, line) => hud.say(name, line);
 
   // Start outside the temple's main gopuram on East Mada Street; uncle's auto at the kerb,
@@ -87,6 +93,23 @@ async function main() {
   /** Seconds left on the ARRESTED / SUTTUTAANGA screen (controls frozen). */
   let downFor = 0;
   const NO_INPUT = { ...input, isDown: () => false, wasPressed: () => false };
+  const meal = new Meal(player, scene);
+  meal.onDone = (finished) => {
+    if (finished) hud.say('Neenga', MEAL_DONE);
+  };
+  let menuFor: Eatery | null = null;
+  const openMenu = (e: Eatery) => {
+    menuFor = e;
+    hud.menu({
+      title: e.name,
+      greet: e.menu.greet,
+      rows: e.menu.items.map((it) => ({ label: it.name, price: it.price, energy: it.energy, affordable: economy.cash >= it.price })),
+    });
+  };
+  const closeMenu = () => {
+    menuFor = null;
+    hud.menu(null);
+  };
   type Officer = ReturnType<typeof police.officersOut>[number];
   /** Everyone the player can hit: pedestrians and officers on foot (built only mid-attack). */
   const meleeTargets = (): Target<Npc | Officer>[] => [
@@ -166,7 +189,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -204,11 +227,14 @@ async function main() {
     hud.setSpeed(null);
   };
   /** Arrested or shot down: fine, then released outside the station. */
-  const knockOut = (busted: boolean) => {
-    const fine = busted ? 500 * Math.max(1, wanted.level) : 300;
+  const knockOut = (cause: 'busted' | 'shot' | 'starved') => {
+    const fine = cause === 'busted' ? 500 * Math.max(1, wanted.level) : 300;
     economy.cash = Math.max(0, economy.cash - fine);
     showMoney();
-    hud.banner(busted ? BUSTED_TITLE : WASTED_TITLE, (busted ? BUSTED_SUB : WASTED_SUB).replace('{fine}', String(fine)));
+    const [title, sub] = cause === 'busted' ? [BUSTED_TITLE, BUSTED_SUB] : cause === 'shot' ? [WASTED_TITLE, WASTED_SUB] : [STARVED_TITLE, STARVED_SUB];
+    hud.banner(title, sub.replace('{fine}', String(fine)));
+    meal.forceStop();
+    closeMenu();
     downFor = 3.5;
   };
   const release = () => {
@@ -219,6 +245,7 @@ async function main() {
     wanted.clear();
     police.reset();
     health = 100;
+    energy.value = Math.max(energy.value, 60); // fed at the hospital
   };
 
   showMoney();
@@ -242,10 +269,30 @@ async function main() {
 
     // --- Interactions (F: auto / any vehicle, E: talk, 1: stick, click: swing)
     const free = downFor <= 0;
-    const onFootFree = free && player.onFoot && ride.phase === 'onFoot' && !stolen;
+    const onFootFree = free && player.onFoot && ride.phase === 'onFoot' && !stolen && !meal.busy;
     const nearAuto = onFootFree && auto.isNear(player.position, ENTER_RADIUS);
     const other = onFootFree && !nearAuto ? traffic.enterable(player.position) : null;
-    const talkTo = onFootFree && !nearAuto && !other ? crowd.nearest : null;
+    // Hotels / shops: E opens the menu (not while the police are after you).
+    const eatery = onFootFree && !nearAuto && !other && wanted.level === 0 ? eateries.nearest(player.position) : null;
+    if (menuFor && menuFor !== eatery) closeMenu();
+    if (eatery && input.wasPressed('KeyE')) {
+      if (menuFor) closeMenu();
+      else openMenu(eatery);
+    } else if (menuFor) {
+      const at = menuFor;
+      const i = at.menu.items.findIndex((_, n) => input.wasPressed(`Digit${n + 1}`));
+      const item = at.menu.items[i];
+      if (item && economy.cash < item.price) hud.say(at.name, NO_MONEY);
+      else if (item) {
+        economy.cash -= item.price;
+        showMoney();
+        closeMenu();
+        hud.say(at.name, `${item.name} ready! ₹${item.price}`);
+        if (melee.stickOut) melee.toggleStick();
+        meal.start(at, item);
+      }
+    }
+    const talkTo = onFootFree && !nearAuto && !other && !eatery ? crowd.nearest : null;
     const stolenSpeed = stolen ? traffic.speedOf(stolen) : 0;
     if (free && input.wasPressed('KeyF')) {
       if (stolen) {
@@ -254,9 +301,15 @@ async function main() {
       else if (ride.canExit) ride.exit();
       else if (other) takeVehicle(other);
     }
-    if (onFootFree && input.wasPressed('Digit1')) melee.toggleStick();
-    if (onFootFree && input.wasPressed('Mouse0')) melee.attack(meleeTargets);
-    if (onFootFree && input.wasPressed('KeyQ')) melee.attack(meleeTargets, 'kick');
+    if (onFootFree && !menuFor && input.wasPressed('Digit1')) melee.toggleStick();
+    if (onFootFree && input.wasPressed('Mouse0')) {
+      melee.attack(meleeTargets);
+      energy.spend(ATTACK_COST);
+    }
+    if (onFootFree && input.wasPressed('KeyQ')) {
+      melee.attack(meleeTargets, 'kick');
+      energy.spend(ATTACK_COST);
+    }
     player.blocking = onFootFree && input.isDown('Mouse2') && !player.acting;
     if (talkTo && input.wasPressed('KeyE')) {
       const p = talkTo.root.position;
@@ -270,12 +323,15 @@ async function main() {
         : nearAuto ? 'F - Get in'
         : ride.canExit ? 'F - Get out'
         : other ? (other.driver ? `F - Steal the ${otherName} (police will come!)` : `F - Get in the ${otherName}`)
+        : eatery ? (menuFor ? null : `E - Saapdalaam: ${eatery.name} (${eatery.menu.kind === 'hotel' ? 'hotel' : 'snacks'})`)
+        : meal.phase === 'eat' || meal.phase === 'snack' ? 'W/A/S/D - Stop eating'
         : talkTo ? `E - Talk to ${talkTo.name}` : null,
     );
 
     // --- Simulation: input once per frame, physics in fixed steps
     player.handleInput(free ? input : NO_INPUT, cam.yaw);
     ride.update(dt, free ? input : NO_INPUT);
+    meal.update(dt, free ? input : NO_INPUT);
     if (stolen) {
       const k = free ? input : NO_INPUT;
       traffic.control(stolen, Number(k.isDown('KeyW')) - Number(k.isDown('KeyS')), Number(k.isDown('KeyA')) - Number(k.isDown('KeyD')), k.isDown('Space'));
@@ -328,6 +384,7 @@ async function main() {
     }
     if (stolen) pinHips(stolen.group, DRIVER_SEAT[stolen.kind]);
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
+    meal.lateUpdate(); // seated hips + hand-to-mouth
     jobs.update(dt, ride.driving);
     ride.syncPosition();
     if (stolen) {
@@ -382,13 +439,25 @@ async function main() {
       health -= hurt;
       hud.hurt();
     }
-    if (wanted.level === 0) health = Math.min(100, health + 4 * dt);
-    if (downFor <= 0 && (health <= 0 || pev.busted)) knockOut(pev.busted && health > 0);
+    if (wanted.level === 0 && energy.value > 0) health = Math.min(100, health + 4 * dt); // no healing on an empty stomach
+    const starving = energy.value <= 0;
+    if (downFor <= 0 && (health <= 0 || pev.busted)) knockOut(pev.busted && health > 0 ? 'busted' : starving ? 'starved' : 'shot');
     if (downFor > 0) {
       downFor -= dt;
       if (downFor <= 0) release();
     }
     hud.setStatus(health, wanted.level);
+
+    // Energy: drains with activity, refills while eating; at zero, health goes.
+    const activity: Activity = ride.driving || stolen ? 'drive' : player.speed > 4 ? 'run' : player.speed > 0.3 ? 'walk' : 'idle';
+    const wasLow = energy.low;
+    const wasTired = energy.tired;
+    if (downFor <= 0) health -= energy.update(dt, activity);
+    energy.eat(meal.energyRate * dt);
+    if (energy.low && !wasLow) hud.say('Vayiru', HUNGRY_LINE);
+    if (energy.tired && !wasTired) hud.say('Vayiru', TIRED_LINE);
+    player.canRun = !energy.tired;
+    hud.setEnergy(energy.value, energy.low);
     if (input.wasPressed('F3')) debug.toggle();
     if (jobs.phase !== 'off') {
       hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);

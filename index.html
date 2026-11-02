@@ -21,7 +21,18 @@
       }
       #health { top: 92px; right: 16px; width: 150px; height: 9px; border-radius: 5px; background: #0007; overflow: hidden; border: 1px solid #fff8; }
       #health-fill { height: 100%; width: 100%; background: #3bc45a; transition: width 0.2s; }
-      #stars { top: 106px; right: 16px; font-size: 26px; color: #ffd21f; letter-spacing: 2px; }
+      #energy { top: 106px; right: 16px; width: 150px; height: 9px; border-radius: 5px; background: #0007; overflow: hidden; border: 1px solid #fff8; }
+      #energy-fill { height: 100%; width: 100%; background: #ff9f1a; transition: width 0.3s; }
+      #energy-label { top: 103px; right: 172px; font: 700 12px system-ui, sans-serif; color: #fff; text-shadow: 0 1px 2px #000; }
+      #energy.low { animation: starflash 0.5s infinite alternate; }
+      #menu { top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; min-width: 320px; padding: 16px 20px; border-radius: 14px;
+        background: #fffaf0; color: #222; font: 15px/1.5 system-ui, sans-serif; box-shadow: 0 10px 30px #000a; z-index: 6; }
+      #menu h3 { margin: 0 0 2px; font-size: 18px; color: #7a2b10; }
+      #menu .greet { margin: 0 0 10px; color: #555; font-style: italic; }
+      #menu .row { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; }
+      #menu .row.poor { color: #aaa; }
+      #menu .keys { margin-top: 10px; color: #777; font-size: 13px; }
+      #stars { top: 122px; right: 16px; font-size: 26px; color: #ffd21f; letter-spacing: 2px; }
       #stars.flash { animation: starflash 0.6s infinite alternate; }
       @keyframes starflash { from { opacity: 1; } to { opacity: 0.45; } }
       #banner { inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #000a; z-index: 8; }
@@ -100,6 +111,9 @@
     <div id="dialogue" class="ui"></div>
     <div id="speed" class="ui"></div>
     <div id="health" class="ui"><div id="health-fill"></div></div>
+    <div id="energy" class="ui"><div id="energy-fill"></div></div>
+    <div id="energy-label" class="ui">⚡</div>
+    <div id="menu" class="ui"></div>
     <div id="stars" class="ui"></div>
     <div id="hurt" class="ui"></div>
     <div id="banner" class="ui"></div>

@@ -86,4 +86,8 @@ export const BUSTED_TITLE = 'ARRESTED';
 export const WASTED_TITLE = 'SUTTUTAANGA!';
 /** {fine} */
 export const BUSTED_SUB = 'Police pidichitaanga. ₹{fine} fine kattitu station-la irundhu veliya vandheenga.';
+export const STARVED_TITLE = 'PASI-LA VIZHUNDHUTEENGA!';
+export const STARVED_SUB = 'Saapdaama suthuneenga, mayangi vizhundhuteenga. Hospital bill ₹{fine}. Ini time-ku saapdunga!';
+export const HUNGRY_LINE = 'Vayiru kaththudhu... edhavadhu saapdanum. (Hotel / store pakkathula E)';
+export const TIRED_LINE = 'Kaal thalarudhu, oda mudiyala. Seekiram saapdunga!';
 export const WASTED_SUB = 'Gun shot-la vizhundhuteenga. Hospital bill ₹{fine}. Station pakkathula irundhu restart.';

@@ -61,6 +61,8 @@ export class PlayerController {
   private lunge: { speed: number; from: number; to: number } | null = null;
   /** Holding block (right mouse): guard pose, can't move, takes less damage. */
   blocking = false;
+  /** False when too hungry to run. */
+  canRun = true;
   private away = false;
   private readonly prevPos = new THREE.Vector3();
   private readonly currPos = new THREE.Vector3();
@@ -173,7 +175,7 @@ export class PlayerController {
     // Camera-relative: forward = (-sin, 0, -cos), right = (cos, 0, -sin).
     this.wish.set(r * cos - f * sin, 0, -r * sin - f * cos);
     if (this.wish.lengthSq() > 1) this.wish.normalize();
-    const running = input.isDown('ShiftLeft') || input.isDown('ShiftRight');
+    const running = this.canRun && (input.isDown('ShiftLeft') || input.isDown('ShiftRight'));
     this.wish.multiplyScalar(running ? RUN_SPEED : WALK_SPEED);
     if (input.wasPressed('Space')) this.jumpQueued = true;
     // Attacking or blocking: stand your ground (a kick lunges forward along the facing).

@@ -37,6 +37,8 @@ export interface Footprint {
   yaw: number;
   color: string;
   shop: number | null; // index into SHOP_SIGNS of its first shop board
+  /** Every signed shop: board index + the middle of its shopfront (world x/z) and facing. */
+  shops: { sign: number; x: number; z: number; yaw: number }[];
   oldHouse: boolean;
 }
 /** Yaw that turns a building's local +z (its front) to face the road. */
@@ -75,7 +77,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     const floorH = range(3.0, 3.5);
     const h = groundH + (floors - 1) * floorH;
     const wall = new THREE.Color(pick(PALETTE));
-    const fp: Footprint = { cx, cz, w, d, yaw: YAW[facing], color: `#${wall.getHexString()}`, shop: null, oldHouse };
+    const fp: Footprint = { cx, cz, w, d, yaw: YAW[facing], color: `#${wall.getHexString()}`, shop: null, shops: [], oldHouse };
     footprints.push(fp);
     const m = new THREE.Matrix4().makeRotationY(YAW[facing]).setPosition(cx, 0, cz);
     const P = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(m);
@@ -166,6 +168,8 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
         const sh = THREE.MathUtils.clamp(sw / 7, 0.45, showroom ? 1.6 : 1.0);
         const signIndex = Math.floor(rand() * SIGN_COUNT);
         if (fp.shop === null) fp.shop = signIndex;
+        const front = P(x, 0, hd);
+        fp.shops.push({ sign: signIndex, x: front.x, z: front.z, yaw: fp.yaw });
         const [v0, v1] = sign.rowV(signIndex);
         const z = hd + 0.78;
         const s = [P(x - sw / 2, groundH, z), P(x + sw / 2, groundH, z), P(x + sw / 2, groundH + sh, z), P(x - sw / 2, groundH + sh, z)];

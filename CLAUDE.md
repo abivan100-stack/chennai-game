@@ -18,6 +18,7 @@ Step 4 done: render interpolation (no stutter from the 60 Hz physics), taxi fare
 Step 5 done: real town map (building footprints, shops with names, trees, street names, temple, tank) used by a zoomed player-centred minimap and the phone; phone (P) with Orders (accept ride requests), Map, Wallet (earnings, repay Kandasamy's ₹15,000 loan, ₹500/day due, missed-day messages), Messages, Weather; traffic (autos, cars, MTC bus) in left-hand lanes with honking; live Chennai weather from Open-Meteo driving rain, clouds, fog and wet roads (R cycles a test override).
 Step 6 done: every vehicle has a TN number plate and more detail (lights, grille, mirrors, door lines; MTC bus livery + route board); seated drivers (retargeted Driving pose, frozen); steal any vehicle (driver ejected, runs off) -> wanted level (1 star warning/arrest, 2-3 shoot on sight; escalates if you keep it 15 s, hit people, or ram/hit police; fades when out of sight 20 s); police jeep from the Mylapore Police Station on Kutchery Road chases along the road route with lights + siren, khaki officers get out to arrest or shoot (line of sight, tracers); health bar; ARRESTED / SUTTUTAANGA! screen -> fine and release at the station; stick (lathi) weapon.
 Step 6b done: melee with Mixamo clips (punch / lathi swing / kick / block; NPCs get knocked down, or fight back with a retargeted combo after the second hit); hero sits visibly in stolen vehicles; police reworked: units spawn on a road 38-55 m away out of view (1 unit at 1-2 stars, 2 at 3), follow the road route at full speed, officers on foot use a character controller (no walking through walls), 1.2 s arrest window with a prompt, blocking halves gunshot damage; nav-app style map (white streets, yellow main roads, landmark badges, bus stops) and a heading-up 200 px minimap with upright labels and flashing police blips.
+Step 7 done: energy (hunger) bar that drains with walking / running / driving / fighting; low = warning, very low = can't run, empty = no healing and health drains until you collapse (PASI-LA VIZHUNDHUTEENGA! -> hospital bill, respawn fed). 114 eateries from the shop boards (tiffin centres, mess, hotels with a steel table + red stool outside; tea stalls, stores, supermarkets for snacks): E opens the menu, 1-4 orders; hotels: walk to the stool, sit, eat off a banana leaf bite by bite (CCD IK hand-to-mouth over the seated pose, food shrinks, energy fills), stand up; shops: eat standing. WASD stops early.
 Next: losing the auto when payments are missed too often (game over / grace), save game (localStorage), more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -46,6 +47,8 @@ src/
                        modes: input / walkTo (scripted) / away (in the auto)
     camera.ts          orbit follow camera (foot / drive framing), sphere-cast so it never clips walls
     ride.ts            get in → drive → get out sequence (sit_down, drive, stand_up clips)
+    meal.ts            eating: walk to stool → sit → bites (CCD IK on RightArm/RightForeArm) → stand; snacks standing
+    energy.ts          hunger / energy drain + starving (pure logic, checked)
   npcs/
     npc.ts             one pedestrian: SkeletonUtils clone, tint/texture variant, kinematic capsule;
                        always walking/jogging a loop, sidesteps the player; talk() / scold()
@@ -73,6 +76,8 @@ src/
                        (left-hand lanes); stop + honk for obstacles; shoved = limp 2.5 s, then rejoin lane
   world/
     layout.ts          street grid numbers + street names, roadSpans(), blocks() (kind: shops/temple/tank)
+    food.ts            menus per shop board (hotel = sit, shop = standing snack); pure data, checked
+    eateries.ts        eateries from the shop boards, instanced tables + stools, nearest()
     temple.ts          Kapaleeshwarar temple + tank (gopurams, walls, shrine, mandapams, steps, water)
     geo.ts             GeoBuilder: merge quads/boxes/geometry with vertex colours into one mesh
     textures.ts        canvas textures: facade/shop tiles (+ night emissive), signs, asphalt, curbs

@@ -5,6 +5,9 @@ import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
 import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
 import { route, routeLength } from '../src/missions/route.ts';
 import { LOSE_SECONDS, Wanted } from '../src/combat/wanted.ts';
+import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts';
+import { MENUS } from '../src/world/food.ts';
+import { SHOP_SIGNS } from '../src/world/textures.ts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -86,5 +89,19 @@ w.update(0.2, false);
 assert(w.level === 2, 'out of sight long enough: lose a star');
 w.clear();
 assert(w.report('assault') === 1, 'first assault = 1 star');
+
+// --- Energy + food ---
+const en = new Energy();
+assert(en.update(10, 'run') === 0 && en.value < ENERGY_START, 'running drains energy, no damage while not empty');
+en.value = 0.01;
+assert(en.update(1, 'idle') > 0 && en.value === 0, 'empty: health starts to go');
+en.eat(500);
+assert(en.value === ENERGY_MAX && !en.low, 'eating caps at max');
+assert(ENERGY_MAX / DRAIN.walk > 10 * 60, 'walking from full lasts over 10 minutes');
+for (const [shop, menu] of Object.entries(MENUS)) {
+  assert(menu.items.length >= 1 && menu.items.length <= 4, `${shop}: 1-4 items (keys 1-4)`);
+  for (const it of menu.items) assert(it.price > 0 && it.energy > 0 && it.seconds >= 3, `${shop} / ${it.name}: sane numbers`);
+  assert(SHOP_SIGNS.some((s) => s.en === shop), `${shop}: has a signboard`);
+}
 
 console.log('check: all passed');

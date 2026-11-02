@@ -35,6 +35,25 @@ export const hud = {
     clearTimeout(sayTimer);
     sayTimer = window.setTimeout(() => (el.style.display = 'none'), SAY_SECONDS * 1000);
   },
+  /** Energy 0-100 (flashes when low). */
+  setEnergy(energy: number, low: boolean) {
+    $('energy-fill').style.width = `${Math.max(0, energy)}%`;
+    $('energy').classList.toggle('low', low);
+  },
+  /** Order menu at a hotel / shop (null hides it). Rows: "1  Masala dosa  ₹60  +35⚡". */
+  menu(m: { title: string; greet: string; rows: { label: string; price: number; energy: number; affordable: boolean }[] } | null) {
+    const el = $('menu');
+    el.style.display = m ? 'block' : 'none';
+    if (!m) return;
+    const div = (cls: string, text = '') => Object.assign(document.createElement('div'), { className: cls, textContent: text });
+    const h3 = Object.assign(document.createElement('h3'), { textContent: m.title });
+    const rows = m.rows.map((r, i) => {
+      const row = div(r.affordable ? 'row' : 'row poor');
+      row.append(div('', `${i + 1}. ${r.label}`), div('', `₹${r.price} · +${r.energy}⚡`));
+      return row;
+    });
+    el.replaceChildren(h3, div('greet', m.greet), ...rows, div('keys', '1-4 order · E close'));
+  },
   /** Health 0-100 and wanted stars 0-3. */
   setStatus(health: number, stars: number) {
     const fill = $('health-fill');

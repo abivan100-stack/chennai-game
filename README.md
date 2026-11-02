@@ -33,7 +33,8 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 | Shift | Run |
 | Space | Jump |
 | F | Get in / out of the auto (out only when nearly stopped) |
-| E | Talk to a nearby person |
+| E | Talk to a nearby person; at a hotel / tiffin centre / store: open the menu (1-4 to order) |
+| W/A/S/D while eating | Stop eating early |
 | W / S (in the auto) | Accelerate / brake, then reverse |
 | A / D (in the auto) | Steer |
 | Space (in the auto) | Handbrake |
