@@ -14,8 +14,9 @@ const CORNER_SPEED = 4;
 const LOOKAHEAD = 7; // m along the path to judge an upcoming turn
 const HONK_AFTER = 2.5; // s blocked before honking
 const HONK_EVERY = 4;
-const DRAW_DIST = 130; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
-const DETAIL_DIST = 55; // ...and beyond this they drop wheels and driver (5 draw calls each)
+const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
+const DETAIL_DIST = 40; // ...and beyond this they drop wheels and driver (5 draw calls each)
+const MAX_DRAWN = 12; // at most this many vehicles drawn (nearest first)
 const SIGNAL_LOOK = 25; // m: start slowing for a red this far before the stop line
 
 export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry';
@@ -401,6 +402,10 @@ export class Traffic {
 
   /** Once per frame: blend the last two physics poses into the models, spin the wheels. */
   /** eye: camera position, for distance detail (far vehicles drop wheels / driver, very far ones aren't drawn). */
+  private readonly dists: number[] = [];
+  private readonly order: number[] = [];
+  private readonly rank: number[] = [];
+
   sync(dt: number, alpha: number, night = 0, eye: THREE.Vector3 | null = null) {
     for (let i = this.fleeing.length - 1; i >= 0; i--) {
       const f = this.fleeing[i];
@@ -413,15 +418,29 @@ export class Traffic {
         this.fleeing.splice(i, 1);
       }
     }
-    for (const veh of this.vehicles) {
+    // Only the nearest MAX_DRAWN vehicles are drawn: each is a dozen parts (draw calls).
+    if (eye) {
+      this.vehicles.forEach((veh, i) => {
+        this.dists[i] = veh.mode === 'player' ? -1 : veh.currPos.distanceTo(eye);
+        this.order[i] = i;
+      });
+      this.order.length = this.vehicles.length;
+      this.order.sort((a, b) => this.dists[a] - this.dists[b]);
+      this.order.forEach((idx, rank) => (this.rank[idx] = rank));
+    }
+    for (const [i, veh] of this.vehicles.entries()) {
       veh.group.position.lerpVectors(veh.prevPos, veh.currPos, alpha);
       veh.group.quaternion.slerpQuaternions(veh.prevRot, veh.currRot, alpha);
       if (eye) {
         const d = veh.group.position.distanceTo(eye);
-        veh.group.visible = d < DRAW_DIST || veh.mode === 'player';
+        veh.group.visible = (d < DRAW_DIST && this.rank[i] < MAX_DRAWN) || veh.mode === 'player';
+        veh.group.matrixWorldAutoUpdate = veh.group.visible; // hidden: skip its parts' (and driver's bones') matrices
         const near = d < DETAIL_DIST || veh.mode === 'player';
         for (const w of veh.wheels) w.visible = near;
-        if (veh.driver) veh.driver.visible = near;
+        if (veh.driver) {
+          veh.driver.visible = near;
+          veh.driver.matrixWorldAutoUpdate = near;
+        }
       }
       const lv = veh.body.linvel();
       const fwd = this.dir.set(0, 0, 1).applyQuaternion(veh.group.quaternion);

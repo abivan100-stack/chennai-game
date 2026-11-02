@@ -151,11 +151,8 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     }
   }
   const treeMeshes: THREE.Object3D[] = [];
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
-  const leaf = new THREE.Color();
   // Grouped by map tile (and the backdrop groves on their own, without shadows) so whole
   // tiles off screen or outside the shadow box are skipped instead of drawing every tree.
-  const canopyMats = kinds.map(() => new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }));
   const groups = new Map<string, { kind: number; ms: THREE.Matrix4[]; street: boolean }>();
   placed.forEach((t, i) => {
     const street = i < trees.length;
@@ -165,13 +162,25 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     if (!groups.has(key)) groups.set(key, { kind: t.kind, ms: [], street });
     groups.get(key)!.ms.push(t.m);
   });
+  // One draw call per kind per tile: trunk + canopy merged with vertex colours (brown bark, the
+  // kind's leaf colour); each tree gets a brightness variation as its instance colour.
+  const painted = (geo: THREE.BufferGeometry, c: THREE.Color) => {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return g;
+  };
+  const bark = new THREE.Color(0x5a4632);
+  const treeGeos = kinds.map((k) => mergeGeometries([painted(k.trunk, bark), painted(k.canopy, k.colour(new THREE.Color(), 0.5))])!);
+  const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
+  const shade = new THREE.Color();
   for (const g of groups.values()) {
-    const k = kinds[g.kind];
-    const trunk = instanced(k.trunk, trunkMat, g.ms);
-    const canopy = instanced(k.canopy, canopyMats[g.kind], g.ms);
-    g.ms.forEach((_, i) => canopy.setColorAt(i, k.colour(leaf, rand())));
-    canopy.castShadow = g.street; // thin trunks' shadows aren't worth the cost
-    treeMeshes.push(trunk, canopy);
+    const mesh = instanced(treeGeos[g.kind], treeMat, g.ms);
+    g.ms.forEach((_, i) => mesh.setColorAt(i, shade.setScalar(0.8 + rand() * 0.35)));
+    mesh.castShadow = g.street;
+    treeMeshes.push(mesh);
   }
 
   scene.add(poles, heads, pools, ...treeMeshes, streetSigns(world));

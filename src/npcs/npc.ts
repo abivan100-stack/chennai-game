@@ -6,6 +6,7 @@ import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { GREETINGS, nextLine } from './dialogue';
 
 // Movement
+const SIT_DROP = 0.42; // m: lowers a seated NPC so the hips rest on a ~0.45 m seat
 const SPEED = { walk: 1.3, run: 3.4 }; // m/s; roughly matches the Quaternius cycles at 1x
 const TURN_RATE = 6;
 const ARRIVE_DIST = 0.25;
@@ -42,6 +43,8 @@ export interface NpcOptions {
   height?: number; // metres
   tint?: THREE.ColorRepresentation; // multiplies the material colour (variants of one model)
   map?: THREE.Texture; // swap the colour texture
+  /** Stays put in this pose facing `yaw` (shopkeepers standing at a counter, people sitting on a bench). */
+  pose?: { clip: 'idle' | 'sit_idle'; yaw: number };
 }
 
 /**
@@ -61,6 +64,7 @@ export class Npc {
   private yaw = 0;
   private target = 0;
   private busy = 0; // talking / scolding
+  private readonly pose: NpcOptions['pose'];
   private scoldCooldown = 0;
   private hits = 0; // times the player has hit us recently
   private fightT = -1; // seconds into a fight-back combo, -1 = not fighting
@@ -103,8 +107,16 @@ export class Npc {
     world.createCollider(RAPIER.ColliderDesc.capsule(HALF_HEIGHT * scale, RADIUS * scale), this.body);
 
     this.animator = new Animator(body, asset.clips);
-    this.animator.play(this.moveClip, { fade: 0 });
-    this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
+    this.pose = opts.pose;
+    if (this.pose) {
+      this.yaw = this.root.rotation.y = this.pose.yaw;
+      this.animator.play(this.pose.clip, { fade: 0 });
+      // The seated clip keeps the hips at standing-stool height: drop onto a bench / log seat.
+      if (this.pose.clip === 'sit_idle') this.root.position.y -= SIT_DROP * scale;
+    } else {
+      this.animator.play(this.moveClip, { fade: 0 });
+      this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
+    }
     this.animator.randomizePhase();
   }
 
@@ -179,8 +191,8 @@ export class Npc {
   }
 
   /** Damage dealt to the player this frame (when fighting back). */
-  update(dt: number, active: boolean, playerPos: THREE.Vector3) {
-    if (!active) return 0;
+  update(dt: number, active: boolean, playerPos: THREE.Vector3, drawn = true) {
+    if (!active || (this.pose && !drawn)) return 0; // people who stay put and aren't drawn: nothing to do
     this.scoldCooldown -= dt;
     // Slide back from a blow (distance = speed / KNOCK_DECAY).
     this.root.position.addScaledVector(this.knock, dt);
@@ -213,15 +225,17 @@ export class Npc {
       this.yaw = Math.atan2(this.toPlayer.x, this.toPlayer.z);
       this.busy -= dt;
       if (this.busy <= 0) {
-        this.animator.play(this.moveClip, { fade: 0.4 });
-        this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
+        this.animator.play(this.pose ? this.pose.clip : this.moveClip, { fade: 0.4 });
+        this.animator.setSpeed(this.pose ? 1 : this.speed / SPEED[this.moveClip]);
       }
+    } else if (this.pose) {
+      this.yaw = this.pose.yaw; // back to watching the sea / minding the stall
     } else {
       this.walk(dt);
     }
 
     this.root.rotation.y += angleDelta(this.root.rotation.y, this.yaw) * (1 - Math.exp(-TURN_RATE * dt));
-    this.animator.update(dt);
+    if (drawn) this.animator.update(dt);
     const p = this.root.position;
     this.body.setNextKinematicTranslation({ x: p.x, y: p.y + this.colliderLift, z: p.z });
     return damage;

@@ -121,6 +121,7 @@ async function main() {
   const besant = createBesantNagar(scene, world);
   const beachLife = createBeachLife(scene, world, santhome.obstacles);
   const chepauk = createChepauk(scene, world);
+  crowd.addPosed(beachLife.posed); // stall keepers + moon-watchers on the benches
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order

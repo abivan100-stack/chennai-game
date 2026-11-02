@@ -87,6 +87,17 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
   const k = createKit(world, signs);
   const stageKit = createKit(world, signs);
   const eateries: Eatery[] = [];
+  /** People who stay put: stall keepers (daytime to late), and moon-watchers on the benches at night. */
+  type Posed = { name: string; x: number; y: number; z: number; yaw: number; clip: 'idle' | 'sit_idle'; hours: [number, number][] };
+  const posed: Posed[] = [];
+  const KEEPER_NAMES = ['Murugan', 'Selvi', 'Babu', 'Lakshmi', 'Kannan', 'Ponni', 'Raja', 'Meena', 'Anwar', 'Valli', 'Sekar', 'Jaya'];
+  const MOON_NAMES = ['Couple', 'Friends', 'Family', 'Thatha', 'Paati', 'Students', 'Newly-weds', 'Cousins'];
+  /** Someone standing at (u, v) of a stall's frame, facing its front (towards the customers). */
+  const keeper = (f: Frame, u: number, v: number, y: number) => {
+    const at = f.at(u, v);
+    const front = f.at(0, -1).sub(f.at(0, 0));
+    posed.push({ name: `Stall ${KEEPER_NAMES[posed.length % KEEPER_NAMES.length]}`, x: at.x, y, z: at.z, yaw: Math.atan2(front.x, front.z), clip: 'idle', hours: [[7, 23]] });
+  };
   const rand = seeded(SEED);
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)];
 
@@ -124,6 +135,7 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
     const y = sandY(s.x);
     const kind = stallKinds[n % stallKinds.length];
     const top = pick(BRIGHT);
+    if (n % 3 !== 2) keeper(f, 0, kind === 'balloons' ? 0.1 : kind === 'corn' || kind === 'coconut' ? 1 : 0.45, y);
     if (kind === 'tarp' || kind === 'toys' || kind === 'bangles') {
       for (const [u, v] of [[-1.3, -0.8], [1.3, -0.8], [-1.3, 0.8], [1.3, 0.8]]) k.box(f, 0.08, 2.4, 0.08, u, y, v, WOOD, false);
       k.shape(f, new THREE.BoxGeometry(3, 0.06, 2.2).rotateX(0.18), 0, y + 2.4, 0, top);
@@ -180,8 +192,34 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
     const y = sandY(s.x);
     dessertCart(f, y, i);
     k.solid(f, 1.9, 1.4, 1, 0, y, 0);
+    keeper(f, 0, 0.95, y);
     const p = f.at(0, -1.1);
     eateries.push({ name: DESSERTS[i].name, menu: PLACE_MENUS.dessert, spot: new THREE.Vector3(p.x, y, p.z), seat: p.clone(), seatYaw: 0, eatYaw: 0, table: p.clone() });
+  }
+
+  // ---- Benches and catamaran logs facing the sea, for the moon-watchers at night ----
+  for (let b = 0; b < 22; b++) {
+    let spot: { x: number; z: number; yaw: number } | null = null;
+    for (let tries = 0; tries < 60 && !spot; tries++) {
+      const s = freeSpot(2);
+      if (s && s.x > 160) spot = s; // nearer the water
+    }
+    if (!spot) continue;
+    const f = spotFrame(spot.x, spot.z, -Math.PI / 2 + (rand() - 0.5) * 0.4); // front (-v) to the sea
+    const y = sandY(spot.x);
+    const log = b % 3 === 0;
+    if (log) k.shape(f, new THREE.CylinderGeometry(0.22, 0.22, 3, 8).rotateZ(Math.PI / 2), 0, y + 0.22, 0, C(0x6b4423));
+    else {
+      k.box(f, 2.6, 0.1, 0.5, 0, y + 0.4, 0, C(0xc9c3b6), false);
+      for (const u of [-1, 1]) k.box(f, 0.3, 0.4, 0.4, u, y, 0, C(0xa8a296), false);
+    }
+    const seats = b % 4 === 0 ? [-0.8, 0.8] : [-0.85, 0, 0.85];
+    const facing = f.at(0, -1).sub(f.at(0, 0));
+    for (const u of seats) {
+      if (rand() < 0.15) continue;
+      const at = f.at(u, 0.05);
+      posed.push({ name: `${MOON_NAMES[(b + seats.indexOf(u)) % MOON_NAMES.length]} watching the moon`, x: at.x, y: y + (log ? -0.02 : 0), z: at.z, yaw: Math.atan2(facing.x, facing.z), clip: 'sit_idle', hours: [[18.5, 23.5]] });
+    }
   }
 
   // ---- Moving dessert carts (instanced): pushed along the sand in the evening ----
@@ -285,6 +323,7 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
 
   return {
     eateries,
+    posed,
     /** Is the music night on (for the phone alert)? */
     stageOn: (hour: number) => inHours(hour, STAGE_HOURS),
     update(dt: number, hour: number, night: number) {

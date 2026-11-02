@@ -10,7 +10,7 @@ const ACTIVE_RADIUS = 40;
 /** ...and beyond this they aren't drawn at all. */
 const DRAW_RADIUS = 90;
 /** At most this many people drawn at once (nearest first): each costs a draw call + a shadow. */
-const MAX_DRAWN = 24;
+const MAX_DRAWN = 20;
 /** ...and only the nearest few cast a shadow. */
 const MAX_SHADOWS = 10;
 /** How close (m) the player must be to talk (E). */
@@ -218,10 +218,39 @@ export class Crowd {
     this.present = SPAWNS.map(() => true);
     this.dist = new Float32Array(SPAWNS.length).fill(Infinity);
     this.order = SPAWNS.map((_, i) => i);
+    this.scene = scene;
+    this.world = world;
+    this.assets = assets;
   }
 
-  private readonly dist: Float32Array;
+  private dist: Float32Array;
   private readonly order: number[];
+  private readonly scene: THREE.Scene;
+  private readonly world: RAPIER.World;
+  private readonly assets: Map<NpcModelId, CharacterAsset>;
+
+  /**
+   * People who stay in one place: shopkeepers at their stalls, people sitting on benches.
+   * Added once the places that need them exist; they follow the same hours / drawing rules.
+   */
+  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: 'idle' | 'sit_idle'; hours: [number, number][] }[]) {
+    const models: NpcModelId[] = ['man-casual', 'woman-casual', 'man-farmer', 'woman-formal', 'man-worker', 'woman-suit'];
+    const tints = [undefined, 0xffe0b2, 0xd0e8ff, 0xc8e6c9, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
+    people.forEach((p, i) => {
+      const position = new THREE.Vector3(p.x, p.y, p.z);
+      const npc = new Npc(this.scene, this.world, this.assets.get(models[(i * 7 + p.name.length) % models.length])!, {
+        name: p.name, position, path: [position.clone()], pose: { clip: p.clip, yaw: p.yaw },
+        height: 1.55 + ((i * 13) % 20) / 100, tint: tints[(i * 5 + p.name.length) % tints.length],
+      });
+      this.npcs.push(npc);
+      this.hours.push(p.hours);
+      this.present.push(true);
+      this.order.push(this.order.length);
+    });
+    const d = new Float32Array(this.npcs.length).fill(Infinity);
+    d.set(this.dist);
+    this.dist = d;
+  }
 
   private readonly hours: [number, number][][];
   private readonly present: boolean[];
@@ -249,7 +278,8 @@ export class Crowd {
       const active = dist < ACTIVE_RADIUS;
       this.dist[i] = dist < DRAW_RADIUS ? dist : Infinity; // drawn-or-not decided below
       if (active) this.activeCount++;
-      this.damageToPlayer += npc.update(dt, active, playerPos);
+      // Only drawn people animate (bones + clips are the expensive part); hidden walkers keep moving.
+      this.damageToPlayer += npc.update(dt, active, playerPos, npc.root.visible);
 
       if (!inAuto && dist < nearestDist && npc.canTalk) {
         nearestDist = dist;
@@ -266,6 +296,7 @@ export class Crowd {
     this.order.forEach((idx, rank) => {
       const npc = this.npcs[idx];
       npc.root.visible = this.present[idx] && rank < MAX_DRAWN && this.dist[idx] !== Infinity;
+      npc.root.matrixWorldAutoUpdate = npc.root.visible; // hidden: skip their bone matrices too
       npc.setShadow(rank < MAX_SHADOWS);
     });
   }
