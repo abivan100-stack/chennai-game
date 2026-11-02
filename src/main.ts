@@ -29,6 +29,8 @@ import { LENDER, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCO
 import { Weather } from './world/weather';
 import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
+import { route } from './missions/route';
+import { ROAD_LINES } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
@@ -78,6 +80,7 @@ async function main() {
     clock: () => dayNight.clockLabel,
     player: () => ({ x: player.position.x, z: player.position.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }),
     auto: () => auto.group.position,
+    guide: () => guide,
     pay: (amount) => {
       const paid = economy.pay(amount);
       if (!paid) return;
@@ -95,6 +98,9 @@ async function main() {
     if (!jobs.busy) phone.notify(`🛺 New order: ${o.from.name} → ${o.to.name} · ₹${o.fare}`);
   };
   let online = false;
+  // Road route from the auto (or the player on foot) to the job target; refreshed a few times a second.
+  let guide: { x: number; z: number }[] | null = null;
+  let guideAge = 0;
   ride.onDrivingChange = (driving) => {
     cam.mode = driving ? 'drive' : 'foot';
     cam.ignore = driving ? auto.collider : player.collider;
@@ -198,8 +204,15 @@ async function main() {
       hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);
     }
     const pp = player.position;
+    guideAge += dt;
+    if (guideAge > 0.25) {
+      guideAge = 0;
+      const t = jobs.target;
+      const from = player.onFoot ? player.position : auto.group.position;
+      guide = t ? route({ x: from.x, z: from.z }, t, ROAD_LINES) : null;
+    }
     phone.update(performance.now());
-    minimap.update(performance.now(), { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }, auto.group.position, jobs.target);
+    minimap.update(performance.now(), { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }, auto.group.position, jobs.target, guide);
 
     renderer.render(scene, camera);
 

@@ -149,3 +149,23 @@ function label(g: CanvasRenderingContext2D, text: string, x: number, y: number, 
   g.fillText(text, 0, 0);
   g.restore();
 }
+
+/** Guide line along the roads to the current pickup / drop-off (white casing, blue core). */
+export function drawRoute(g: CanvasRenderingContext2D, pts: { x: number; z: number }[], toScreen: (x: number, z: number) => { x: number; y: number }, width: number) {
+  if (pts.length < 2) return;
+  g.save();
+  g.lineJoin = g.lineCap = 'round';
+  g.beginPath();
+  pts.forEach((p, i) => {
+    const s = toScreen(p.x, p.z);
+    if (i === 0) g.moveTo(s.x, s.y);
+    else g.lineTo(s.x, s.y);
+  });
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = width + 3;
+  g.stroke();
+  g.strokeStyle = '#2f7bff';
+  g.lineWidth = width;
+  g.stroke();
+  g.restore();
+}

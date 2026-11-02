@@ -1,4 +1,4 @@
-import { MAP_PPM, mapPx } from './mapArt';
+import { MAP_PPM, drawRoute, mapPx } from './mapArt';
 
 const SIZE = 180; // px on screen
 const VIEW_M = 75; // metres across the minimap
@@ -27,7 +27,7 @@ export class Minimap {
     this.town = town;
   }
 
-  update(now: number, player: { x: number; z: number; yaw: number }, auto: { x: number; z: number }, marker: MapMarker | null) {
+  update(now: number, player: { x: number; z: number; yaw: number }, auto: { x: number; z: number }, marker: MapMarker | null, guide: { x: number; z: number }[] | null) {
     if (now - this.last < REFRESH_MS) return;
     this.last = now;
     const g = this.ctx;
@@ -43,6 +43,8 @@ export class Minimap {
     g.fillStyle = '#d9cfb6';
     g.fillRect(0, 0, SIZE, SIZE);
     g.drawImage(this.town, mapPx(player.x) - src / 2, mapPx(player.z) - src / 2, src, src, 0, 0, SIZE, SIZE);
+
+    if (guide) drawRoute(g, guide, (x, z) => toScreen(x, z), 4);
 
     // The auto.
     const a = toScreen(auto.x, auto.z);

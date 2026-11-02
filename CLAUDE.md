@@ -54,6 +54,7 @@ src/
     data.ts            stops, passenger names, Tanglish lines + phone messages, fare maths (pure data, checked)
     jobs.ts            TaxiJobs: phone orders; accepted -> waiting -> boarding -> seating -> riding -> alighting
     economy.ts         cash, loan, daily due, missed days (pure logic, checked)
+    route.ts           shortest road route over the street-grid junctions (map guide line; checked)
   vehicles/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET / BENCH anchors;

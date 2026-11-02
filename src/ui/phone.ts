@@ -3,7 +3,8 @@ import { DAILY_DUE, LOAN_TOTAL } from '../missions/economy';
 import type { TaxiJobs } from '../missions/jobs';
 import type { Weather } from '../world/weather';
 import { stopPoint } from '../missions/data';
-import { MAP_PPM, mapPx } from './mapArt';
+import { MAP_PPM, drawRoute, mapPx } from './mapArt';
+import { routeLength } from '../missions/route';
 import { WORLD_SIZE } from '../world/layout';
 
 type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather';
@@ -16,6 +17,8 @@ export interface PhoneDeps {
   clock: () => string;
   player: () => { x: number; z: number; yaw: number };
   auto: () => { x: number; z: number };
+  /** Road route to the current pickup / drop-off, or null. */
+  guide: () => { x: number; z: number }[] | null;
   /** Pay this much towards the loan (main posts the lender's reply). */
   pay: (amount: number) => void;
 }
@@ -212,6 +215,8 @@ export class Phone {
       g.fill();
       g.stroke();
     };
+    const guide = this.deps.guide();
+    if (guide) drawRoute(g, guide, S, this.mapZoomed ? 5 : 3);
     if (!jobs.busy) for (const o of jobs.orders) dot(stopPoint(o.from, 'sidewalk').x, stopPoint(o.from, 'sidewalk').z, '#ffe680', 4);
     const t = jobs.target;
     if (t) dot(t.x, t.z, t.kind === 'pickup' ? '#ffd21f' : '#35e06b', 7);
@@ -237,7 +242,7 @@ export class Phone {
       {},
       h('div', { class: 'phone-title' }, 'Map'),
       c,
-      h('div', { class: 'phone-sub' }, t ? `${t.kind === 'pickup' ? '🟡 Pickup' : '🟢 Drop'} · ${jobs.mission}` : '🟡 = open orders · tap map to zoom'),
+      h('div', { class: 'phone-sub' }, t ? `${t.kind === 'pickup' ? '🟡 Pickup' : '🟢 Drop'} · ${guide ? `${Math.round(routeLength(guide))} m · ` : ''}${jobs.mission}` : '🟡 = open orders · tap map to zoom'),
     );
   }
 
