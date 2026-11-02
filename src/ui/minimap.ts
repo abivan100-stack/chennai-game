@@ -1,4 +1,4 @@
-import { MAP_LAND, MAP_PPM, drawLabel, drawRoute, mapPx, type MapLabel, type TownMap } from './mapArt';
+import { MAP_LAND, MAP_PPM, drawCrop, drawLabel, drawRoute, mapPx, type MapLabel, type TownMap } from './mapArt';
 
 const SIZE = 200; // px on screen
 const VIEW_M = 80; // metres across the minimap
@@ -73,7 +73,7 @@ export class Minimap {
     g.rotate(s.view);
     const src = VIEW_M * 1.5 * MAP_PPM; // a bit extra so corners stay filled while rotating
     const dst = VIEW_M * 1.5 * k;
-    g.drawImage(this.town, mapPx(s.player.x) - src / 2, mapPx(s.player.z) - src / 2, src, src, -dst / 2, -dst / 2, dst, dst);
+    drawCrop(g, this.town, mapPx(s.player.x) - src / 2, mapPx(s.player.z) - src / 2, src, src, -dst / 2, -dst / 2, dst, dst);
     g.restore();
 
     if (s.guide) drawRoute(g, s.guide, toScreen, 5);

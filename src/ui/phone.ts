@@ -3,7 +3,7 @@ import { DAILY_DUE, LOAN_TOTAL } from '../missions/economy';
 import type { TaxiJobs } from '../missions/jobs';
 import type { Weather } from '../world/weather';
 import { stopPoint } from '../missions/data';
-import { MAP_LAND, MAP_PPM, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
+import { MAP_LAND, MAP_PPM, drawCrop, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
 import { routeLength } from '../missions/route';
 import { BOUNDS } from '../world/layout';
 
@@ -208,7 +208,7 @@ export class Phone {
     const sh = (H / k) * MAP_PPM;
     g.fillStyle = MAP_LAND;
     g.fillRect(0, 0, W, H);
-    g.drawImage(town.canvas, mapPx(cx) - sw / 2, mapPx(cz) - sh / 2, sw, sh, 0, 0, W, H);
+    drawCrop(g, town.canvas, mapPx(cx) - sw / 2, mapPx(cz) - sh / 2, sw, sh, 0, 0, W, H);
     const S = (x: number, z: number) => ({ x: W / 2 + (x - cx) * k, y: H / 2 + (z - cz) * k });
     const dot = (x: number, z: number, colour: string, r: number) => {
       const p = S(x, z);

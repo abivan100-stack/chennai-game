@@ -20,6 +20,21 @@ export interface MapLabel {
   kind: 'street' | 'landmark';
 }
 
+/**
+ * drawImage of a crop of the map that may run past its edges: clip the source rectangle to the
+ * canvas and shrink the destination to match (browsers don't all do this the same way).
+ */
+export function drawCrop(g: CanvasRenderingContext2D, img: HTMLCanvasElement, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number) {
+  const kx = dw / sw;
+  const ky = dh / sh;
+  const x0 = Math.max(0, sx);
+  const y0 = Math.max(0, sy);
+  const x1 = Math.min(img.width, sx + sw);
+  const y1 = Math.min(img.height, sy + sh);
+  if (x1 <= x0 || y1 <= y0) return;
+  g.drawImage(img, x0, y0, x1 - x0, y1 - y0, dx + (x0 - sx) * kx, dy + (y0 - sy) * ky, (x1 - x0) * kx, (y1 - y0) * ky);
+}
+
 export interface TownMap {
   canvas: HTMLCanvasElement;
   labels: MapLabel[];

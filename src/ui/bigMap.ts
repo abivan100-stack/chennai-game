@@ -1,6 +1,6 @@
 import type { Input } from '../core/input';
 import { BOUNDS } from '../world/layout';
-import { MAP_LAND, MAP_PPM, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
+import { MAP_LAND, MAP_PPM, drawCrop, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
 
 const ZOOM = { min: 1.2, max: 9, start: 2.6, step: 1.18 }; // screen px per metre
 const PAN_SPEED = 260; // screen px per second
@@ -121,7 +121,7 @@ export class BigMap {
     const sw = (w / k) * MAP_PPM;
     const sh = (h / k) * MAP_PPM;
     g.imageSmoothingQuality = 'high';
-    g.drawImage(this.town.canvas, mapPx(this.cx) - sw / 2, mapPx(this.cz) - sh / 2, sw, sh, 0, 0, w, h);
+    drawCrop(g, this.town.canvas, mapPx(this.cx) - sw / 2, mapPx(this.cz) - sh / 2, sw, sh, 0, 0, w, h);
     if (s.guide) drawRoute(g, s.guide, S, Math.max(3, k * 1.6));
     // Labels: streets only when zoomed in enough to read them.
     for (const l of this.town.labels) {
