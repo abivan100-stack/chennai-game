@@ -26,8 +26,12 @@
       }
       #dialogue b { color: #f2c200; }
       #hint { top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; }
+      #minimap {
+        position: fixed; bottom: 16px; left: 16px; width: 180px; height: 180px; pointer-events: none;
+        border: 2px solid #ffffffcc; border-radius: 8px; box-shadow: 0 2px 8px #0008;
+      }
       #debug {
-        bottom: 16px; left: 16px; padding: 8px 10px; border-radius: 6px; background: #000b;
+        top: 52px; left: 16px; padding: 8px 10px; border-radius: 6px; background: #000b;
         font: 12px/1.4 ui-monospace, monospace; display: none; pointer-events: auto;
       }
       #debug pre { margin: 0 0 6px; }
@@ -53,6 +57,7 @@
     <div id="prompt" class="ui"></div>
     <div id="dialogue" class="ui"></div>
     <div id="speed" class="ui"></div>
+    <canvas id="minimap"></canvas>
     <div id="hint" class="ui">Click to play</div>
     <div id="debug" class="ui">
       <pre id="debug-text"></pre>

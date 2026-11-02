@@ -14,7 +14,8 @@ Step 2 done: animated Mixamo hero (idle/walk/run/jump, 0.2 s crossfades) on the 
 Step 2b done: NPC interactions: E to talk (both play a talking clip, Tanglish line), running/driving into NPCs makes them flinch and yell, NPCs block the player (kinematic capsules, ignored by the camera).
 Step 3 done: proper street (asphalt, lane markings, zebra crossings, raised sidewalks with black-yellow curbs, lamps with night light pools, trees), ~150 attached 1-4 storey shop-houses (shops + Tamil/English signboards, windows that light up at night, balconies, parapets, water tanks); detailed auto with Rapier raycast-vehicle driving; enter/exit animation sequence; 12 NPCs always walking/jogging, stepping around the player.
 Step 3b done: Mylapore layout (stylised from the real one): Kapaleeshwarar temple in the centre block (east gopuram on East Mada Street, smaller west gopuram, kavi-striped compound wall, shrine + vimana, pillared mandapam, golden flag post), temple tank west of it (striped steps, water, 16-pillar mandapam), the four Mada Streets + R.K. Mutt Rd / Luz Church Rd / Kutchery Rd / San Thome High Rd with Tamil/English street-name boards; buildings vary in width, depth, floor heights, shop count, sign size and roofline (incl. old tiled-roof houses with a thinnai). Driver's hips are pinned to the seat (Ride.lateUpdate) so entering is one straight move.
-Next: passengers + fares, missions, minimap, traffic.
+Step 4 done: render interpolation (no stutter from the 60 Hz physics), taxi fares (passenger waits at a named stop, boards the back bench, drop at the destination marker, Chennai-style meter fare + quick-ride tip, wallet), minimap.
+Next: traffic (other autos/cars/buses on the roads), the moneylender loan + days, more missions, weather.
 
 ## Tech stack
 - Vite 8 + TypeScript 7 (strict, `erasableSyntaxOnly`), npm
@@ -48,6 +49,9 @@ src/
     crowd.ts           spawn list (names, models, block loops), nearest-talkable + bump detection,
                        freezes NPCs > 40 m from the player
     dialogue.ts        Tanglish line pools (pure data)
+  missions/
+    data.ts            stops, passenger names, Tanglish lines, fare maths (pure data, checked)
+    jobs.ts            TaxiJobs: waiting -> boarding -> seating -> riding -> alighting, markers
   vehicles/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET anchors
@@ -65,6 +69,7 @@ src/
     hud.ts             wallet, mission, context prompt, "click to play"
     debug.ts           F3 panel: FPS, frame/CPU ms, draw calls, tris, quality, IST time, position, NPCs animated
     loading.ts         loading overlay + progress bar
+    minimap.ts         north-up town map (canvas): player arrow, auto, pickup/drop marker
 scripts/
   check.ts             runnable self-check for solar.ts + quality.ts (`npm run check`)
   build-models.mjs     character asset pipeline (`npm run models`)
@@ -105,7 +110,7 @@ Current sources: Mixamo files from mixamo.com (login required). Quaternius packs
 ## Performance rules
 - **Draw calls under ~300** per frame (check F3). Currently ~60 with ~180k triangles (incl. shadow pass) at the start spot.
 - The town is built from code into a handful of merged/instanced meshes; keep it that way (add to a GeoBuilder or an InstancedMesh, never one Mesh per object).
-- Physics runs at a fixed 60 Hz (`PHYSICS_STEP` in main.ts); per-frame input is read once, movement happens per step.
+- Physics runs at a fixed 60 Hz (`PHYSICS_STEP` in main.ts); per-frame input is read once, movement happens per step. Anything driven by physics must `capture()` after each step and draw with `sync(alpha)` (interpolated), or it will stutter on 120/144 Hz screens.
 - Characters: hero < 15k tris, NPC < 8k tris, 1 draw call per material. Animate only within `ACTIVE_RADIUS` (40 m).
 - **Instancing** (`InstancedMesh`) for anything repeated: buildings, trees, lamp posts, NPCs, vehicles of the same model.
 - Merge static geometry that shares a material (`mergeGeometries`), like the roads and the auto.

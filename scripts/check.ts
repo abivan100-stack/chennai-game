@@ -1,6 +1,7 @@
 // Self-check for the pure logic modules. Run: npm run check (Node 22.18+ runs .ts directly).
 import { sunDirection, istClock } from '../src/world/solar.ts';
 import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/quality.ts';
+import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -33,5 +34,15 @@ let up: QualitySettings = prev;
 for (let i = 0; i < 8; i++) up = stepUp(up) ?? up;
 assert(JSON.stringify(up) === JSON.stringify(PRESETS.high), 'step-up climbs back to high');
 assert(stepUp(PRESETS.high) === null, 'high is the ceiling');
+
+// --- Fares ---
+assert(fare(0) === 40, 'minimum fare is the base fare');
+assert(fare(100) === 160 && fare(100) % 5 === 0, 'fare grows with distance, rounded to ₹5');
+assert(payment(100, 10).tip === 32 && payment(100, 120).tip === 0, 'quick rides tip 20%, slow ones none');
+for (const s of STOPS) {
+  const k = stopPoint(s, 'kerb');
+  const w = stopPoint(s, 'sidewalk');
+  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && Math.abs(k.x) < 100 && Math.abs(k.z) < 100, `stop ${s.name} inside the town`);
+}
 
 console.log('check: all passed');

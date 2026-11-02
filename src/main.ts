@@ -20,6 +20,8 @@ import { SIDEWALK_HEIGHT } from './world/layout';
 import { createProps } from './world/props';
 import { DayNight } from './world/sky';
 import { createTemple } from './world/temple';
+import { TaxiJobs } from './missions/jobs';
+import { Minimap } from './ui/minimap';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
@@ -53,15 +55,21 @@ async function main() {
   cam.pitch = 0.08;
   enablePointerLock(renderer.domElement, (locked) => hud.showPlayHint(!locked));
 
-  let hasDriven = false;
+  // Fares: start once the player has climbed into the auto for the first time.
+  const jobs = new TaxiJobs(scene, characters.npcs, auto);
+  const minimap = new Minimap();
+  let wallet = 0;
+  jobs.onSay = (name, line) => hud.say(name, line);
+  jobs.onPaid = (fare, tip) => {
+    wallet += fare + tip;
+    hud.setWallet(wallet);
+    console.log(`[fare] ₹${fare}${tip ? ` + ₹${tip} tip` : ''}`);
+  };
   ride.onDrivingChange = (driving) => {
     cam.mode = driving ? 'drive' : 'foot';
     cam.ignore = driving ? auto.collider : player.collider;
     hud.setSpeed(driving ? 0 : null);
-    if (driving && !hasDriven) {
-      hasDriven = true;
-      hud.setMission('Take uncle\'s auto for a spin  (W/S drive · A/D steer · Space brake · F get out)');
-    }
+    if (driving) jobs.start();
   };
 
   // Quality
@@ -75,7 +83,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, quality, dayNight, crowd } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, quality, dayNight, crowd } });
 
   hud.setWallet(0);
   hud.setMission("Find your uncle's auto");
@@ -112,11 +120,15 @@ async function main() {
       player.step(PHYSICS_STEP);
       auto.update(PHYSICS_STEP);
       world.step();
+      player.capture();
+      auto.capture();
       accumulator -= PHYSICS_STEP;
     }
-    player.sync(dt);
-    auto.sync(dayNight.night);
+    const alpha = accumulator / PHYSICS_STEP; // how far we are into the next physics step
+    player.sync(dt, alpha);
+    auto.sync(dayNight.night, alpha);
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
+    jobs.update(dt, ride.driving);
     ride.syncPosition();
     if (ride.driving) {
       cam.update(dt, auto.group.position, auto.heading);
@@ -132,6 +144,11 @@ async function main() {
     const inAuto = !player.onFoot;
     crowd.update(dt, player.position, inAuto ? Math.abs(auto.speed) : player.speed, inAuto);
     if (input.wasPressed('F3')) debug.toggle();
+    if (jobs.phase !== 'off') {
+      hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);
+    }
+    const pp = player.position;
+    minimap.update(performance.now(), { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }, auto.group.position, jobs.target);
 
     renderer.render(scene, camera);
 

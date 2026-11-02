@@ -56,6 +56,8 @@ export class PlayerController {
   private talkTime = 0;
   private talkYaw = 0;
   private away = false;
+  private readonly prevPos = new THREE.Vector3();
+  private readonly currPos = new THREE.Vector3();
 
   constructor(world: RAPIER.World, scene: THREE.Scene, spawn: THREE.Vector3, hero: CharacterAsset) {
     this.body = world.createRigidBody(
@@ -74,6 +76,8 @@ export class PlayerController {
     this.animator = new Animator(hero.scene, hero.clips);
     this.animator.play('idle', { fade: 0 });
     this.position.copy(spawn);
+    this.prevPos.copy(spawn);
+    this.currPos.copy(spawn);
   }
 
   /** Horizontal speed the player is trying to move at (m/s). */
@@ -106,6 +110,8 @@ export class PlayerController {
   placeAt(feet: THREE.Vector3, yaw: number) {
     this.body.setTranslation({ x: feet.x, y: feet.y + CAPSULE_LIFT, z: feet.z }, true);
     this.position.set(feet.x, feet.y + CAPSULE_LIFT, feet.z);
+    this.prevPos.copy(this.position);
+    this.currPos.copy(this.position);
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = yaw;
   }
@@ -172,14 +178,23 @@ export class PlayerController {
     this.body.setNextKinematicTranslation({ x: t.x + move.x, y: t.y + move.y, z: t.z + move.z });
   }
 
-  /** Sync the model to physics, face the movement direction, pick the animation. Once per frame. */
-  sync(dt: number) {
+  /** Record the capsule position after each physics step (for interpolation). */
+  capture() {
+    const t = this.body.translation();
+    this.prevPos.copy(this.currPos);
+    this.currPos.set(t.x, t.y, t.z);
+  }
+
+  /**
+   * Sync the model to physics, face the movement direction, pick the animation. Once per frame.
+   * alpha blends the last two physics steps so walking is smooth on any refresh rate.
+   */
+  sync(dt: number, alpha = 1) {
     if (this.away) {
       this.animator.update(dt);
       return;
     }
-    const t = this.body.translation();
-    this.position.set(t.x, t.y, t.z);
+    this.position.lerpVectors(this.prevPos, this.currPos, alpha);
     this.mesh.position.copy(this.position);
 
     const speed = this.moveSpeed; // pressing into a wall = idle, not running on the spot

@@ -4,7 +4,7 @@ A browser open-world game set in Mylapore, Chennai. You inherit your uncle's old
 
 Built with Vite, TypeScript, three.js and Rapier physics. Runs as a static site.
 
-> Status: early prototype. Walk around a test town, find the parked auto. Driving comes next.
+> Status: early prototype. Walk around Mylapore, get into uncle's auto, pick up passengers and earn fares.
 
 ## Requirements
 - Node.js 22.18 or newer (tested on Node 24)

@@ -35,6 +35,8 @@ const WHEELS = [
 export const SEAT = new THREE.Vector3(0, 0.97, 0.33);
 /** Where you stand to climb in, per side (+1 = model +x side), level with the seat. */
 export const ENTRY_OFFSET = { x: 1.0, z: SEAT.z };
+/** Passenger's hip position on the rear bench (model space). */
+export const BENCH = new THREE.Vector3(0, 1.1, -0.84);
 
 /**
  * Chennai auto rickshaw: detailed procedural model + Rapier raycast-vehicle physics
@@ -50,6 +52,12 @@ export class AutoRickshaw {
   private readonly headlight: THREE.MeshStandardMaterial;
   private readonly tail: THREE.MeshStandardMaterial;
   private steer = 0;
+  private readonly prevPos = new THREE.Vector3();
+  private readonly currPos = new THREE.Vector3();
+  private readonly prevRot = new THREE.Quaternion();
+  private readonly currRot = new THREE.Quaternion();
+  private readonly bodyOffset = new THREE.Vector3();
+  private captured = false;
   private throttle = 0;
   private handbrake = true;
 
@@ -139,12 +147,29 @@ export class AutoRickshaw {
     this.vehicle.updateVehicle(dt);
   }
 
-  /** Copy physics to the model, spin/steer wheels. Call once per frame after stepping. */
-  sync(night: number) {
+  /** Record the body pose after each physics step (for interpolation). */
+  capture() {
+    this.prevPos.copy(this.currPos);
+    this.prevRot.copy(this.currRot);
     const p = this.body.translation();
     const r = this.body.rotation();
-    this.group.quaternion.set(r.x, r.y, r.z, r.w);
-    this.group.position.set(p.x, p.y, p.z).sub(new THREE.Vector3(0, BODY_Y, 0).applyQuaternion(this.group.quaternion));
+    this.currPos.set(p.x, p.y, p.z);
+    this.currRot.set(r.x, r.y, r.z, r.w);
+    if (!this.captured) {
+      this.prevPos.copy(this.currPos);
+      this.prevRot.copy(this.currRot);
+      this.captured = true;
+    }
+  }
+
+  /**
+   * Copy physics to the model, spin/steer wheels. Call once per frame after stepping.
+   * alpha (0..1): how far between the last two physics steps this frame is. Blending the two
+   * poses removes the stutter of a 60 Hz simulation on a faster (or uneven) display.
+   */
+  sync(night: number, alpha = 1) {
+    this.group.quaternion.slerpQuaternions(this.prevRot, this.currRot, alpha);
+    this.group.position.lerpVectors(this.prevPos, this.currPos, alpha).sub(this.bodyOffset.set(0, BODY_Y, 0).applyQuaternion(this.group.quaternion));
     WHEELS.forEach((w, i) => {
       const mesh = this.wheelMeshes[i];
       const len = this.vehicle.wheelSuspensionLength(i) ?? SUSPENSION_REST;

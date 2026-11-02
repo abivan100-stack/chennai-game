@@ -8,7 +8,8 @@ export const hud = {
     $('wallet').textContent = `₹ ${rupees.toLocaleString('en-IN')}`;
   },
   setMission(text: string) {
-    $('mission').textContent = text;
+    const el = $('mission');
+    if (el.textContent !== text) el.textContent = text;
   },
   /** Context prompt like "F - Get in"; null hides it. */
   setPrompt(text: string | null) {
