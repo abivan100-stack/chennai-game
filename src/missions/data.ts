@@ -74,7 +74,7 @@ export const STOPS: Stop[] = [
   { name: TIDEL, axis: 'z', line: 480, along: 0, side: -1 },
   { name: 'Taramani Road', axis: 'z', line: 480, along: -110, side: 1 },
   // Perungudi
-  { name: 'Grand Coast Residences', axis: 'x', line: 125, along: 540, side: -1 },
+  { name: 'Grand Lake Residences', axis: 'x', line: -265, along: 540, side: 1 },
   { name: 'Perungudi Main Road', axis: 'z', line: 600, along: -48, side: -1 },
   // Cafes
   { name: 'Kaapi Kottai, TTK Road', axis: 'x', line: -145, along: -50, side: -1 },

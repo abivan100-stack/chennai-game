@@ -16,7 +16,7 @@
  *   - North: Dr. Radhakrishnan Salai. South of Mandaveli: R.A. Puram, Greenways Road, the Adyar
  *     river (bridges on every north-south road, the boat club on its bank) and Adyar beyond it;
  *     then Taramani: Tidel Park on Taramani Road, where the OMR IT corridor begins; then
- *     Perungudi, with a big gated apartment community by the Beach Road.
+ *     Perungudi (east) and Velachery (west, a big gated apartment community).
  * Block grid indices keep the original Mylapore numbering (temple = [2, 2]); the new areas to
  * the west and north get negative indices.
  * Directions: -z = north, +x = east.
@@ -309,12 +309,15 @@ export const TIDEL_LOT = (): Lot => {
 };
 export const TIDEL_ROADS = [-25, 25];
 
-/** The gated community in Perungudi: two phases either side of San Thome High Road's south end. */
+/**
+ * The gated apartment community in Velachery (south-west, by Anna Salai), well away from Tidel
+ * Park: Phase 1 with its gate on Anna Salai, Phase 2 next to it with its gate on Taramani Road.
+ */
 export const COMPLEX_LOTS = (): Lot[] => {
-  const p1 = block(SANTHOME, 10);
-  const p2 = block(CENTRE + 1, 10);
+  const p1 = block(-2, 10);
+  const p2 = block(-1, 10);
   return [
-    { x0: p1.x0, x1: p1.x1, z0: p1.z0, z1: p1.z1, front: 'e' }, // Phase 1, gate on the Beach Road
+    { x0: p1.x0, x1: p1.x1, z0: p1.z0, z1: p1.z1, front: 'w' }, // Phase 1, gate on Anna Salai
     { x0: p2.x0, x1: p2.x1, z0: p2.z0, z1: p2.z1, front: 'n' }, // Phase 2, gate on Taramani Road
   ];
 };

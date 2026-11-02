@@ -4,16 +4,16 @@ import { createKit, frame, type Frame, type SignDef } from './kit';
 import { COMPLEX_LOTS } from './layout';
 
 /**
- * Grand Coast Residences, Perungudi: a big gated apartment community of the kind OMR is full of
- * (an invented name, no real developer's branding). Phase 1 by the Beach Road (four sea-view
+ * Grand Lake Residences, Velachery: a big gated apartment community of the kind OMR is full of
+ * (an invented name, no real developer's branding). Phase 1 on Anna Salai (four lake-view
  * towers, clubhouse, pool) and Phase 2 on Taramani Road (three towers). 15-19 floor painted
  * towers with a balcony stack on the front, window bands that light up at night, a crown on
  * top; landscaped grounds, kids' play area, boom-barrier gates. 3 draw calls (kit.ts).
  */
 
 const SIGNS: SignDef[] = [
-  ['கிராண்ட் கோஸ்ட் ரெசிடென்சஸ்', 'GRAND COAST RESIDENCES · PHASE 1', '#1b2a41', '#e8c77a'],
-  ['கிராண்ட் கோஸ்ட் ரெசிடென்சஸ்', 'GRAND COAST RESIDENCES · PHASE 2', '#1b2a41', '#e8c77a'],
+  ['கிராண்ட் லேக் ரெசிடென்சஸ்', 'GRAND LAKE RESIDENCES · PHASE 1', '#1b2a41', '#e8c77a'],
+  ['கிராண்ட் லேக் ரெசிடென்சஸ்', 'GRAND LAKE RESIDENCES · PHASE 2', '#1b2a41', '#e8c77a'],
   ['கிளப் ஹவுஸ்', 'CLUBHOUSE · POOL · GYM', '#ffffff', '#1b2a41'],
 ];
 const FLOOR_H = 3.1;
@@ -73,7 +73,7 @@ export function createComplex(scene: THREE.Scene, world: RAPIER.World) {
 
   const [p1, p2] = COMPLEX_LOTS();
 
-  // ---- Phase 1: four sea-view towers, clubhouse and pool ----
+  // ---- Phase 1: four lake-view towers, clubhouse and pool ----
   {
     const f = frame(p1);
     const { w, d } = f;

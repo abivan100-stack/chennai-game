@@ -109,7 +109,8 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'R.A. PURAM', x: -48, z: 270, kind: 'landmark' });
   labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'landmark' });
   labels.push({ text: 'TARAMANI', x: -48, z: 440, kind: 'landmark' });
-  labels.push({ text: 'PERUNGUDI', x: -48, z: 545, kind: 'landmark' });
+  labels.push({ text: 'PERUNGUDI', x: 50, z: 545, kind: 'landmark' });
+  labels.push({ text: 'VELACHERY', x: -205, z: 610, kind: 'landmark' });
 
   /** A band `half` wide either side of each road's centre line, over the road's length. */
   const bands = (half: number, colour: string, only?: boolean) => {
@@ -223,8 +224,8 @@ export function drawTownMap(data: MapData): TownMap {
     [lm.ambedkarManimandapam, '#c5cae9', '#1a3c8f', 'A', 'Ambedkar Manimandapam'],
     [lm.tholkappiaPoonga, '#a5d6a7', '#33691e', '🌿', 'Tholkappia Poonga'],
     [TIDEL_LOT(), '#cfe3ee', '#0d3b66', '💻', 'Tidel Park'],
-    [COMPLEX_LOTS()[0], '#e8e0cc', '#1b2a41', '🏢', 'Grand Coast Residences'],
-    [COMPLEX_LOTS()[1], '#e8e0cc', '#1b2a41', '🏢', 'Grand Coast Ph. 2'],
+    [COMPLEX_LOTS()[0], '#e8e0cc', '#1b2a41', '🏢', 'Grand Lake Residences'],
+    [COMPLEX_LOTS()[1], '#e8e0cc', '#1b2a41', '🏢', 'Grand Lake Ph. 2'],
     ...CAFE_LOTS().map((lot, i): [typeof lot, string, string, string, string] => [lot, '#f3e3d3', '#7a4a2a', CAFE_NAMES[i].cafe ? '☕' : '🛍', CAFE_NAMES[i].name]),
   ];
   for (const [lot, fill, colour, letter, name] of placeMarks) {
