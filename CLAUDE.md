@@ -17,6 +17,7 @@ Step 3b done: Mylapore layout (stylised from the real one): Kapaleeshwarar templ
 Step 4 done: render interpolation (no stutter from the 60 Hz physics), taxi fares (passenger waits at a named stop, boards the back bench, drop at the destination marker, Chennai-style meter fare + quick-ride tip, wallet), minimap.
 Step 5 done: real town map (building footprints, shops with names, trees, street names, temple, tank) used by a zoomed player-centred minimap and the phone; phone (P) with Orders (accept ride requests), Map, Wallet (earnings, repay Kandasamy's ₹15,000 loan, ₹500/day due, missed-day messages), Messages, Weather; traffic (autos, cars, MTC bus) in left-hand lanes with honking; live Chennai weather from Open-Meteo driving rain, clouds, fog and wet roads (R cycles a test override).
 Step 6 done: every vehicle has a TN number plate and more detail (lights, grille, mirrors, door lines; MTC bus livery + route board); seated drivers (retargeted Driving pose, frozen); steal any vehicle (driver ejected, runs off) -> wanted level (1 star warning/arrest, 2-3 shoot on sight; escalates if you keep it 15 s, hit people, or ram/hit police; fades when out of sight 20 s); police jeep from the Mylapore Police Station on Kutchery Road chases along the road route with lights + siren, khaki officers get out to arrest or shoot (line of sight, tracers); health bar; ARRESTED / SUTTUTAANGA! screen -> fine and release at the station; stick (lathi) weapon.
+Step 6b done: melee with Mixamo clips (punch / lathi swing / kick / block; NPCs get knocked down, or fight back with a retargeted combo after the second hit); hero sits visibly in stolen vehicles; police reworked: units spawn on a road 38-55 m away out of view (1 unit at 1-2 stars, 2 at 3), follow the road route at full speed, officers on foot use a character controller (no walking through walls), 1.2 s arrest window with a prompt, blocking halves gunshot damage; nav-app style map (white streets, yellow main roads, landmark badges, bus stops) and a heading-up 200 px minimap with upright labels and flashing police blips.
 Next: losing the auto when payments are missed too often (game over / grace), save game (localStorage), more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -59,7 +60,7 @@ src/
   combat/
     wanted.ts          wanted stars: crimes, escalation, escape timer (pure logic, checked)
     police.ts          police jeep (route chase, siren, light bar) + officers (arrest / shoot)
-    stick.ts           lathi weapon: attached to the hero's hand, procedural swing, strike event
+    melee.ts           punch / lathi swing / kick (Mixamo clips, strike timing + reach); lathi on the RightHand bone
   vehicles/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET / BENCH anchors;
@@ -84,8 +85,8 @@ src/
     hud.ts             wallet, mission, context prompt, "click to play"
     debug.ts           F3 panel: FPS, frame/CPU ms, draw calls, tris, quality, IST time, position, NPCs animated
     loading.ts         loading overlay + progress bar
-    mapArt.ts          draws the town map once (4 px/m): roads, buildings, shops, trees, labels
-    minimap.ts         round player-centred minimap cropped from the town map + markers
+    mapArt.ts          draws the town map once (4 px/m, nav-app style, no text) + label list drawn upright on top
+    minimap.ts         round heading-up minimap (turns with the camera) cropped from the town map; upright labels, markers, police blips
     phone.ts           phone UI (P): Orders, Map, Wallet, Messages, Weather apps; toasts
 scripts/
   check.ts             runnable self-check for solar.ts + quality.ts (`npm run check`)

@@ -1,5 +1,6 @@
 import type { Footprint } from '../world/buildings';
 import { HALF, POLICE_LOT, ROAD_HALF, ROAD_LINES, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE, X_ROADS, Z_ROADS, roadSpans } from '../world/layout';
+import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
 
 /** Pixels per metre of the pre-drawn town map. Minimap and phone map crop/scale from it. */
@@ -10,152 +11,190 @@ export interface MapData {
   trees: { x: number; z: number }[];
 }
 
+/** A label drawn upright on top of the (possibly rotated) map. */
+export interface MapLabel {
+  text: string;
+  x: number;
+  z: number;
+  kind: 'street' | 'landmark';
+}
+
+export interface TownMap {
+  canvas: HTMLCanvasElement;
+  labels: MapLabel[];
+}
+
 /** Metres -> map pixels (x right = east, y down = south). */
 export const mapPx = (m: number) => (m + HALF) * MAP_PPM;
 
+// Navigation-app palette.
+const C = {
+  land: '#ece6da',
+  sidewalk: '#f8f6f1',
+  roadEdge: '#c9c2b4',
+  road: '#ffffff',
+  mainRoad: '#fde3a0',
+  building: '#ddd5c6',
+  buildingEdge: '#b3aa98',
+  oldHouse: '#e0b9a2',
+  tree: '#b5d39c',
+  temple: '#f6d6aa',
+  templeWall: '#c0472f',
+  water: '#a6d1ec',
+  police: '#cfdcf3',
+};
+export const MAP_LAND = C.land;
+/** The outer roads are the big ones (yellow, like a main road on a nav app). */
+const MAIN = new Set([ROAD_LINES[0], ROAD_LINES[ROAD_LINES.length - 1]]);
+
 /**
- * Draw the whole town once: ground, sidewalks, roads with centre lines, building footprints in
- * their wall colours, shop boards with names, trees, the temple and tank, street names.
+ * Draw the town once, without text (labels come back separately, so a rotating minimap can
+ * keep them upright): white streets with grey casing (main roads yellow), muted building
+ * outlines, shop dots, trees, the temple, tank and police station, and bus-stop markers.
  */
-export function drawTownMap(data: MapData) {
+export function drawTownMap(data: MapData): TownMap {
   const size = WORLD_SIZE * MAP_PPM;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d')!;
   const P = mapPx;
   const M = (m: number) => m * MAP_PPM;
+  const labels: MapLabel[] = [];
 
-  g.fillStyle = '#d9cfb6';
+  g.fillStyle = C.land;
   g.fillRect(0, 0, size, size);
 
-  // Sidewalks, then roads, then dashed centre lines.
-  g.fillStyle = '#ebe6dc';
-  for (const l of ROAD_LINES) {
-    g.fillRect(P(l - SETBACK), 0, M(SETBACK * 2), size);
-    g.fillRect(0, P(l - SETBACK), size, M(SETBACK * 2));
-  }
-  g.fillStyle = '#5b5c62';
-  for (const l of ROAD_LINES) {
-    g.fillRect(P(l - ROAD_HALF), 0, M(ROAD_HALF * 2), size);
-    g.fillRect(0, P(l - ROAD_HALF), size, M(ROAD_HALF * 2));
-  }
-  g.strokeStyle = '#f2f2f2';
-  g.lineWidth = 1;
-  g.setLineDash([M(3), M(3)]);
-  for (const l of ROAD_LINES) {
-    for (const [a, b] of roadSpans()) {
-      g.beginPath();
-      g.moveTo(P(l), P(a));
-      g.lineTo(P(l), P(b));
-      g.moveTo(P(a), P(l));
-      g.lineTo(P(b), P(l));
-      g.stroke();
+  const bands = (half: number, colour: string, only?: boolean) => {
+    g.fillStyle = colour;
+    for (const l of ROAD_LINES) {
+      if (only !== undefined && MAIN.has(l) !== only) continue;
+      g.fillRect(P(l - half), 0, M(half * 2), size);
+      g.fillRect(0, P(l - half), size, M(half * 2));
     }
+  };
+  bands(SETBACK, C.sidewalk);
+  bands(ROAD_HALF + 0.5, C.roadEdge);
+  bands(ROAD_HALF, C.road, false);
+  bands(ROAD_HALF, C.mainRoad, true);
+  // Side roads cross the main roads: keep the junction squares white-over-yellow consistent.
+  g.fillStyle = C.mainRoad;
+  for (const a of MAIN) for (const b of ROAD_LINES) {
+    g.fillRect(P(a - ROAD_HALF), P(b - ROAD_HALF), M(ROAD_HALF * 2), M(ROAD_HALF * 2));
+    g.fillRect(P(b - ROAD_HALF), P(a - ROAD_HALF), M(ROAD_HALF * 2), M(ROAD_HALF * 2));
   }
-  g.setLineDash([]);
 
-  // Temple: paved court, striped wall, gopurams, shrine.
+  // Temple: court, striped wall, gopurams, shrine.
   const t = TEMPLE_BLOCK();
-  g.fillStyle = '#efe3c9';
+  g.fillStyle = C.temple;
   g.fillRect(P(t.x0), P(t.z0), M(t.x1 - t.x0), M(t.z1 - t.z0));
-  g.strokeStyle = '#b8352a';
+  g.strokeStyle = C.templeWall;
   g.lineWidth = 3;
   g.strokeRect(P(t.x0) + 2, P(t.z0) + 2, M(t.x1 - t.x0) - 4, M(t.z1 - t.z0) - 4);
-  g.fillStyle = '#e89a3c';
-  g.fillRect(P(t.x1 - 9), P(-7), M(9), M(14)); // east gopuram
-  g.fillRect(P(t.x0), P(-4.5), M(6), M(9)); // west gopuram
-  g.fillStyle = '#a8957a';
-  g.fillRect(P(-7), P(-4), M(8), M(8)); // shrine
-  label(g, 'Kapaleeshwarar Temple', P(0), P(t.z0 + 4), 13, '#7a2b10');
+  g.fillStyle = '#e8a766';
+  g.fillRect(P(t.x1 - 9), P(-7), M(9), M(14));
+  g.fillRect(P(t.x0), P(-4.5), M(6), M(9));
+  g.fillStyle = '#d4ad84';
+  g.fillRect(P(-7), P(-4), M(8), M(8));
+  badge(g, P(-3), P(10), '#c0472f', 'T');
+  labels.push({ text: 'Kapaleeshwarar Temple', x: 0, z: t.z0 + 5, kind: 'landmark' });
 
   // Tank: steps, water, mandapam.
   const k = TANK_BLOCK();
-  g.fillStyle = '#c9b89a';
-  g.fillRect(P(k.x0 + 2), P(k.z0 + 2), M(k.x1 - k.x0 - 4), M(k.z1 - k.z0 - 4));
-  g.fillStyle = '#3f8fb0';
-  g.fillRect(P(k.x0 + 6), P(k.z0 + 6), M(k.x1 - k.x0 - 12), M(k.z1 - k.z0 - 12));
-  g.fillStyle = '#efe3c9';
   const kx = (k.x0 + k.x1) / 2;
   const kz = (k.z0 + k.z1) / 2;
+  g.fillStyle = '#e6dccb';
+  g.fillRect(P(k.x0 + 2), P(k.z0 + 2), M(k.x1 - k.x0 - 4), M(k.z1 - k.z0 - 4));
+  g.fillStyle = C.water;
+  g.fillRect(P(k.x0 + 6), P(k.z0 + 6), M(k.x1 - k.x0 - 12), M(k.z1 - k.z0 - 12));
+  g.fillStyle = '#efe3c9';
   g.fillRect(P(kx - 3), P(kz - 3), M(6), M(6));
-  label(g, 'Temple Tank', P(kx), P(k.z0 + 4), 12, '#123c55');
+  labels.push({ text: 'Temple Tank', x: kx, z: k.z0 + 5, kind: 'landmark' });
 
   // Police station.
   const ps = POLICE_LOT();
-  g.fillStyle = '#c9d6ee';
+  g.fillStyle = C.police;
   g.fillRect(P(ps.x0), P(ps.z0), M(ps.x1 - ps.x0), M(ps.z1 - ps.z0));
-  g.fillStyle = '#1c3f8f';
+  g.fillStyle = '#9fb3dc';
   g.fillRect(P(ps.x0 + 2), P(ps.z0 + 1), M(16), M(9));
-  label(g, '🚓 Police Station', P((ps.x0 + ps.x1) / 2), P(ps.z1 - 3), 11, '#0b2a6b');
+  badge(g, P(ps.x0 + 10), P(ps.z0 + 5.5), '#1c3f8f', 'P');
+  labels.push({ text: 'Police Station', x: (ps.x0 + ps.x1) / 2, z: ps.z1 - 3, kind: 'landmark' });
 
-  // Buildings (rotated rectangles in wall colour; old tiled houses get a terracotta roof).
+  // Buildings, then trees, then shop dots on top.
   for (const f of data.footprints) {
     g.save();
     g.translate(P(f.cx), P(f.cz));
     g.rotate(-f.yaw);
-    g.fillStyle = f.oldHouse ? '#c0643f' : f.color;
+    g.fillStyle = f.oldHouse ? C.oldHouse : C.building;
     g.fillRect(-M(f.w / 2), -M(f.d / 2), M(f.w), M(f.d));
-    g.strokeStyle = '#00000055';
-    g.lineWidth = 1;
+    g.strokeStyle = C.buildingEdge;
+    g.lineWidth = 1.5;
     g.strokeRect(-M(f.w / 2), -M(f.d / 2), M(f.w), M(f.d));
     g.restore();
   }
-
-  // Trees.
-  g.fillStyle = '#4f8a3a';
+  g.fillStyle = C.tree;
   for (const tr of data.trees) {
     g.beginPath();
-    g.arc(P(tr.x), P(tr.z), M(1.6), 0, Math.PI * 2);
+    g.arc(P(tr.x), P(tr.z), M(1.4), 0, Math.PI * 2);
     g.fill();
   }
-
-  // Shops: their board colour at the shop front, with the name.
+  g.strokeStyle = '#fff';
+  g.lineWidth = 1.5;
   for (const f of data.footprints) {
     if (f.shop === null) continue;
-    const s = SHOP_SIGNS[f.shop];
-    // Shop front = centre + (d/2 - 1) along the facing direction.
     const fx = f.cx + Math.sin(f.yaw) * (f.d / 2 - 1.5);
     const fz = f.cz + Math.cos(f.yaw) * (f.d / 2 - 1.5);
-    g.fillStyle = s.bg;
-    g.strokeStyle = '#fff';
-    g.lineWidth = 1.5;
+    g.fillStyle = SHOP_SIGNS[f.shop].bg;
     g.beginPath();
-    g.arc(P(fx), P(fz), 4, 0, Math.PI * 2);
+    g.arc(P(fx), P(fz), 3, 0, Math.PI * 2);
     g.fill();
     g.stroke();
-    if (f.w >= 6) label(g, s.en, P(fx), P(fz) - 8, 8, '#222', f.yaw);
   }
 
-  // Street names, along the roads.
+  // Ride stops.
+  for (const s of STOPS) {
+    const p = stopPoint(s, 'sidewalk');
+    badge(g, P(p.x), P(p.z), '#1565c0', 'B', 7);
+  }
+
+  // Street names: one per stretch of road, at its middle.
   for (const l of ROAD_LINES) {
     for (const [a, b] of roadSpans()) {
       if (b - a < 25) continue;
       const mid = (a + b) / 2;
-      label(g, X_ROADS[l][0], P(l), P(mid), 10, '#fff', Math.PI / 2, '#222');
-      label(g, Z_ROADS[l][0], P(mid), P(l), 10, '#fff', 0, '#222');
+      labels.push({ text: X_ROADS[l][0], x: l, z: mid, kind: 'street' });
+      labels.push({ text: Z_ROADS[l][0], x: mid, z: l, kind: 'street' });
     }
   }
-  return c;
+  return { canvas: c, labels };
 }
 
-/** Centred text, optionally rotated so it reads along a street / facade. */
-function label(g: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, rot = 0, halo = '#ffffffcc') {
-  g.save();
-  g.translate(x, y);
-  // keep text upright: flip if it would read upside-down
-  let r = -rot;
-  if (Math.cos(r) < -0.01) r += Math.PI;
-  if (Math.abs(Math.cos(r)) < 0.01) r = -Math.PI / 2;
-  g.rotate(r);
-  g.font = `700 ${size}px system-ui, sans-serif`;
+/** Round map icon with a letter (no emoji: they render differently on every OS). */
+function badge(g: CanvasRenderingContext2D, x: number, y: number, colour: string, letter: string, r = 10) {
+  g.fillStyle = colour;
+  g.strokeStyle = '#fff';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.fillStyle = '#fff';
+  g.font = `700 ${Math.round(r * 1.2)}px system-ui, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
+  g.fillText(letter, x, y + 0.5);
+}
+
+/** Upright label with a white halo at screen point (x, y). */
+export function drawLabel(g: CanvasRenderingContext2D, l: MapLabel, x: number, y: number) {
+  g.font = l.kind === 'street' ? '600 10px system-ui, sans-serif' : '700 11px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
   g.lineWidth = 3;
-  g.strokeStyle = halo;
-  g.strokeText(text, 0, 0);
-  g.fillStyle = fill;
-  g.fillText(text, 0, 0);
-  g.restore();
+  g.strokeStyle = '#ffffffe6';
+  g.strokeText(l.text, x, y);
+  g.fillStyle = l.kind === 'street' ? '#55524c' : '#7a2b10';
+  g.fillText(l.text, x, y);
 }
 
 /** Guide line along the roads to the current pickup / drop-off (white casing, blue core). */

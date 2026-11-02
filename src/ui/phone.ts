@@ -3,7 +3,7 @@ import { DAILY_DUE, LOAN_TOTAL } from '../missions/economy';
 import type { TaxiJobs } from '../missions/jobs';
 import type { Weather } from '../world/weather';
 import { stopPoint } from '../missions/data';
-import { MAP_PPM, drawRoute, mapPx } from './mapArt';
+import { MAP_LAND, MAP_PPM, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
 import { routeLength } from '../missions/route';
 import { WORLD_SIZE } from '../world/layout';
 
@@ -13,7 +13,8 @@ export interface PhoneDeps {
   jobs: TaxiJobs;
   economy: Economy;
   weather: Weather;
-  town: HTMLCanvasElement;
+  town: TownMap;
+  police: () => { x: number; z: number }[];
   clock: () => string;
   player: () => { x: number; z: number; yaw: number };
   auto: () => { x: number; z: number };
@@ -201,9 +202,9 @@ export class Phone {
     const cz = this.mapZoomed ? me.z : 0;
     const sw = (W / k) * MAP_PPM;
     const sh = (H / k) * MAP_PPM;
-    g.fillStyle = '#d9cfb6';
+    g.fillStyle = MAP_LAND;
     g.fillRect(0, 0, W, H);
-    g.drawImage(town, mapPx(cx) - sw / 2, mapPx(cz) - sh / 2, sw, sh, 0, 0, W, H);
+    g.drawImage(town.canvas, mapPx(cx) - sw / 2, mapPx(cz) - sh / 2, sw, sh, 0, 0, W, H);
     const S = (x: number, z: number) => ({ x: W / 2 + (x - cx) * k, y: H / 2 + (z - cz) * k });
     const dot = (x: number, z: number, colour: string, r: number) => {
       const p = S(x, z);
@@ -217,6 +218,12 @@ export class Phone {
     };
     const guide = this.deps.guide();
     if (guide) drawRoute(g, guide, S, this.mapZoomed ? 5 : 3);
+    for (const l of town.labels) {
+      if (!this.mapZoomed && l.kind === 'street') continue; // too cramped at whole-town scale
+      const p = S(l.x, l.z);
+      if (p.x > -40 && p.x < W + 40 && p.y > 0 && p.y < H) drawLabel(g, l, p.x, p.y);
+    }
+    for (const b of this.deps.police()) dot(b.x, b.z, '#e53935', 5);
     if (!jobs.busy) for (const o of jobs.orders) dot(stopPoint(o.from, 'sidewalk').x, stopPoint(o.from, 'sidewalk').z, '#ffe680', 4);
     const t = jobs.target;
     if (t) dot(t.x, t.z, t.kind === 'pickup' ? '#ffd21f' : '#35e06b', 7);

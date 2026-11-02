@@ -40,6 +40,12 @@ const HERO = {
     { name: 'sit_down', inPlace: false },
     { name: 'stand_up', inPlace: false },
     { name: 'drive', inPlace: false },
+    // Melee (Mixamo): all played in place; the kick's forward lunge is done by the capsule.
+    { name: 'swing', inPlace: true },
+    { name: 'punch', inPlace: true },
+    { name: 'combo', inPlace: true },
+    { name: 'kick', inPlace: true },
+    { name: 'block', inPlace: true },
     // exit_car.fbx (Mixamo "Exiting Car") is in assets-source but unused: it's a 5.8 s car-door
     // swing; getting out of the auto mirrors getting in with stand_up instead.
   ],

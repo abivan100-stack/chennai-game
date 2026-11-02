@@ -31,10 +31,10 @@ import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
 import { route } from './missions/route';
 import { Police } from './combat/police';
-import { Stick, STICK_REACH } from './combat/stick';
+import { MOVES, Melee, type Move } from './combat/melee';
 import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
-import { SPEC, type Vehicle } from './vehicles/traffic';
+import { DRIVER_SEAT, SPEC, type Vehicle } from './vehicles/traffic';
 import { BEATEN } from './npcs/dialogue';
 import { BUSTED_SUB, BUSTED_TITLE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, WASTED_SUB, WASTED_TITLE } from './missions/data';
 import { ROAD_LINES } from './world/layout';
@@ -60,6 +60,7 @@ async function main() {
   traffic.onSay = (name, line) => hud.say(name, line);
   const station = createPoliceStation(scene, world);
   const police = new Police(scene, world, characters.npcs.get('man-casual')!, station.jeepSpot, -Math.PI / 2);
+  police.onSay = (line) => hud.say('Police', line);
   const wanted = new Wanted();
   const economy = new Economy();
   const temple = createTemple(scene, world);
@@ -74,7 +75,8 @@ async function main() {
   const player = new PlayerController(world, scene, spawn, characters.hero);
   const auto = new AutoRickshaw(scene, world, autoSpot, Math.PI);
   const ride = new Ride(player, auto);
-  const stick = new Stick(characters.hero.scene);
+  const melee = new Melee(player);
+  const heroHips = player.model.getObjectByName('Hips')!;
   let health = 100;
   /** A traffic vehicle the player took (null = on foot or in uncle's auto). */
   let stolen: Vehicle | null = null;
@@ -82,6 +84,16 @@ async function main() {
   /** Seconds left on the ARRESTED / SUTTUTAANGA screen (controls frozen). */
   let downFor = 0;
   const NO_INPUT = { ...input, isDown: () => false, wasPressed: () => false };
+  const camDir = new THREE.Vector3();
+  /** Keep the seated hero's hips on a seat (vehicle space) while the Driving clip plays. */
+  const pinHips = (vehicle: THREE.Object3D, seat: THREE.Vector3) => {
+    const m = player.model;
+    m.rotation.set(0, 0, 0);
+    vehicle.updateMatrixWorld();
+    m.updateMatrixWorld(true);
+    const local = vehicle.worldToLocal(heroHips.getWorldPosition(new THREE.Vector3()));
+    m.position.add(seat.clone().sub(local));
+  };
   const cam = new FollowCamera(camera, world, player.collider);
   cam.yaw = 1.15; // from the east, looking back at the gopuram with the auto in view
   cam.pitch = 0.08;
@@ -96,6 +108,7 @@ async function main() {
     economy,
     weather,
     town: townMap,
+    police: () => police.blips(),
     clock: () => dayNight.clockLabel,
     player: () => ({ x: player.position.x, z: player.position.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }),
     auto: () => auto.group.position,
@@ -143,7 +156,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, stick, quality, dayNight, crowd, getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -151,8 +164,11 @@ async function main() {
     stolen = v;
     stolenFor = 0;
     player.setAway(true);
-    player.model.visible = false;
-    if (stick.equipped) stick.toggle();
+    if (melee.stickOut) melee.toggleStick();
+    // Sit at the wheel in the Driving pose (hips pinned to the driver's seat every frame).
+    v.group.add(player.model);
+    player.model.rotation.set(0, 0, 0);
+    player.animator.play('drive', { fade: 0.2 });
     cam.mode = 'drive';
     cam.ignore = v.collider;
     hud.setSpeed(0);
@@ -168,9 +184,10 @@ async function main() {
     const out = stolen.group.position.clone().addScaledVector(side, SPEC[stolen.kind].width / 2 + 0.8);
     out.y += 0.2;
     traffic.release(stolen);
+    player.attachModel();
+    player.animator.play('idle', { fade: 0.2 });
     stolen = null;
     player.placeAt(out, Math.atan2(side.x, side.z));
-    player.model.visible = true;
     player.setAway(false);
     cam.mode = 'foot';
     cam.ignore = player.collider;
@@ -190,7 +207,7 @@ async function main() {
     ride.forceOut();
     player.placeAt(station.releaseSpot, 0);
     wanted.clear();
-    police.goHome();
+    police.reset();
     health = 100;
   };
 
@@ -222,8 +239,10 @@ async function main() {
       else if (ride.canExit) ride.exit();
       else if (other) takeVehicle(other);
     }
-    if (onFootFree && input.wasPressed('Digit1')) stick.toggle();
-    if (onFootFree && input.wasPressed('Mouse0')) stick.swing();
+    if (onFootFree && input.wasPressed('Digit1')) melee.toggleStick();
+    if (onFootFree && input.wasPressed('Mouse0')) melee.attack();
+    if (onFootFree && input.wasPressed('KeyQ')) melee.attack('kick');
+    player.blocking = onFootFree && input.isDown('Mouse2') && !player.acting;
     if (talkTo && input.wasPressed('KeyE')) {
       const p = talkTo.root.position;
       player.talk(Math.atan2(p.x - player.position.x, p.z - player.position.z), 4.5);
@@ -258,13 +277,13 @@ async function main() {
       player.step(PHYSICS_STEP);
       auto.update(PHYSICS_STEP);
       traffic.step(PHYSICS_STEP);
-      police.step(PHYSICS_STEP);
+      police.step();
       world.step();
-      traffic.afterStep(world, [auto.collider, player.collider, police.jeepCollider, ...(stolen ? [stolen.collider] : [])]);
-      police.afterStep();
+      traffic.afterStep(world, [auto.collider, player.collider, ...police.jeepColliders, ...(stolen ? [stolen.collider] : [])]);
+      police.afterStep(PHYSICS_STEP);
       // Ramming the police jeep is an attack on the police.
       const ram = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;
-      if (ram && police.state !== 'parked') world.contactPair(ram, police.jeepCollider, () => wanted.report('assaultPolice'));
+      if (ram && wanted.level > 0) for (const jc of police.jeepColliders) world.contactPair(ram, jc, () => wanted.report('assaultPolice'));
       player.capture();
       auto.capture();
       accumulator -= PHYSICS_STEP;
@@ -274,28 +293,31 @@ async function main() {
     auto.sync(dayNight.night, alpha);
     traffic.sync(dt, alpha, dayNight.night);
     police.sync(dt, alpha);
-    // The stick swing goes on top of the animation; the blow lands mid-swing.
-    if (stick.update(dt)) {
+    // Melee: the blow lands mid-animation; anyone in front within reach gets hit.
+    const landed: Move | null = melee.update(dt);
+    if (landed) {
+      const reachM = MOVES[landed].reach;
       const f = new THREE.Vector3(Math.sin(player.mesh.rotation.y), 0, Math.cos(player.mesh.rotation.y));
-      const reach = (p: THREE.Vector3) => {
+      const inFront = (p: THREE.Vector3) => {
         const dx = p.x - player.position.x;
         const dz = p.z - player.position.z;
         const d = Math.hypot(dx, dz);
-        return d < STICK_REACH && (dx * f.x + dz * f.z) / (d || 1) > 0.3;
+        return d < reachM && (dx * f.x + dz * f.z) / (d || 1) > 0.3;
       };
       let crime = false;
       for (const npc of crowd.npcs) {
-        if (!reach(npc.root.position)) continue;
-        const line = npc.scold(BEATEN);
+        if (!inFront(npc.root.position)) continue;
+        const line = npc.struck(landed, BEATEN);
         if (line) hud.say(npc.name, line);
         crime = true;
       }
-      for (const o of police.officersNear(player.position, STICK_REACH)) {
-        police.hitOfficer(o);
+      for (const o of police.officersNear(player.position, reachM)) {
+        police.hitOfficer(o, landed === 'kick');
         wanted.report('assaultPolice');
       }
       if (crime) wanted.report('assault');
     }
+    if (stolen) pinHips(stolen.group, DRIVER_SEAT[stolen.kind]);
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     jobs.update(dt, ride.driving);
     ride.syncPosition();
@@ -332,7 +354,11 @@ async function main() {
       playerSpeed: stolen ? Math.abs(stolenSpeed) : vehicleCollider ? Math.abs(auto.speed) : player.speed,
       vehicle: vehicleCollider,
       level: downFor > 0 ? 0 : wanted.level,
+      camera: camera.position,
+      cameraDir: camera.getWorldDirection(camDir),
+      blocking: player.blocking,
     });
+    if (pev.arresting) hud.setPrompt('🚓 Kai-ya thooku! Run, or be arrested');
     wanted.update(dt, pev.seen);
     if (pev.officerHit) wanted.report('assaultPolice');
     if (stolen && wanted.level === 1) {
@@ -342,8 +368,9 @@ async function main() {
         hud.say(POLICE, MSG_ESCALATE);
       }
     }
-    if (pev.damage > 0 && downFor <= 0) {
-      health -= pev.damage;
+    const hurt = pev.damage + crowd.damageToPlayer * (player.blocking ? 0.3 : 1);
+    if (hurt > 0 && downFor <= 0) {
+      health -= hurt;
       hud.hurt();
     }
     if (wanted.level === 0) health = Math.min(100, health + 4 * dt);
@@ -366,7 +393,14 @@ async function main() {
       guide = t ? route({ x: from.x, z: from.z }, t, ROAD_LINES) : null;
     }
     phone.update(performance.now());
-    minimap.update(performance.now(), { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }, auto.group.position, jobs.target, guide);
+    minimap.update(performance.now(), {
+      player: { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
+      view: cam.yaw,
+      auto: auto.group.position,
+      marker: jobs.target,
+      guide,
+      police: police.blips(),
+    });
 
     renderer.render(scene, camera);
 

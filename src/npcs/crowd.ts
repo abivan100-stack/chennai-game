@@ -63,6 +63,8 @@ export class Crowd {
   readonly npcs: Npc[];
   /** NPCs updated last frame (shown in the F3 panel). */
   activeCount = 0;
+  /** Damage NPCs fighting back dealt to the player this frame. */
+  damageToPlayer = 0;
   /** Closest NPC the player can talk to right now, or null. */
   nearest: Npc | null = null;
   /** Called when an NPC says something on its own (e.g. after being bumped). */
@@ -78,6 +80,7 @@ export class Crowd {
   /** inAuto: the player is driving (bigger bump radius, different complaints, no chatting). */
   update(dt: number, playerPos: THREE.Vector3, playerSpeed: number, inAuto: boolean) {
     this.activeCount = 0;
+    this.damageToPlayer = 0;
     this.nearest = null;
     let nearestDist = TALK_RADIUS;
     const bump = inAuto ? BUMP.auto : BUMP.foot;
@@ -86,7 +89,7 @@ export class Crowd {
       const dist = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
       const active = dist < ACTIVE_RADIUS;
       if (active) this.activeCount++;
-      npc.update(dt, active, playerPos);
+      this.damageToPlayer += npc.update(dt, active, playerPos);
 
       if (!inAuto && dist < nearestDist && npc.canTalk) {
         nearestDist = dist;

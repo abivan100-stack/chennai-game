@@ -19,8 +19,13 @@ addEventListener('keyup', (e) => held.delete(e.code));
 addEventListener('blur', () => held.clear()); // avoid stuck keys after alt-tab
 // Left click while playing (pointer locked) = 'Mouse0' (the click that locks the pointer doesn't count).
 addEventListener('mousedown', (e) => {
-  if (document.pointerLockElement && e.button === 0) pressed.add('Mouse0');
+  if (!document.pointerLockElement) return;
+  // 'Mouse0' = left, 'Mouse2' = right (held while pressed, e.g. block).
+  pressed.add(`Mouse${e.button}`);
+  held.add(`Mouse${e.button}`);
 });
+addEventListener('mouseup', (e) => held.delete(`Mouse${e.button}`));
+addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('mousemove', (e) => {
   if (!document.pointerLockElement) return;
   mouseX += e.movementX;

@@ -16,6 +16,13 @@ const AVOID_STRENGTH = 1.1;
 // Reactions
 const TALK_SECONDS = 4.5;
 const SCOLD_SECONDS = 3.2;
+// Getting hit
+const KNOCKDOWN_SECONDS = 3.5;
+const FIGHT_BACK_CHANCE = 0.6; // after the second blow
+const COMBO_SECONDS = 4.7; // Mixamo "Fist Fight A", retargeted
+const COMBO_HITS = [0.95, 2.23, 3.45]; // s into the combo where punches land
+const COMBO_REACH = 1.7;
+const COMBO_DAMAGE = 7;
 const SCOLD_COOLDOWN = 4;
 
 // Collider (kinematic capsule, for a 1.7 m NPC; scaled with height)
@@ -53,6 +60,9 @@ export class Npc {
   private target = 0;
   private busy = 0; // talking / scolding
   private scoldCooldown = 0;
+  private hits = 0; // times the player has hit us recently
+  private fightT = -1; // seconds into a fight-back combo, -1 = not fighting
+  private downT = 0; // knocked down
   private lineIndex = Math.floor(Math.random() * GREETINGS.length);
   private readonly toPlayer = new THREE.Vector3();
 
@@ -119,10 +129,57 @@ export class Npc {
   }
 
   /** active = false freezes the NPC completely (pose, position, collider) to save CPU. */
+  /**
+   * Hit by the player. Kick = knocked down. Punch / lathi = flinch and yell; hit again and they
+   * may fight back. Returns a line to show, or null.
+   */
+  struck(move: 'punch' | 'swing' | 'kick', lines: readonly string[]) {
+    this.hits++;
+    this.fightT = -1;
+    const away = this.toPlayer.lengthSq() > 0 ? this.toPlayer.clone().normalize().negate() : new THREE.Vector3();
+    if (move === 'kick') {
+      this.downT = KNOCKDOWN_SECONDS;
+      this.busy = KNOCKDOWN_SECONDS + 0.6;
+      this.root.position.addScaledVector(away, 0.9);
+      this.animator.play('fall', { once: true, fade: 0.08 });
+      return nextLine(lines, Math.floor(Math.random() * lines.length));
+    }
+    this.root.position.addScaledVector(away, move === 'swing' ? 0.5 : 0.25);
+    if (this.hits >= 2 && Math.random() < FIGHT_BACK_CHANCE) {
+      this.fightT = 0;
+      this.busy = COMBO_SECONDS;
+      this.animator.play('hit', { once: true, then: 'combo', fade: 0.08 });
+      return nextLine(FIGHT_LINES, Math.floor(Math.random() * FIGHT_LINES.length));
+    }
+    this.scoldCooldown = 0;
+    return this.scold(lines);
+  }
+
+  /** Damage dealt to the player this frame (when fighting back). */
   update(dt: number, active: boolean, playerPos: THREE.Vector3) {
-    if (!active) return;
+    if (!active) return 0;
     this.scoldCooldown -= dt;
     this.toPlayer.subVectors(playerPos, this.root.position).setY(0);
+    let damage = 0;
+    if (this.fightT >= 0) {
+      const before = this.fightT;
+      this.fightT += dt;
+      for (const t of COMBO_HITS) {
+        if (before < t && this.fightT >= t && this.toPlayer.length() < COMBO_REACH) damage += COMBO_DAMAGE;
+      }
+      // Step in to stay at punching distance.
+      const d = this.toPlayer.length();
+      if (d > 1.1) this.root.position.addScaledVector(this.toPlayer, Math.min(1, (1.6 * dt) / d));
+      if (this.fightT > COMBO_SECONDS) this.fightT = -1;
+    }
+    if (this.downT > 0) {
+      this.downT -= dt;
+      if (this.downT <= 0) this.animator.play('idle', { fade: 0.4 }); // back on their feet
+      this.animator.update(dt);
+      this.busy -= dt;
+      return damage;
+    }
+    if (this.busy <= 0 && this.hits > 0) this.hits = Math.max(0, this.hits - dt * 0.1);
 
     if (this.busy > 0) {
       this.yaw = Math.atan2(this.toPlayer.x, this.toPlayer.z);
@@ -139,6 +196,7 @@ export class Npc {
     this.animator.update(dt);
     const p = this.root.position;
     this.body.setNextKinematicTranslation({ x: p.x, y: p.y + this.colliderLift, z: p.z });
+    return damage;
   }
 
   private walk(dt: number) {
@@ -191,3 +249,5 @@ export class Npc {
     return best;
   }
 }
+
+const FIGHT_LINES = ['Ennada adikkura?! Vaa da, paapom!', 'Dei! Thirumbi adippen!', 'Ennai adichaa summa viduvena?!'];

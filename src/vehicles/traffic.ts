@@ -33,7 +33,7 @@ const HANDLING: Record<Kind, { top: number; accel: number; turn: number }> = {
   bus: { top: 11, accel: 2.5, turn: 0.8 },
 };
 /** Driver's hip position per vehicle (model space). India drives right-hand: driver on the right (-x). */
-const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
+export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
   auto: SEAT,
   car: new THREE.Vector3(-0.38, 0.78, 0.0),
   bus: new THREE.Vector3(-0.8, 1.45, 4.0),

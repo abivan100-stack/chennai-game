@@ -55,6 +55,12 @@ export class PlayerController {
   private walkTarget: THREE.Vector3 | null = null;
   private talkTime = 0;
   private talkYaw = 0;
+  // Melee: a one-shot action clip (punch, swing, kick) that owns the body for `actionT` seconds.
+  private actionT = 0;
+  private actionElapsed = 0;
+  private lunge: { speed: number; from: number; to: number } | null = null;
+  /** Holding block (right mouse): guard pose, can't move, takes less damage. */
+  blocking = false;
   private away = false;
   private readonly prevPos = new THREE.Vector3();
   private readonly currPos = new THREE.Vector3();
@@ -125,6 +131,26 @@ export class PlayerController {
   }
 
   /** Talking gesture facing `yaw` for `seconds`; any movement key cancels it. */
+  /**
+   * Play a one-shot action clip (punch / stick swing / kick) for `seconds`, rooted to the spot,
+   * optionally lunging forward between `lunge.from` and `lunge.to` seconds. False if busy.
+   */
+  playAction(clip: string, seconds: number, lunge: { speed: number; from: number; to: number } | null = null) {
+    if (this.away || this.actionT > 0 || !this.grounded) return false;
+    this.actionT = seconds;
+    this.actionElapsed = 0;
+    this.lunge = lunge;
+    this.talkTime = 0;
+    this.animator.play(clip, { once: true, fade: 0.1 });
+    this.animator.setSpeed(1);
+    return true;
+  }
+
+  /** In the middle of an attack. */
+  get acting() {
+    return this.actionT > 0;
+  }
+
   talk(yaw: number, seconds: number) {
     this.talkYaw = yaw;
     this.talkTime = seconds;
@@ -150,6 +176,15 @@ export class PlayerController {
     const running = input.isDown('ShiftLeft') || input.isDown('ShiftRight');
     this.wish.multiplyScalar(running ? RUN_SPEED : WALK_SPEED);
     if (input.wasPressed('Space')) this.jumpQueued = true;
+    // Attacking or blocking: stand your ground (a kick lunges forward along the facing).
+    if (this.actionT > 0 || this.blocking) {
+      const l = this.lunge;
+      const t = this.actionElapsed;
+      const yaw = this.mesh.rotation.y;
+      const lungeSpeed = l && t >= l.from && t <= l.to ? l.speed : 0;
+      this.wish.set(Math.sin(yaw) * lungeSpeed, 0, Math.cos(yaw) * lungeSpeed);
+      this.jumpQueued = false;
+    }
   }
 
   /** One physics step of movement. Call BEFORE world.step(). */
@@ -212,7 +247,14 @@ export class PlayerController {
     this.talkTime -= dt;
     this.airTime = this.grounded ? 0 : this.airTime + dt;
     if (this.grounded) this.jumped = false;
-    if (this.jumped || this.airTime > FALL_AFTER) {
+    if (this.actionT > 0) {
+      // The attack clip is already playing; just let it run.
+      this.actionT -= dt;
+      this.actionElapsed += dt;
+      if (this.actionT <= 0) this.lunge = null;
+    } else if (this.blocking) {
+      this.animator.play('block', { fade: 0.15 });
+    } else if (this.jumped || this.airTime > FALL_AFTER) {
       this.animator.play('jump', { once: true, startAt: JUMP_START });
     } else if (speed > RUN_ABOVE) {
       this.animator.play('run');
