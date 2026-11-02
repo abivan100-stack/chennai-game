@@ -36,6 +36,7 @@ Step 11d done: Tidel Park enlarged (three blocks wide, ~125 m: West / East Mada 
 Step 11e done: Besant Nagar (world/besant.ts, layout.BESANT): Annai Velankanni church on the Beach Road, Elliot's Beach with the Ashtalakshmi temple, Karl Schmidt memorial, snack carts (two are eateries), 3 more cafes on the food street. Crowds by time of day (crowd.ts Spawn.hours + crowdOf groups; off-hours NPCs are hidden with their collider disabled): temple pooja crowds 6-9:30 / 17-20:30, market mornings, beach evenings (Santhome, Elliot's), joggers at dawn, food street nights, Tidel shift changes, college, cinema show times; the regular street crowd is out 5:30-23:30.
 Step 11f done: 125 pedestrians (crowdOf groups with hours in every area: park walkers, mass-goers, fish market, beach fair, late-night tea, Anna Salai, TTK Road, Mandaveli, R.A. Puram, Adyar, Taramani, Velachery residents) with 12 tint variants; only the nearest 24 are drawn (MAX_DRAWN) and the nearest 10 cast shadows (MAX_SHADOWS) to stay under the draw-call budget. Only 6 NPC models exist (assets-source/quaternius); more need the full Quaternius packs downloaded by hand.
 Step 11g done: beach life (world/beachLife.ts): ~70 stalls scattered at random spots / angles on Santhome and Elliot's beaches (corn roasters, coconut carts, balloon shooting, bangles, toys, snack tarps), 18 pastel dessert carts on spoked wheels (rose milk, jigarthanda, kulfi, falooda...; eateries with the dessert menu), 4 instanced dessert carts pushed along the sand 16-22 h with turning wheels (their eatery spot moves with them); events by the clock: kites 15-18:30, pony rides 16-20, beach cricket 15-18, music stage at Elliot's 18-22 (lights, audience, phone alert).
+Step 11h done: north extension (BOUNDS.z0 -400, Wallajah Road z = -220, Bharathi Salai z = -310): Triplicane old streets, Chepauk (world/chepauk.ts: M.A. Chidambaram stadium with tiered stands, wavy roof, floodlights lit on match nights 19-23 h + phone alert + ride orders after the match; Presidency College; Marina Beach arch), Chepauk MRTS station, Marina stalls + evening / dawn crowds. Crowd groups no longer walk single file: crowdOf gives each person their own wandering loop on open ground and their own lane offset on pavements.
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -114,6 +115,7 @@ src/
     kit.ts             lot frame + box/shape/board/tree helpers + sign atlas (3 draw calls per user)
     complex.ts         Grand Lake Residences, gated apartment towers (Velachery)
     beachLife.ts       beach stalls (random), dessert carts (some moving), kites, ponies, music stage
+    chepauk.ts         Chepauk stadium (match nights), Presidency College, Marina arch
     besant.ts          Besant Nagar: Velankanni church, Elliot's Beach, Ashtalakshmi temple, beach carts
     cafes.ts           aesthetic cafes + boutiques (data in cafeSpots.ts)
     tidel.ts           Tidel Park, Taramani (glass IT park, curtain-wall texture)

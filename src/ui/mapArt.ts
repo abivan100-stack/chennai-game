@@ -1,6 +1,6 @@
 import type { Footprint } from '../world/buildings';
 import { CAFE_SPOTS } from '../world/cafeSpots';
-import { BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
+import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
@@ -110,6 +110,8 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'landmark' });
   labels.push({ text: 'TARAMANI', x: -48, z: 440, kind: 'landmark' });
   labels.push({ text: 'PERUNGUDI', x: 0, z: 630, kind: 'landmark' });
+  labels.push({ text: 'TRIPLICANE', x: -20, z: -260, kind: 'landmark' });
+  labels.push({ text: 'Marina Beach', x: 165, z: -300, kind: 'landmark' });
   labels.push({ text: 'BESANT NAGAR', x: 97, z: 470, kind: 'landmark' });
   labels.push({ text: "Elliot's Beach", x: 165, z: 540, kind: 'landmark' });
   badge(g, P(170), P(600), '#14213d', '♫');
@@ -228,6 +230,8 @@ export function drawTownMap(data: MapData): TownMap {
     [lm.ambedkarManimandapam, '#c5cae9', '#1a3c8f', 'A', 'Ambedkar Manimandapam'],
     [lm.tholkappiaPoonga, '#a5d6a7', '#33691e', '🌿', 'Tholkappia Poonga'],
     [TIDEL_LOT(), '#cfe3ee', '#0d3b66', '💻', 'Tidel Park'],
+    [CHEPAUK_LOT(), '#e6f2d9', '#0b3d91', '🏏', 'Chepauk Stadium'],
+    [PRESIDENCY_LOT(), '#f3d9cf', '#7a1f1f', '🎓', 'Presidency College'],
     [BESANT.church(), '#eef2f7', '#1d3557', '✝', 'Velankanni Church'],
     [BESANT.temple, '#f6dfb0', '#8a2b1f', 'ॐ', 'Ashtalakshmi Temple'],
     [COMPLEX_LOTS()[0], '#e8e0cc', '#1b2a41', '🏢', 'Grand Lake Residences'],

@@ -13,7 +13,8 @@
  *     Salai (Beach Road), then the beach and the sea (world/santhome.ts).
  *   - West of R.K. Mutt Road: the Buckingham Canal (MRTS above it, bridges where the roads
  *     cross), then Alwarpet (TTK Road, bungalows) and Teynampet (Eldams Road, Anna Salai).
- *   - North: Dr. Radhakrishnan Salai. South of Mandaveli: R.A. Puram, Greenways Road, the Adyar
+ *   - North: Dr. Radhakrishnan Salai, then Triplicane (Wallajah Road, Bharathi Salai) with Chepauk
+ *     stadium and Presidency College on the Beach Road, and Marina Beach along the sand. South of Mandaveli: R.A. Puram, Greenways Road, the Adyar
  *     river (bridges on every north-south road, the boat club on its bank) and Adyar beyond it;
  *     then Taramani: Tidel Park on Taramani Road, where the OMR IT corridor begins; then
  *     Perungudi (east) and Velachery (west, a big gated apartment community).
@@ -25,18 +26,18 @@
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
 /** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
-export const BOUNDS = { x0: -300, x1: 250, z0: -160, z1: 660 };
+export const BOUNDS = { x0: -300, x1: 250, z0: -400, z1: 660 };
 /** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
 export const X_LINES = [-265, -205, -145, -70, -25, 25, 70, 125];
 /** Roads running east-west (centre line z = c). They end at the Beach Road. */
-export const Z_LINES = [-130, -70, -25, 25, 70, 125, 180, 240, 300, 390, 480, 600];
+export const Z_LINES = [-310, -220, -130, -70, -25, 25, 70, 125, 180, 240, 300, 390, 480, 600];
 /** Water the roads cross on bridges: the canal (north-south strip) and the Adyar river (east-west). */
 export const CANAL = { x0: -121, x1: -109 };
 export const RIVER = { z0: 318, z1: 346 };
 /** The MRTS line's reference x (its frame starts here; the canal lies 9-21 m west of it). */
 export const MRTS_X = -100;
 /** MRTS stations: centre (world z) and name; each sits between two cross roads. */
-export const MRTS_STATIONS: [number, string][] = [[0, 'Thirumayilai MRTS'], [152.5, 'Mandaveli MRTS']];
+export const MRTS_STATIONS: [number, string][] = [[0, 'Thirumayilai MRTS'], [152.5, 'Mandaveli MRTS'], [-265, 'Chepauk MRTS']];
 export const BEACH_ROAD = X_LINES[X_LINES.length - 1];
 export const ROAD_HALF = 5;
 export const SIDEWALK_WIDTH = 2.5;
@@ -72,6 +73,8 @@ export const X_ROADS: Record<number, [string, string]> = {
   [125]: ['Kamarajar Salai (Beach Road)', 'காமராஜர் சாலை'],
 };
 export const Z_ROADS: Record<number, [string, string]> = {
+  [-310]: ['Bharathi Salai (Triplicane)', 'பாரதி சாலை'],
+  [-220]: ['Wallajah Road', 'வாலாஜா சாலை'],
   [-130]: ['Dr. Radhakrishnan Salai', 'டாக்டர் ராதாகிருஷ்ணன் சாலை'],
   [-70]: ['Luz Church Road', 'லஸ் சர்ச் சாலை'],
   [-25]: ['North Mada Street', 'வடக்கு மாட வீதி'],
@@ -291,7 +294,7 @@ export const LANDMARK_LOTS = () => {
     semmozhiPoonga: lot(anna.x0, anna.x1, anna.z0, anna.z1, 'w'),
     metro: lot(metro.x0, metro.x0 + 14, -9, 9, 'w'),
     ramakrishnaMath: lot(rkm.x0, rkm.x1, rkm.z0, rkm.z1, 'w'),
-    vivekanandarIllam: lot(ice.x1 - 28, ice.x1, ice.z0, ice.z1, 'e'),
+    vivekanandarIllam: lot(ice.x1 - 28, ice.x1, ice.z1 - 28, ice.z1, 'e'),
     ambedkarManimandapam: lot(green.x0, green.x1, green.z1 - 28, green.z1, 's'),
     tholkappiaPoonga: lot(eco.x0, eco.x1, eco.z0, eco.z1, 's'),
   };
@@ -368,6 +371,16 @@ export const BESANT = {
   memorial: { x: 174, z: 505 },
   /** Elliot's Beach runs along the sand east of the Beach Road, from the river mouth south. */
   beach: { x0: 138, x1: 190, z0: 360, z1: 600 },
+};
+
+/** Chepauk: the M.A. Chidambaram stadium (block [4, -2]) and Presidency College (block [4, -1], north part), both on the Beach Road. */
+export const CHEPAUK_LOT = (): Lot => {
+  const b = block(SANTHOME, -2);
+  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 'e' };
+};
+export const PRESIDENCY_LOT = (): Lot => {
+  const b = block(SANTHOME, -1);
+  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z0 + 40, front: 'e' };
 };
 
 export const POLICE_LOT = () => {

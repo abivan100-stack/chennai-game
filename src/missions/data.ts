@@ -18,6 +18,7 @@ export const COLLEGE = 'Vivekananda College';
 /** Game hours when classes start / end: students want autos (ride orders from the college). */
 export const COLLEGE_RUSH = [9, 16];
 export const TIDEL = 'Tidel Park';
+export const STADIUM = 'Chepauk Stadium';
 /** Office hours at Tidel Park: IT folks want autos to the MRTS and home. */
 export const TIDEL_RUSH = [9, 18, 19];
 
@@ -80,6 +81,12 @@ export const STOPS: Stop[] = [
   { name: 'Kaapi Kottai, TTK Road', axis: 'x', line: -145, along: -50, side: -1 },
   { name: 'Kadal Cafe, Beach Road', axis: 'x', line: 125, along: 42, side: -1 },
   { name: 'Byte & Brew, Taramani', axis: 'z', line: 480, along: 48, side: -1 },
+  // Triplicane / Chepauk / Marina
+  { name: STADIUM, axis: 'x', line: 125, along: -265, side: -1 },
+  { name: 'Presidency College', axis: 'x', line: 125, along: -195, side: -1 },
+  { name: 'Marina Beach', axis: 'x', line: 125, along: -255, side: 1 },
+  { name: 'Chepauk MRTS station', axis: 'x', line: -70, along: -265, side: -1 },
+  { name: 'Triplicane', axis: 'z', line: -310, along: 0, side: 1 },
   // Besant Nagar
   { name: "Elliot's Beach", axis: 'x', line: 125, along: 478, side: 1 },
   { name: 'Ashtalakshmi Temple', axis: 'x', line: 125, along: 443, side: 1 },
@@ -107,6 +114,8 @@ export const PLACE_LINES = {
   standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
   showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
   tidelRush: '💻 Tidel Park shift mudinjiduchu! IT makkal auto-ku wait pannuraanga.',
+  matchNight: '🏏 Chepauk-la innaiku night match! Floodlights on, full crowd.',
+  matchOver: '🏏 Match mudinjiduchu! Chepauk gate-la crowd auto-ku wait pannuraanga.',
   musicNight: "🎶 Elliot's Beach-la music night start aachu! Live band, kites, dessert carts - vaanga!",
   collegeRush: '🎓 College rush! Vivekananda College-la students auto-ku wait pannuraanga.',
   lowFuel: 'Petrol kammiyaa irukku! R.K. Mutt Road bunk-ku ponga.',

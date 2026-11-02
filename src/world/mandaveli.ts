@@ -20,7 +20,7 @@ const DECK_Y = 9; // rail level
 const SPAN = 16; // m between viaduct piers
 const LINE_X = [BOUNDS.z0 - 300, BOUNDS.z1 + 140]; // the line runs well past both ends of town
 const STATION_LEN = 64;
-const STATION_TA = ['திருமயிலை', 'மந்தைவெளி'];
+const STATION_TA = ['திருமயிலை', 'மந்தைவெளி', 'சேப்பாக்கம்'];
 const STATIONS = MRTS_STATIONS.map(([z, name], i) => ({ x0: z - STATION_LEN / 2, x1: z + STATION_LEN / 2, ta: STATION_TA[i], en: `${name.replace(' MRTS', '').toUpperCase()}  ·  MRTS` }));
 const TRAIN = { coaches: 4, coachLen: 20, gap: 0.8, speed: 13, wait: 25, dwell: 12 }; // m/s, s
 const OUTSKIRTS = 600; // m of plain land past the north and south edges

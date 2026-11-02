@@ -43,7 +43,8 @@ import { createComplex } from './world/complex';
 import { createCafes } from './world/cafes';
 import { createBesantNagar } from './world/besant';
 import { createBeachLife } from './world/beachLife';
-import { TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
+import { createChepauk } from './world/chepauk';
+import { STADIUM, TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
@@ -119,6 +120,8 @@ async function main() {
   const cafes = createCafes(scene, world);
   const besant = createBesantNagar(scene, world);
   const beachLife = createBeachLife(scene, world, santhome.obstacles);
+  const chepauk = createChepauk(scene, world);
+  let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
   eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
@@ -892,6 +895,16 @@ async function main() {
     const stageOn = beachLife.stageOn(istHour);
     if (stageOn && !stageWasOn) phone.notify(PLACE_LINES.musicNight);
     stageWasOn = stageOn;
+    chepauk.update(istHour, dayNight.night);
+    const matchOn = chepauk.matchOn(istHour);
+    if (matchOn && !matchWasOn) phone.notify(PLACE_LINES.matchNight);
+    if (!matchOn && matchWasOn && jobs.phase !== 'off') {
+      jobs.addOrderFrom(STADIUM);
+      jobs.addOrderFrom(STADIUM);
+      jobs.addOrderFrom(STADIUM);
+      phone.notify(PLACE_LINES.matchOver);
+    }
+    matchWasOn = matchOn;
     // A show lets out at the cinema: a couple of ride orders from there.
     const hour = Math.floor(istTime(dayNight.timeMs).hours);
     if (hour !== lastShowHour) {

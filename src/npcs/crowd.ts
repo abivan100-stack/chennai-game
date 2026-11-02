@@ -131,6 +131,15 @@ const SPAWNS: Spawn[] = [
   ...crowdOf(['Fan Deepak', 'Fan Swetha', 'Fan Karthi', 'Fan Monisha', 'Fan Ajay', 'Fan Ritu', 'Fan Gautham', 'Fan Leela'], { loop: [[152, 592], [162, 592], [162, 608], [152, 608]], y: 0.1, hours: [[18, 22]] }),
   ...crowdOf(['Batsman Dinesh', 'Bowler Vicky', 'Fielder Sam', 'Fielder Bala', 'Keeper Ashok'], { loop: [[155, 196], [166, 196], [166, 224], [155, 224]], y: 0.1, hours: [[15, 18]], pace: 'run' }),
   ...crowdOf(['Kite flyer Raja', 'Kite flyer Pavithra', 'Kite flyer Sundar'], { loop: [[150, -130], [172, -130], [172, -100], [150, -100]], y: 0.1, hours: [[15, 18.5]] }),
+  // Marina Beach: the big evening crowd, and dawn walkers.
+  ...crowdOf(['Marina Anitha', 'Marina Gopal', 'Marina Rekha', 'Marina Imran', 'Marina Kids 1', 'Marina Kids 2', 'Marina Selvam', 'Marina Jothi', 'Marina Prabhu', 'Marina Nandini', 'Marina Babu', 'Marina Zara'], { loop: [[141, -395], [185, -395], [185, -170], [141, -170]], y: 0.1, hours: [[16.5, 21.5]] }),
+  ...crowdOf(['Dawn walker Mohan', 'Dawn walker Saroja', 'Dawn jogger Kevin'], { loop: [[139, -390], [146, -390], [146, -100], [139, -100]], y: 0.12, hours: [[5.5, 8]], pace: 'walk' }),
+  // Chepauk: match crowds at the gates before and after the game.
+  ...crowdOf(['Fan Muthu', 'Fan Revathi', 'Fan Sam', 'Fan Kishore', 'Fan Divya', 'Fan Arvind', 'Ticket tout'], { block: [4, -2], lane: LANE_A, hours: [[17.5, 19.5], [22.5, 23.8]] }),
+  // Triplicane: busy old streets, mansions, students.
+  ...crowdOf(['Mansion Ravi', 'Student Prem', 'Paati Kamakshi', 'Book seller Ali'], { block: [1, -1], lane: LANE_B, hours: [[6, 23]] }),
+  ...crowdOf(['Temple-goer Vasu', 'Flower Amma', 'Student Nila'], { block: [2, -2], lane: LANE_A, hours: [[6, 22]] }),
+  ...crowdOf(['Presidency student Akash', 'Presidency student Mythili', 'Prof. Raghavan'], { block: [4, -1], lane: LANE_B, hours: [[8.5, 17.5]] }),
   // Luz Church Road shoppers.
   ...crowdOf(['Shopper Indira', 'Flower seller Ponni'], { block: [1, 1], lane: LANE_B, hours: [[7, 21]] }),
 ];
@@ -140,15 +149,40 @@ function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y'
   const models: NpcModelId[] = ['woman-casual', 'man-casual', 'woman-formal', 'man-worker', 'woman-suit', 'man-farmer'];
   // Colour variants so the same six models don't look like twins in a crowd.
   const tints = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0, 0xffe0b2, 0xc8e6c9, 0xbbdefb, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
-  return names.map((name, i) => ({
-    ...o,
-    name,
-    model: models[(name.length + i) % models.length],
-    start: (i + 0.5) / names.length,
-    reverse: i % 2 === 1,
-    height: 1.55 + ((name.length * 7 + i * 3) % 20) / 100,
-    tint: tints[(i + name.length) % tints.length],
-  }));
+  return names.map((name, i) => {
+    // Everyone gets their own route, so a group spreads out instead of walking in single file.
+    let h = 7;
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 2147483647;
+    const rnd = () => (h = (h * 16807) % 2147483647) / 2147483647;
+    let loop = o.loop;
+    if (loop) {
+      // Open ground (beach, court): a wandering loop of 5-7 points inside the area.
+      const xs = loop.map((p) => p[0]);
+      const zs = loop.map((p) => p[1]);
+      const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+      const cx = x0 + (x1 - x0) * (0.3 + rnd() * 0.4);
+      const cz = z0 + (z1 - z0) * (0.3 + rnd() * 0.4);
+      const n = 5 + Math.floor(rnd() * 3);
+      loop = Array.from({ length: n }, (_, k) => {
+        const a = (k / n) * Math.PI * 2 + rnd() * 0.6;
+        const r = 0.35 + rnd() * 0.65;
+        return [THREE.MathUtils.clamp(cx + Math.cos(a) * r * (x1 - x0) / 2, x0, x1), THREE.MathUtils.clamp(cz + Math.sin(a) * r * (z1 - z0) / 2, z0, z1)] as [number, number];
+      });
+    }
+    // Pavements: each at their own distance from the kerb.
+    const lane = o.block ? THREE.MathUtils.clamp((o.lane ?? LANE_A) + (rnd() - 0.5) * 0.9, 0.6, 2.1) : o.lane;
+    return {
+      ...o,
+      loop,
+      lane,
+      name,
+      model: models[(name.length + i) % models.length],
+      start: rnd(),
+      reverse: rnd() < 0.5,
+      height: 1.55 + ((name.length * 7 + i * 3) % 20) / 100,
+      tint: tints[(i + name.length) % tints.length],
+    };
+  });
 }
 
 /** Point a fraction `t` of the way round a closed loop. */

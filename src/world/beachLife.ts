@@ -17,11 +17,12 @@ import { sandY } from './santhome';
  */
 
 const SEED = 77;
-const STALLS = 70;
+const STALLS = 95;
 const DESSERT_CARTS = 18;
 const ZONES = [
   { x0: 141, x1: 176, z0: -150, z1: 300 }, // Santhome beach (stalls stay near the promenade)
   { x0: 141, x1: 176, z0: 362, z1: 650 }, // Elliot's Beach
+  { x0: 141, x1: 176, z0: -395, z1: -165 }, // Marina Beach
 ];
 const MOVE_SPEED = 0.7; // m/s, a cart being pushed
 const KITE_HOURS: [number, number] = [15, 18.5];
@@ -96,6 +97,7 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
     { x: (BESANT.temple.x0 + BESANT.temple.x1) / 2, z: (BESANT.temple.z0 + BESANT.temple.z1) / 2, r: 20 },
     { x: BESANT.memorial.x, z: BESANT.memorial.z, r: 6 },
     { x: 142, z: 478, r: 8 }, // Elliot's board
+    { x: 138, z: -255, r: 9 }, // Marina arch
     { x: STAGE.x, z: STAGE.z, r: 16 },
     { x: 160, z: 210, r: 14 }, // cricket pitch
     ...Array.from({ length: 13 }, (_, i) => ({ x: 142, z: 390 + i * 17, r: 3 })), // Elliot's carts

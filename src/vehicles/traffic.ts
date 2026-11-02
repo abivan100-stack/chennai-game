@@ -234,6 +234,10 @@ export class Traffic {
       ['car', 2, 9, 0.3, 0xf4f4f4],
       ['auto', 1, 9, 0.6],
       ['car', 3, 9, 0.1, 0x37474f],
+      // Triplicane
+      ['car', 2, -1, 0.3, 0xf4f4f4],
+      ['auto', 3, -1, 0.6],
+      ['bus', 1, -1, 0.1],
       // Perungudi
       ['car', 2, 10, 0.5, 0xb0bec5],
       ['auto', 1, 10, 0.2],
