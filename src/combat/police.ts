@@ -211,6 +211,11 @@ export class Police {
     return this.units.flatMap((u) => u.officers).filter((o) => o.root.visible && Math.hypot(o.root.position.x - p.x, o.root.position.z - p.z) < r);
   }
 
+  /** Officers out of their jeeps (melee targets). */
+  officersOut() {
+    return this.units.flatMap((u) => u.officers).filter((o) => o.root.visible);
+  }
+
   /** Melee hit on an officer: they stagger. */
   hitOfficer(o: Officer, knockdown: boolean) {
     o.down = knockdown ? 3 : 1;

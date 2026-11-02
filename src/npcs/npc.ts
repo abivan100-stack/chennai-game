@@ -24,6 +24,8 @@ const COMBO_HITS = [0.95, 2.23, 3.45]; // s into the combo where punches land
 const COMBO_REACH = 1.7;
 const COMBO_DAMAGE = 7;
 const SCOLD_COOLDOWN = 4;
+const KNOCK = { punch: 2.4, swing: 4.5, kick: 7 }; // m/s right after the blow
+const KNOCK_DECAY = 8;
 
 // Collider (kinematic capsule, for a 1.7 m NPC; scaled with height)
 const RADIUS = 0.3;
@@ -63,6 +65,7 @@ export class Npc {
   private hits = 0; // times the player has hit us recently
   private fightT = -1; // seconds into a fight-back combo, -1 = not fighting
   private downT = 0; // knocked down
+  private readonly knock = new THREE.Vector3(); // knock-back velocity, decays fast
   private lineIndex = Math.floor(Math.random() * GREETINGS.length);
   private readonly toPlayer = new THREE.Vector3();
 
@@ -140,11 +143,11 @@ export class Npc {
     if (move === 'kick') {
       this.downT = KNOCKDOWN_SECONDS;
       this.busy = KNOCKDOWN_SECONDS + 0.6;
-      this.root.position.addScaledVector(away, 0.9);
+      this.knock.copy(away).multiplyScalar(KNOCK.kick);
       this.animator.play('fall', { once: true, fade: 0.08 });
       return nextLine(lines, Math.floor(Math.random() * lines.length));
     }
-    this.root.position.addScaledVector(away, move === 'swing' ? 0.5 : 0.25);
+    this.knock.copy(away).multiplyScalar(KNOCK[move]);
     if (this.hits >= 2 && Math.random() < FIGHT_BACK_CHANCE) {
       this.fightT = 0;
       this.busy = COMBO_SECONDS;
@@ -159,6 +162,9 @@ export class Npc {
   update(dt: number, active: boolean, playerPos: THREE.Vector3) {
     if (!active) return 0;
     this.scoldCooldown -= dt;
+    // Slide back from a blow (distance = speed / KNOCK_DECAY).
+    this.root.position.addScaledVector(this.knock, dt);
+    this.knock.multiplyScalar(Math.exp(-KNOCK_DECAY * dt));
     this.toPlayer.subVectors(playerPos, this.root.position).setY(0);
     let damage = 0;
     if (this.fightT >= 0) {
@@ -177,6 +183,8 @@ export class Npc {
       if (this.downT <= 0) this.animator.play('idle', { fade: 0.4 }); // back on their feet
       this.animator.update(dt);
       this.busy -= dt;
+      const q = this.root.position;
+      this.body.setNextKinematicTranslation({ x: q.x, y: q.y + this.colliderLift, z: q.z });
       return damage;
     }
     if (this.busy <= 0 && this.hits > 0) this.hits = Math.max(0, this.hits - dt * 0.1);

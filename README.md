@@ -40,7 +40,7 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 | P | Phone: ride orders, map, wallet (repay the loan), messages, weather |
 | F (near any vehicle) | Get in — if someone is driving it, you steal it (police will come!) |
 | 1 | Take out / put away the stick (lathi) |
-| Left click | Punch (or swing the lathi when it's out) |
+| Left click | Punch (or swing the lathi when it's out); click again to chain |
 | Q | Kick (knocks people down) |
 | Right mouse (hold) | Block (less damage) |
 | R | Cycle test weather: rain / clear / live (debug) |

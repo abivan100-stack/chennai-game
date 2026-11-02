@@ -135,14 +135,14 @@ export class PlayerController {
    * Play a one-shot action clip (punch / stick swing / kick) for `seconds`, rooted to the spot,
    * optionally lunging forward between `lunge.from` and `lunge.to` seconds. False if busy.
    */
-  playAction(clip: string, seconds: number, lunge: { speed: number; from: number; to: number } | null = null) {
+  playAction(clip: string, seconds: number, lunge: { speed: number; from: number; to: number } | null = null, speed = 1) {
     if (this.away || this.actionT > 0 || !this.grounded) return false;
     this.actionT = seconds;
     this.actionElapsed = 0;
     this.lunge = lunge;
     this.talkTime = 0;
-    this.animator.play(clip, { once: true, fade: 0.1 });
-    this.animator.setSpeed(1);
+    this.animator.play(clip, { once: true, fade: 0.08 });
+    this.animator.setSpeed(speed);
     return true;
   }
 

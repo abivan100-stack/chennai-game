@@ -56,6 +56,15 @@ export class FollowCamera {
    * target: what to look at. behindYaw (drive mode): heading of the vehicle; the camera
    * swings behind it after a moment without mouse input.
    */
+  private shakeT = 0;
+  private shakeAmp = 0;
+
+  /** Brief jolt (hits). `amp` in metres. */
+  shake(amp: number, seconds = 0.15) {
+    this.shakeAmp = amp;
+    this.shakeT = seconds;
+  }
+
   update(dt: number, target: THREE.Vector3, behindYaw?: number) {
     const m = MODES[this.mode];
     this.height += (m.height - this.height) * (1 - Math.exp(-4 * dt));
@@ -86,5 +95,11 @@ export class FollowCamera {
 
     this.camera.position.copy(this.pivot).addScaledVector(this.dir, this.distance);
     this.camera.lookAt(this.pivot);
+    if (this.shakeT > 0) {
+      this.shakeT -= dt;
+      const a = this.shakeAmp * Math.max(0, this.shakeT) * 8;
+      this.camera.position.x += (Math.random() - 0.5) * a;
+      this.camera.position.y += (Math.random() - 0.5) * a;
+    }
   }
 }

@@ -60,7 +60,9 @@ src/
   combat/
     wanted.ts          wanted stars: crimes, escalation, escape timer (pure logic, checked)
     police.ts          police jeep (route chase, siren, light bar) + officers (arrest / shoot)
-    melee.ts           punch / lathi swing / kick (Mixamo clips, strike timing + reach); lathi on the RightHand bone
+    melee.ts           punch / lathi slash / kick (Mixamo clips, measured hit windows); soft lock-on + step-in,
+                       lathi hits only where the stick tip touches a body; buffered clicks chain; thwack sound.
+                       main.ts adds hit-stop (HIT_STOP) + camera shake; NPCs slide back (npc.ts KNOCK)
   vehicles/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET / BENCH anchors;

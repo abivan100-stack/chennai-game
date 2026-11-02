@@ -7,6 +7,7 @@ import { startLoop } from './core/loop';
 import { QualityManager, SHADOW_MAP_SIZES } from './core/quality';
 import { createRenderer, setRenderScale } from './core/renderer';
 import { Crowd } from './npcs/crowd';
+import { Npc } from './npcs/npc';
 import { FollowCamera } from './player/camera';
 import { CAPSULE_LIFT, PlayerController } from './player/controller';
 import { Ride } from './player/ride';
@@ -31,7 +32,7 @@ import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
 import { route } from './missions/route';
 import { Police } from './combat/police';
-import { MOVES, Melee, type Move } from './combat/melee';
+import { Melee, type Target } from './combat/melee';
 import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
 import { DRIVER_SEAT, SPEC, type Vehicle } from './vehicles/traffic';
@@ -42,6 +43,8 @@ import { ROAD_LINES } from './world/layout';
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const MAX_STEPS = 4; // per frame; beyond this the game slows down instead of spiralling
+const HIT_STOP = { punch: 0.05, swing: 0.08, kick: 0.09 }; // seconds the world freezes when a blow lands
+const HIT_STOP_SCALE = 0.05; // how slow the world runs during it
 
 async function main() {
   loadingManager.onProgress = (_url, loaded, total) => loadingScreen.progress(loaded / total);
@@ -84,6 +87,13 @@ async function main() {
   /** Seconds left on the ARRESTED / SUTTUTAANGA screen (controls frozen). */
   let downFor = 0;
   const NO_INPUT = { ...input, isDown: () => false, wasPressed: () => false };
+  type Officer = ReturnType<typeof police.officersOut>[number];
+  /** Everyone the player can hit: pedestrians and officers on foot (built only mid-attack). */
+  const meleeTargets = (): Target<Npc | Officer>[] => [
+    ...crowd.npcs.map((npc) => ({ p: npc.root.position, ref: npc })),
+    ...police.officersOut().map((o) => ({ p: o.root.position, ref: o })),
+  ];
+  let hitStop = 0;
   const camDir = new THREE.Vector3();
   /** Keep the seated hero's hips on a seat (vehicle space) while the Driving clip plays. */
   const pinHips = (vehicle: THREE.Object3D, seat: THREE.Vector3) => {
@@ -222,6 +232,11 @@ async function main() {
   let accumulator = 0;
   startLoop((dt, frameMs) => {
     const t0 = performance.now();
+    // Hit-stop: the world nearly freezes for a few frames when a blow lands.
+    if (hitStop > 0) {
+      hitStop -= dt;
+      dt *= HIT_STOP_SCALE;
+    }
     const mouse = input.consumeMouse();
     cam.rotate(mouse.x, mouse.y);
 
@@ -240,8 +255,8 @@ async function main() {
       else if (other) takeVehicle(other);
     }
     if (onFootFree && input.wasPressed('Digit1')) melee.toggleStick();
-    if (onFootFree && input.wasPressed('Mouse0')) melee.attack();
-    if (onFootFree && input.wasPressed('KeyQ')) melee.attack('kick');
+    if (onFootFree && input.wasPressed('Mouse0')) melee.attack(meleeTargets);
+    if (onFootFree && input.wasPressed('KeyQ')) melee.attack(meleeTargets, 'kick');
     player.blocking = onFootFree && input.isDown('Mouse2') && !player.acting;
     if (talkTo && input.wasPressed('KeyE')) {
       const p = talkTo.root.position;
@@ -293,29 +308,23 @@ async function main() {
     auto.sync(dayNight.night, alpha);
     traffic.sync(dt, alpha, dayNight.night);
     police.sync(dt, alpha);
-    // Melee: the blow lands mid-animation; anyone in front within reach gets hit.
-    const landed: Move | null = melee.update(dt);
-    if (landed) {
-      const reachM = MOVES[landed].reach;
-      const f = new THREE.Vector3(Math.sin(player.mesh.rotation.y), 0, Math.cos(player.mesh.rotation.y));
-      const inFront = (p: THREE.Vector3) => {
-        const dx = p.x - player.position.x;
-        const dz = p.z - player.position.z;
-        const d = Math.hypot(dx, dz);
-        return d < reachM && (dx * f.x + dz * f.z) / (d || 1) > 0.3;
-      };
+    // Melee: who the fist / foot / lathi tip touched this frame.
+    const struck = melee.update(dt, meleeTargets);
+    if (struck) {
       let crime = false;
-      for (const npc of crowd.npcs) {
-        if (!inFront(npc.root.position)) continue;
-        const line = npc.struck(landed, BEATEN);
-        if (line) hud.say(npc.name, line);
-        crime = true;
-      }
-      for (const o of police.officersNear(player.position, reachM)) {
-        police.hitOfficer(o, landed === 'kick');
-        wanted.report('assaultPolice');
+      for (const ref of struck.hits) {
+        if (ref instanceof Npc) {
+          const line = ref.struck(struck.move, BEATEN);
+          if (line) hud.say(ref.name, line);
+          crime = true;
+        } else {
+          police.hitOfficer(ref, struck.move === 'kick');
+          wanted.report('assaultPolice');
+        }
       }
       if (crime) wanted.report('assault');
+      hitStop = HIT_STOP[struck.move];
+      cam.shake(struck.move === 'punch' ? 0.05 : 0.09);
     }
     if (stolen) pinHips(stolen.group, DRIVER_SEAT[stolen.kind]);
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
