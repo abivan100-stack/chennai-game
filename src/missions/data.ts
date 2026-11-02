@@ -27,6 +27,10 @@ export const STOPS: Stop[] = [
   { name: 'Lighthouse', axis: 'x', line: 125, along: -72, side: 1 },
   { name: 'Santhome fish market', axis: 'x', line: 125, along: 55, side: 1 },
   { name: 'Isabel Hospital', axis: 'z', line: -70, along: 45, side: 1 },
+  // Mandaveli
+  { name: 'Mandaveli bus depot', axis: 'z', line: 125, along: 0, side: 1 },
+  { name: 'Mandaveli MRTS station', axis: 'z', line: 180, along: 2, side: 1 },
+  { name: 'Venkatakrishna Road', axis: 'z', line: 125, along: -50, side: -1 },
 ];
 export const HOSPITAL = 'Isabel Hospital';
 

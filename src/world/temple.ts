@@ -70,6 +70,22 @@ export function createTemple(scene: THREE.Scene, world: RAPIER.World) {
   water.receiveShadow = true;
   scene.add(water);
   for (const c of p.colliders) world.createCollider(c);
+  // Keep people out of the tank water: invisible walls where the steps meet the water.
+  const t = tankRect();
+  const edge = (TANK_STEPS - 1.5) * STEP_RUN; // inset of the waterline from the pit's rim
+  const wx0 = t.x0 + edge, wx1 = t.x1 - edge, wz0 = t.z0 + edge, wz1 = t.z1 - edge;
+  const top = 1.5; // wall up to here (well above the rim)
+  const bottom = -(TANK_STEPS - 1.5) * STEP_RISE;
+  const h = (top - bottom) / 2;
+  const y = bottom + h;
+  for (const [cx, cz, hx, hz] of [
+    [(wx0 + wx1) / 2, wz0, (wx1 - wx0) / 2, 0.1],
+    [(wx0 + wx1) / 2, wz1, (wx1 - wx0) / 2, 0.1],
+    [wx0, (wz0 + wz1) / 2, 0.1, (wz1 - wz0) / 2],
+    [wx1, (wz0 + wz1) / 2, 0.1, (wz1 - wz0) / 2],
+  ]) {
+    world.createCollider(RAPIER.ColliderDesc.cuboid(hx, h, hz).setTranslation(cx, y, cz));
+  }
 
   return {
     setNight(f: number) {

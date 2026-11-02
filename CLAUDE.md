@@ -25,6 +25,7 @@ Step 8 done: Santhome added east of San Thome High Road (map now x -100..250 x z
 Step 8b done: hero clips death (shot / fainted), kneel + kneel_idle (arrested), hit_react (flinch, 1.5 s cooldown), sit_idle (hotel stool) via PlayerController.forceAction; Chennai look for the hero (characters/chennaiLook.ts: texture recoloured at load to khaki shirt, checked lungi, brown chappals, browner skin; thundu on the shoulder, moustache, vibhuti + kumkum).
 Step 8c done: image-based light (RoomEnvironment PMREM as scene.environment, intensity follows day/night: ENV_DAY / ENV_NIGHT in main.ts); hero walk/run blended by speed with phase-locked cycles (Animator.locomotion), lean into turns, head turns toward the camera's look direction; restyle refined (dark madras lungi, draped thundu ribbon, matte skin/cloth).
 Step 8d done: hero outfit: maroon/navy checked full-sleeve shirt, blue jeans, leather belt, brown shoes (thundu and lungi removed; original Mixamo body kept).
+Step 9 done: Mandaveli added south of Kutchery Road (map z now -100..220; Venkatakrishna Road z = 125, St. Mary's Road z = 180): MTC Mandaveli bus depot (layout.DEPOT_LOT, parked buses), and past the south wall the Buckingham Canal with the elevated MRTS line, Mandaveli station and a train that stops there (world/mandaveli.ts); 3 new stops, traffic and pedestrians there. Lighthouse is enterable (E at the door -> gallery at the top, E -> back down; walkable gallery colliders). H = horn per vehicle kind (pedestrians may shout back), L = headlights (one non-shadow SpotLight, on at dusk automatically). Water is off-limits: sea wall at the waterline, invisible walls at the temple tank's waterline, canal beyond the town wall. Hero clothes no longer glare (roughness / metalness maps dropped).
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -88,6 +89,7 @@ src/
     food.ts            menus per shop board (hotel = sit, shop = standing snack); pure data, checked
     eateries.ts        eateries from the shop boards, instanced tables + stools, nearest()
     supermarket.ts     walk-in supermarkets on layout.SUPERMARKET_LOTS: shell, stocked shelves (instanced products), fridge, counter, cashier; storeAt / shelfAt / atCounter
+    mandaveli.ts       Mandaveli: MTC depot (walls, shed, parked buses), canal + MRTS viaduct + station + moving train
     santhome.ts        Santhome: basilica, beach (sand trimesh collider), animated sea, lighthouse + beam, boats, carts, palms, huts
     trafficLights.ts   signals at the Mada St junctions: SignalCycle (pure, checked), posts + lamps, ahead() / inJunction()
     flood.ts           low-road flood zones: level rises in heavy rain, slowAt() / depthAt()

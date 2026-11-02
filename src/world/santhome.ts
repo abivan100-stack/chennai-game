@@ -16,16 +16,17 @@ const PROM_X0 = 132.5; // east sidewalk edge of Kamarajar Salai
 const PROM_X1 = 136.5; // promenade -> sand
 const PROM_Y = 0.15; // same as the sidewalks, so walking off the pavement is flush
 const SHORE_X = 205;
-const BEACH_Z = 100;
+const BEACH_Z = 220; // sand runs the whole length of the coast (Mandaveli extends the map south)
 const SAND_END_X = 215; // the sand floor runs on under the water so waders have something to stand on
 const SEA_X0 = 198; // sea starts under the wet sand; the sand slope decides where the shoreline shows
 const SEA_X1 = 700;
 const SEA_Z = 400;
 const SEA_Y = -0.05;
-const SEA_WALL_X = 212;
+const SEA_WALL_X = 204; // no wading: the beach ends at the waterline (the foam band)
 const LOT = { x0: 77.5, x1: 117.5, z0: -17.5, z1: 17.5 };
 const LIGHTHOUSE = { x: 150, z: -80 };
 const LANTERN_Y = 27.7; // above the sand
+const LIGHTHOUSE_GALLERY = 26.5; // gallery floor, above the sand
 const BEAM_SPEED = 0.5; // rad/s
 const BEAM_LENGTH = 70;
 const FOAM_X = 204;
@@ -195,6 +196,12 @@ export function createSanthome(scene: THREE.Scene, world: RAPIER.World) {
     carts,
     /** A nice spot on the promenade facing the sea (+x) (for spawning / missions). */
     beachSpot: new THREE.Vector3((PROM_X0 + PROM_X1) / 2, PROM_Y, 10),
+    /** Lighthouse: where you press E to go up (outside the door) and where you arrive on the gallery. */
+    lighthouse: {
+      door: new THREE.Vector3(LIGHTHOUSE.x - 5, sandY(LIGHTHOUSE.x - 5), LIGHTHOUSE.z),
+      top: new THREE.Vector3(LIGHTHOUSE.x - 2.15, sandY(LIGHTHOUSE.x) + LIGHTHOUSE_GALLERY + 0.1, LIGHTHOUSE.z),
+      centre: new THREE.Vector3(LIGHTHOUSE.x, sandY(LIGHTHOUSE.x), LIGHTHOUSE.z),
+    },
   };
 }
 
@@ -361,6 +368,15 @@ function buildLighthouse(b: GeoBuilder, cols: RAPIER.ColliderDesc[]) {
 
   b.add(new THREE.CylinderGeometry(2.9, 2.5, 0.5, 12), new THREE.Matrix4().setPosition(x, g + SHAFT + 0.25, z), dark); // gallery
   b.add(new THREE.CylinderGeometry(2.8, 2.8, 0.9, 12, 1, true), new THREE.Matrix4().setPosition(x, g + SHAFT + 0.95, z), dark); // railing
+  // Walkable gallery (you can visit the top): a floor, a railing ring you can't fall through,
+  // and the lantern room in the middle.
+  cols.push(RAPIER.ColliderDesc.cylinder(0.25, 2.85).setTranslation(x, g + SHAFT + 0.25, z));
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a);
+    cols.push(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.05).setTranslation(x + Math.sin(a) * 2.85, g + SHAFT + 1.1, z + Math.cos(a) * 2.85).setRotation(q));
+  }
+  cols.push(RAPIER.ColliderDesc.cylinder(1.6, 1.45).setTranslation(x, g + LANTERN_Y, z));
   b.add(new THREE.SphereGeometry(1.6, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.Matrix4().setPosition(x, g + LANTERN_Y + 1.2, z), red); // dome
   b.add(new THREE.ConeGeometry(0.15, 1, 6), new THREE.Matrix4().setPosition(x, g + LANTERN_Y + 3.2, z), dark);
 }

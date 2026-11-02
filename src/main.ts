@@ -32,6 +32,7 @@ import { clearSave, loadSave, writeSave } from './core/save';
 import { Sound } from './audio/sound';
 import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
+import { createMandaveli } from './world/mandaveli';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
 import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHARGE, SIGNAL_FINE, TRAFFIC_POLICE } from './missions/data';
@@ -44,7 +45,7 @@ import { Melee, type Target } from './combat/melee';
 import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
 import { DRIVER_SEAT, SPEC, VEHICLE_NAMES, type Vehicle } from './vehicles/traffic';
-import { BEATEN } from './npcs/dialogue';
+import { BEATEN, HORN_LINES } from './npcs/dialogue';
 import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
 import { ATTACK_COST, Energy, type Activity } from './player/energy';
 import { Meal } from './player/meal';
@@ -56,6 +57,8 @@ import { SEA_X, X_LINES, Z_LINES } from './world/layout';
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const AUTOSAVE_MS = 10_000;
+const HEADLIGHT = { intensity: 40, distance: 38, angle: 0.48, penumbra: 0.55 }; // the vehicle you drive
+const HORN_HEARD = 12; // m: pedestrians this close may shout back
 const ENV_DAY = 0.35; // environment (reflection) light by day...
 const ENV_NIGHT = 0.06; // ...and at night
 const HIT_REACT_COOLDOWN = 1.5; // s between hit flinches
@@ -92,11 +95,19 @@ async function main() {
   const eateries = createEateries(scene, world, town.footprints);
   const markets = createSupermarkets(scene, world, characters.npcs.get('woman-formal')!);
   const santhome = createSanthome(scene, world);
+  const mandaveli = createMandaveli(scene, world);
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
   const flood = createFlood(scene);
   traffic.slowAt = (x, z) => flood.slowAt(x, z);
   const sound = new Sound();
+  // One headlight for whatever you're driving. Always in the scene (switching it off is just
+  // intensity 0), so turning it on never recompiles shaders; no shadows (CLAUDE.md light rule).
+  const headlight = new THREE.SpotLight(0xfff1d0, 0, HEADLIGHT.distance, HEADLIGHT.angle, HEADLIGHT.penumbra, 1.2);
+  headlight.castShadow = false;
+  scene.add(headlight, headlight.target);
+  let lightsOn = false;
+  let wasNight = false;
   const energy = new Energy();
   crowd.onSay = (name, line) => hud.say(name, line);
 
@@ -476,7 +487,19 @@ async function main() {
         basket = [];
       }
     }
-    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store ? crowd.nearest : null;
+    // Lighthouse: E at the door takes you up to the gallery, E up there brings you back down.
+    const lh = santhome.lighthouse;
+    const atLighthouseDoor = onFootFree && Math.hypot(player.position.x - lh.door.x, player.position.z - lh.door.z) < 2.4 && player.position.y < lh.centre.y + 5;
+    const onLighthouseTop = onFootFree && player.position.y > lh.centre.y + 20 && Math.hypot(player.position.x - lh.centre.x, player.position.z - lh.centre.z) < 4;
+    if ((atLighthouseDoor || onLighthouseTop) && input.wasPressed('KeyE')) {
+      if (atLighthouseDoor) {
+        player.placeAt(lh.top, -Math.PI / 2); // facing out over the town (west)
+        cam.yaw = Math.PI / 2;
+      } else {
+        player.placeAt(lh.door, Math.PI / 2);
+      }
+    }
+    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store && !atLighthouseDoor && !onLighthouseTop ? crowd.nearest : null;
     const stolenSpeed = stolen ? traffic.speedOf(stolen) : 0;
     if (free && input.wasPressed('KeyF')) {
       if (stolen) {
@@ -511,6 +534,8 @@ async function main() {
         : shelf ? (shelfOpen ? null : `E - ${shelf.name} (basket ${basket.length}/${BASKET_MAX})`)
         : counter ? (basket.length ? `E - Pay ₹${basketTotal()} at the counter` : 'Cashier: pick something from the shelves first')
         : store && basket.length && !meal.busy ? `Basket: ${basket.length} item(s), ₹${basketTotal()} - pay at the counter`
+        : atLighthouseDoor ? 'E - Go up the lighthouse'
+        : onLighthouseTop ? 'E - Go back down'
         : eatery ? (menuFor ? null : `E - Saapdalaam: ${eatery.name} (${eatery.menu.kind === 'hotel' ? 'hotel' : 'snacks'})`)
         : meal.phase === 'eat' || meal.phase === 'snack' ? 'W/A/S/D - Stop eating'
         : talkTo ? `E - Talk to ${talkTo.name}` : null,
@@ -657,6 +682,8 @@ async function main() {
     // ---- Santhome, signals, floods, sound --------------------------------------------------
     santhome.update(dt);
     santhome.setNight(dayNight.night);
+    mandaveli.update(dt);
+    mandaveli.setNight(dayNight.night);
     signals.update(dt);
     flood.update(dt, weather.rain);
     jobs.fareBoost = weather.rain > 0.5 ? RAIN_SURCHARGE : 1;
@@ -697,6 +724,34 @@ async function main() {
       night: dayNight.night,
     });
     if (input.wasPressed('KeyM')) sound.setMuted(!sound.muted);
+
+    // Horn (H) and headlights (L; they also come on by themselves at dusk and go off at dawn).
+    const isNight = dayNight.night > 0.5;
+    if (isNight !== wasNight) lightsOn = isNight;
+    wasNight = isNight;
+    if (drivingAny && input.wasPressed('KeyL')) lightsOn = !lightsOn;
+    if (drivingAny && free && input.wasPressed('KeyH')) {
+      sound.horn(stolen ? soundKind(stolen.kind) : 'auto');
+      let near: (typeof crowd.npcs)[number] | null = null;
+      let nearD = HORN_HEARD;
+      for (const n of crowd.npcs) {
+        const d = n.root.position.distanceTo(vPos);
+        if (d < nearD) {
+          near = n;
+          nearD = d;
+        }
+      }
+      const line = near && Math.random() < 0.5 ? near.scold(HORN_LINES) : null;
+      if (near && line) hud.say(near.name, line);
+    }
+    const lit = drivingAny && lightsOn;
+    headlight.intensity = lit ? HEADLIGHT.intensity : 0;
+    if (lit) {
+      const g = stolen ? stolen.group : auto.group;
+      const front = stolen ? SPEC[stolen.kind].length / 2 : 1.3;
+      g.localToWorld(headlight.position.set(0, 1.0, front));
+      g.localToWorld(headlight.target.position.set(0, 0, front + 14));
+    }
 
     // Energy: drains with activity, refills while eating; at zero, health goes.
     const activity: Activity = ride.driving || stolen ? 'drive' : player.speed > 4 ? 'run' : player.speed > 0.3 ? 'walk' : 'idle';

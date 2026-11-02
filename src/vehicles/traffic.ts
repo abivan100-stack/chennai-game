@@ -213,6 +213,11 @@ export class Traffic {
       ['car', 4, 3, 0.6, 0x37474f],
       ['scooter', 4, 2, 0.2, 0xffeb3b],
       ['bus', 4, 2, 0.7],
+      // Mandaveli
+      ['bus', 2, 5, 0.2],
+      ['auto', 1, 5, 0.5],
+      ['scooter', 3, 5, 0.3, 0x8e24aa],
+      ['car', 2, 4, 0.8, 0x607d8b],
     ];
     for (const [kind, i, j, start, colour] of fleet) {
       const group = new THREE.Group();

@@ -53,6 +53,10 @@ const SPAWNS: Spawn[] = [
   { name: 'Joseph', model: 'man-casual', block: [4, 2], lane: LANE_A, reverse: true, start: 0.6, height: 1.72 },
   { name: 'Fathima', model: 'woman-casual', block: [4, 1], lane: LANE_A, start: 0.4, height: 1.6, tint: 0xd1c4e9 },
   { name: 'Dhanush', model: 'man-worker', block: [4, 3], lane: LANE_B, start: 0.7, height: 1.68 },
+  // Mandaveli
+  { name: 'Sundari paati', model: 'woman-formal', block: [1, 5], lane: LANE_B, start: 0.3, height: 1.55, tint: 0xffe0b2 },
+  { name: 'Ganesan', model: 'man-farmer', block: [3, 5], lane: LANE_A, reverse: true, start: 0.5, height: 1.66 },
+  { name: 'Keerthana', model: 'woman-casual', block: [2, 4], lane: LANE_A, start: 0.8, height: 1.6, tint: 0xb2dfdb },
 ];
 
 /** Point a fraction `t` of the way round a closed loop. */

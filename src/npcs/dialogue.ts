@@ -26,6 +26,8 @@ export const BUMPED = [
 ];
 
 /** Hit by the player's auto. */
+/** Someone honks right next to you. */
+export const HORN_LINES = ['Dei, horn adikkaadha! Kaadhu pochu!', 'Paathu po pa, enna avasaram?', 'Evlo sathham! Road unnodadha?'];
 export const DRIVE_BUMPED = [
   'Dei! Footpath-la auto ottuviya?!',
   'Aiyo amma! License irukka illaya?',

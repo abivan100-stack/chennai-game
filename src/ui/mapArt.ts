@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { BEACH_ROAD, BEACH_X, BOUNDS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
+import { BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
 
@@ -135,6 +135,20 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(ps.x0 + 2), P(ps.z0 + 1), M(16), M(9));
   badge(g, P(ps.x0 + 10), P(ps.z0 + 5.5), '#1c3f8f', 'P');
   labels.push({ text: 'Police Station', x: (ps.x0 + ps.x1) / 2, z: ps.z1 - 3, kind: 'landmark' });
+
+  // Mandaveli: the MTC depot yard, and the MRTS line along the south edge.
+  const dep = DEPOT_LOT();
+  g.fillStyle = '#d6dbe8';
+  g.fillRect(P(dep.x0), P(dep.z0), M(dep.x1 - dep.x0), M(dep.z1 - dep.z0));
+  badge(g, P((dep.x0 + dep.x1) / 2), P((dep.z0 + dep.z1) / 2), '#1d4fa8', 'D');
+  labels.push({ text: 'MTC Bus Depot', x: (dep.x0 + dep.x1) / 2, z: dep.z0 + 22, kind: 'landmark' });
+  g.fillStyle = '#9a9488';
+  g.fillRect(0, P(BOUNDS.z1 - 1.5), MAP_W, M(1.5));
+  badge(g, P(2), P(BOUNDS.z1 - 4), '#f4a000', 'M');
+  labels.push({ text: 'Mandaveli MRTS', x: 2, z: BOUNDS.z1 - 9, kind: 'landmark' });
+  labels.push({ text: 'MANDAVELI', x: -48, z: 150, kind: 'landmark' });
+  labels.push({ text: 'SANTHOME', x: 100, z: -90, kind: 'landmark' });
+  labels.push({ text: 'MYLAPORE', x: -48, z: -90, kind: 'landmark' });
 
   // Supermarkets.
   for (const lot of SUPERMARKET_LOTS()) {

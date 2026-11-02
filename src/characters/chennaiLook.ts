@@ -288,7 +288,14 @@ export function applyChennaiLook(model: THREE.Object3D) {
     const mat = o.material as THREE.MeshStandardMaterial;
     if (mat.name !== 'Ch42_Body' || !mat.map) return;
     mat.map = recolourTexture(mat.map, o);
-    mat.roughness = 0.95; // cotton and skin: matte, no wet-look highlights
+    // Cotton, denim and skin are matte. The model's own roughness / metalness maps made the
+    // clothes glare in the sun, so they go; reflections are toned down too.
+    mat.roughnessMap = null;
+    mat.metalnessMap = null;
+    mat.roughness = 1;
+    mat.metalness = 0;
+    mat.envMapIntensity = 0.45;
+    mat.needsUpdate = true;
     body = o;
   });
   if (body) addBelt(body);

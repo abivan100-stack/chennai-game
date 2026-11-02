@@ -49,7 +49,7 @@ assert(payment(100, 10).tip === 32 && payment(100, 120).tip === 0, 'quick rides 
 for (const s of STOPS) {
   const k = stopPoint(s, 'kerb');
   const w = stopPoint(s, 'sidewalk');
-  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && k.x > -100 && k.x < 205 && Math.abs(k.z) < 100, `stop ${s.name} inside the town (not in the sea)`);
+  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && k.x > -100 && k.x < 205 && k.z > -100 && k.z < 220, `stop ${s.name} inside the town (not in the sea)`);
 }
 
 // --- Economy ---

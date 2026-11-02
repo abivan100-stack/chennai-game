@@ -203,6 +203,27 @@ export class Sound {
     }
   }
 
+  /** Your horn: the auto's two squeaky toots, a car's dual tone, a bus / lorry's deep blare, a bike's beep. */
+  horn(kind: 'auto' | 'car' | 'bus' | 'bike' | 'scooter' | 'truck'): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    if (kind === 'auto') {
+      for (const dt of [0, 0.2]) {
+        this.tone(t + dt, 'square', 620, 590, 0.13, 0.22);
+        this.tone(t + dt, 'square', 930, 880, 0.13, 0.08);
+      }
+    } else if (kind === 'bus' || kind === 'truck') {
+      this.tone(t, 'sawtooth', 220, 214, 0.7, 0.26);
+      this.tone(t, 'sawtooth', 277, 270, 0.7, 0.2);
+    } else if (kind === 'bike' || kind === 'scooter') {
+      this.tone(t, 'square', 720, 700, 0.28, 0.18);
+    } else {
+      this.tone(t, 'square', 415, 410, 0.4, 0.2);
+      this.tone(t, 'square', 523, 518, 0.4, 0.16);
+    }
+  }
+
   coin(): void {
     const ctx = this.ctx;
     if (!ctx) return;

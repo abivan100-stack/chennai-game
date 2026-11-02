@@ -7,6 +7,8 @@
  *   - Block west of it: the temple tank, with R.K. Mutt Road beyond.
  *   - The four Mada Streets ring the temple; Luz Church Road (north), Kutchery Road (south)
  *     and San Thome High Road (east) form the outer roads.
+ *   - South of Kutchery Road: Mandaveli (MTC bus depot; the MRTS line and Buckingham Canal
+ *     run just past the south edge, world/mandaveli.ts).
  *   - East of San Thome High Road: Santhome. The San Thome Basilica block, then Kamarajar
  *     Salai (Beach Road), then the beach and the sea (world/santhome.ts).
  * Directions: -z = north, +x = east.
@@ -15,11 +17,11 @@
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
 /** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
-export const BOUNDS = { x0: -100, x1: 250, z0: -100, z1: 100 };
+export const BOUNDS = { x0: -100, x1: 250, z0: -100, z1: 220 }; // z 100..220: Mandaveli (south)
 /** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
 export const X_LINES = [-70, -25, 25, 70, 125];
 /** Roads running east-west (centre line z = c). They end at the Beach Road. */
-export const Z_LINES = [-70, -25, 25, 70];
+export const Z_LINES = [-70, -25, 25, 70, 125, 180];
 export const BEACH_ROAD = X_LINES[X_LINES.length - 1];
 export const ROAD_HALF = 5;
 export const SIDEWALK_WIDTH = 2.5;
@@ -56,6 +58,8 @@ export const Z_ROADS: Record<number, [string, string]> = {
   [-25]: ['North Mada Street', 'வடக்கு மாட வீதி'],
   [25]: ['South Mada Street', 'தெற்கு மாட வீதி'],
   [70]: ['Kutchery Road', 'கச்சேரி சாலை'],
+  [125]: ['Venkatakrishna Road', 'வெங்கடகிருஷ்ணா சாலை'],
+  [180]: ["St. Mary's Road", 'செயின்ட் மேரீஸ் சாலை'],
 };
 
 /**
@@ -135,6 +139,12 @@ export const SUPERMARKET_LOTS = () => {
     { x0: east.x0, x1: east.x0 + 14, z0: -8, z1: 8, facing: 'w' as const },
     { x0: -8, x1: 8, z0: north.z1 - 14, z1: north.z1, facing: 's' as const },
   ];
+};
+
+/** MTC Mandaveli bus depot: a walled yard on Venkatakrishna Road (block [2, 5]), gate facing north. */
+export const DEPOT_LOT = () => {
+  const b = block(CENTRE, CENTRE + 3);
+  return { x0: b.x0 + 2, x1: b.x1 - 2, z0: b.z0, z1: b.z0 + 30 };
 };
 
 export const POLICE_LOT = () => {
