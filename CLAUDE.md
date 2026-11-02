@@ -24,6 +24,7 @@ Step 7c done: game clock 20x real time; save game in localStorage (core/save.ts:
 Step 8 done: Santhome added east of San Thome High Road (map now x -100..250 x z -100..100; layout has separate X_LINES / Z_LINES and roads() with extents): San Thome Basilica block, Kamarajar Salai (Beach Road, x = 125), Santhome beach + sea + Marina lighthouse + boats / carts / palms (world/santhome.ts), Santhome traffic + pedestrians + 5 new stops; traffic lights at the 4 Mada Street junctions (AI stops on red; jumping a red while driving = ₹500 fine); procedural WebAudio sound (engines per vehicle, footsteps, city, temple bells, sea, rain, hits, coins, eating; M mutes); missions: urgent hospital trips (double fare on time), VIP rides (triple if no bumps), parcel deliveries from hotels (tip if hot); 3 missed days -> Kandasamy seizes the auto until you pay overdue + ₹500 (Phone > Wallet); flood water on low roads in heavy rain slows everything, rain fare surcharge 30%; hero falls flat when shot / fainting; bike / scooter riders straddle; distance detail for traffic and pedestrians.
 Step 8b done: hero clips death (shot / fainted), kneel + kneel_idle (arrested), hit_react (flinch, 1.5 s cooldown), sit_idle (hotel stool) via PlayerController.forceAction; Chennai look for the hero (characters/chennaiLook.ts: texture recoloured at load to khaki shirt, checked lungi, brown chappals, browner skin; thundu on the shoulder, moustache, vibhuti + kumkum).
 Step 8c done: image-based light (RoomEnvironment PMREM as scene.environment, intensity follows day/night: ENV_DAY / ENV_NIGHT in main.ts); hero walk/run blended by speed with phase-locked cycles (Animator.locomotion), lean into turns, head turns toward the camera's look direction; restyle refined (dark madras lungi, draped thundu ribbon, matte skin/cloth).
+Step 8d done: hero outfit changed to a light-blue full-sleeve shirt, charcoal full-length trousers, leather belt and brown shoes (thundu and lungi removed).
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -47,7 +48,8 @@ src/
   characters/
     catalog.ts         which model files exist, rig groups, load + fit to 1.7 m (feet at y=0)
     animator.ts        AnimationMixer wrapper: named clips, crossfade, speed, once-then chains
-    chennaiLook.ts     hero restyle at load: recolours the body texture by colour class + shoulder towel / face props
+    chennaiLook.ts     hero outfit at load: texture repainted per body part (UV mask from bone weights; waist line from the rest pose):
+                       full-sleeve shirt, trousers, shoes, browner skin; belt built in hip-bone space; moustache / vibhuti
     retarget.ts        bake a clip from one rig onto another (Mixamo talk/yell -> Quaternius NPCs)
   player/
     controller.ts      kinematic capsule + KinematicCharacterController; hero animation state;

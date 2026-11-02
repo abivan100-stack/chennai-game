@@ -107,7 +107,7 @@ async function main() {
   const spawn = saved ? new THREE.Vector3(saved.player.x, saved.player.y + 0.05, saved.player.z) : new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
   const autoSpot = saved ? new THREE.Vector3(saved.auto.x, 0, saved.auto.z) : new THREE.Vector3(25 - 4.2, 0, -4); // tight to the kerb so traffic can pass
   const player = new PlayerController(world, scene, spawn, characters.hero);
-  applyChennaiLook(player.model); // khaki shirt, lungi, chappals, thundu, vibhuti
+  applyChennaiLook(player.model); // full-sleeve shirt, trousers, shoes, belt, vibhuti
   if (saved) player.mesh.rotation.y = saved.player.yaw;
   const auto = new AutoRickshaw(scene, world, autoSpot, saved ? saved.auto.heading : Math.PI);
   const ride = new Ride(player, auto);

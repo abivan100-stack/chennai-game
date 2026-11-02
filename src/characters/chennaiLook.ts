@@ -1,18 +1,36 @@
 import * as THREE from 'three';
 
 /**
- * Turns the Mixamo hero (red tee, denim shorts, white sneakers) into a Chennai auto driver:
- * khaki uniform shirt, a checked lungi folded up to the knee, brown chappals, browner skin,
- * a thundu (towel) over the shoulder, a moustache, and vibhuti + kumkum on the forehead.
- * The clothes are recoloured in the texture once at load (pixel classification by colour),
- * so the model and its animations are untouched.
+ * Dresses the Mixamo hero (red tee, denim shorts, white sneakers) as a Chennai guy in a
+ * full-sleeve shirt, full-length trousers and formal shoes, with browner skin, a moustache and
+ * vibhuti + kumkum.
+ *
+ * The model's forearms and shins are bare skin, so the texture is repainted per BODY PART: each
+ * triangle's UVs are rasterised into a mask coloured by the bone that drives it (arm -> sleeve,
+ * leg -> trouser, foot -> shoe, hand / head -> skin). Clothes then follow the arms and legs to the
+ * wrists and ankles. Done once at load; the mesh and animations are untouched.
  */
 
-const KHAKI = [184, 160, 112];
-const CHAPPAL = [92, 56, 32];
+const SHIRT = [150, 182, 214]; // light-blue cotton shirt
+const PANTS = [52, 56, 66]; // charcoal trousers
+const SHOES = [58, 38, 28]; // dark-brown leather shoes
 const SKIN_TONE = [0.72, 0.58, 0.47]; // multiplies the (pale) source skin
-// A dark madras-check lungi: navy ground, bottle-green bands, thin cream and maroon lines.
-const LUNGI = { base: [28, 42, 78], band: [26, 74, 58], line: [214, 205, 180], thin: [120, 32, 40], period: 44 };
+const SHIRT_STRIPE = 9; // texels between the shirt's faint vertical stripes
+const WAIST_ABOVE_HIPS = 0.05; // m above the hip joint where the shirt meets the trousers (the belt line)
+const BELT_HEIGHT = 0.04;
+const HERO_HEIGHT = 1.7; // the model's height in metres (catalog fits every character to this)
+
+type Part = 'shirt' | 'pants' | 'shoes' | 'skin' | 'none';
+const MASK_COLOUR: Record<Part, string> = { shirt: '#f00', pants: '#0f0', shoes: '#00f', skin: '#ff0', none: '#000' };
+
+/** Which garment covers a bone (Mixamo names, prefix already stripped by the pipeline). */
+function partOf(bone: string): Part {
+  if (/Hand|Thumb|Index|Middle|Ring|Pinky/.test(bone)) return 'skin';
+  if (/Foot|Toe/.test(bone)) return 'shoes';
+  if (/UpLeg|Leg/.test(bone) || bone === 'Hips') return 'pants';
+  if (/Arm|Spine|Shoulder/.test(bone)) return 'shirt';
+  return 'none'; // head, neck, eyes
+}
 
 /** RGB 0-255 -> hue (deg), saturation, value (0-1). */
 function hsv(r: number, g: number, b: number) {
@@ -30,21 +48,81 @@ function hsv(r: number, g: number, b: number) {
   return { h, s: max === 0 ? 0 : d / max, v: max / 255 };
 }
 
-/** Madras-check lungi colour at texel (x, y). */
-function lungi(x: number, y: number) {
-  const p = LUNGI.period;
-  const u = x % p;
-  const v = y % p;
-  if (u < 2 || v < 2) return LUNGI.line;
-  if (Math.abs(u - p / 2) < 1 || Math.abs(v - p / 2) < 1) return LUNGI.thin;
-  // Where a vertical and a horizontal band cross, the weave reads darker (like real madras).
-  const bu = u > p * 0.62 && u < p * 0.86;
-  const bv = v > p * 0.62 && v < p * 0.86;
-  if (bu && bv) return [LUNGI.band[0] * 0.7, LUNGI.band[1] * 0.7, LUNGI.band[2] * 0.7];
-  return bu || bv ? LUNGI.band : LUNGI.base;
+/** Paint every triangle's UV footprint in the colour of the garment its bones say it is. */
+function partMask(mesh: THREE.SkinnedMesh, w: number, h: number) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, w, h);
+  const geo = mesh.geometry;
+  const uv = geo.attributes.uv;
+  const si = geo.attributes.skinIndex;
+  const sw = geo.attributes.skinWeight;
+  const bones = mesh.skeleton.bones.map((b) => partOf(b.name));
+  // Torso bones: around the waist the hem is decided by height, not by which bone wins.
+  const torso = mesh.skeleton.bones.map((b) => b.name === 'Hips' || b.name.startsWith('Spine'));
+  const index = geo.index ? Array.from(geo.index.array) : [...Array(uv.count).keys()];
+  // Bind-pose world height of each vertex vs the waist line (the model is in its bind pose here).
+  const bind = bindPose(mesh);
+  const waist = bind.waistY;
+  const tmp = new THREE.Vector3();
+  const vote = new Map<Part, number>();
+  for (let t = 0; t < index.length; t += 3) {
+    vote.clear();
+    let torsoW = 0;
+    let height = 0;
+    for (let k = 0; k < 3; k++) {
+      const v = index[t + k];
+      height += bind.at(v, tmp).y / 3; // rest pose: the same whatever the model is doing now
+      for (let j = 0; j < 4; j++) {
+        const b = si.getComponent(v, j);
+        const wt = sw.getComponent(v, j);
+        vote.set(bones[b], (vote.get(bones[b]) ?? 0) + wt);
+        if (torso[b]) torsoW += wt;
+      }
+    }
+    let best: Part = 'none';
+    let bestW = -1;
+    for (const [p, wt] of vote) {
+      if (wt > bestW) {
+        best = p;
+        bestW = wt;
+      }
+    }
+    // Mostly hips / spine: a straight hem at the waist instead of a zig-zag.
+    if ((best === 'shirt' || best === 'pants') && torsoW > 0.8) best = height > waist ? 'shirt' : 'pants';
+    g.fillStyle = MASK_COLOUR[best];
+    g.strokeStyle = MASK_COLOUR[best];
+    g.lineWidth = 2; // grow islands a little so seams don't keep the old colour
+    g.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const v = index[t + k];
+      const x = uv.getX(v) * w;
+      const y = uv.getY(v) * h; // glTF textures aren't flipped: v runs down the image
+      if (k === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.closePath();
+    g.fill();
+    g.stroke();
+  }
+  return g.getImageData(0, 0, w, h).data;
 }
 
-function recolourTexture(old: THREE.Texture) {
+function partAt(mask: Uint8ClampedArray, i: number): Part {
+  const r = mask[i] > 128;
+  const gr = mask[i + 1] > 128;
+  const b = mask[i + 2] > 128;
+  if (r && gr) return 'skin';
+  if (r) return 'shirt';
+  if (gr) return 'pants';
+  if (b) return 'shoes';
+  return 'none';
+}
+
+function recolourTexture(old: THREE.Texture, mesh: THREE.SkinnedMesh) {
   const img = old.image as CanvasImageSource & { width: number; height: number };
   const w = img.width;
   const h = img.height;
@@ -55,54 +133,35 @@ function recolourTexture(old: THREE.Texture) {
   g.drawImage(img, 0, 0);
   const data = g.getImageData(0, 0, w, h);
   const px = data.data;
-  // Find the tee's printed logo (saturated yellow / green on the shirt half of the atlas) so the
-  // whole patch, outlines included, can be painted over.
-  let bx0 = w, by0 = h, bx1 = 0, by1 = 0;
+  const mask = partMask(mesh, w, h);
+  const paint = (i: number, rgb: number[], shade: number) => {
+    px[i] = Math.min(255, rgb[0] * shade);
+    px[i + 1] = Math.min(255, rgb[1] * shade);
+    px[i + 2] = Math.min(255, rgb[2] * shade);
+  };
   for (let i = 0; i < px.length; i += 4) {
-    const x = (i / 4) % w;
-    if (x > w * 0.45) continue;
-    const y = Math.floor(i / 4 / w);
     const { h: hue, s, v } = hsv(px[i], px[i + 1], px[i + 2]);
-    if (hue > 35 && hue < 160 && s > 0.45 && v > 0.35) {
-      bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x);
-      by0 = Math.min(by0, y); by1 = Math.max(by1, y);
-    }
-  }
-  const pad = w * 0.012;
-  const inPrint = (x: number, y: number) => x > bx0 - pad && x < bx1 + pad && y > by0 - pad && y < by1 + pad;
-  for (let i = 0; i < px.length; i += 4) {
-    const r = px[i];
-    const gr = px[i + 1];
-    const b = px[i + 2];
-    const { h: hue, s, v } = hsv(r, gr, b);
     const x = (i / 4) % w;
-    const y = Math.floor(i / 4 / w);
-    // The eye texture sits on red too: leave the eye block alone (upper middle of the atlas).
-    const eyeBlock = x > w * 0.3 && x < w * 0.52 && y > h * 0.24 && y < h * 0.38;
-    let out: number[] | null = null;
-    let shade = v;
-    if (!eyeBlock && (hue < 18 || hue > 340) && s > 0.45 && v > 0.25) {
-      out = KHAKI; // red tee -> khaki shirt
-      shade = Math.min(1.15, v / 0.75);
-    } else if (!eyeBlock && bx1 > bx0 && inPrint(x, y)) {
-      out = KHAKI; // the tee's printed logo, outlines and all
-      shade = 0.95;
-    } else if (hue > 185 && hue < 230 && s > 0.12 && s < 0.7 && v > 0.25) {
-      out = lungi(x, y); // denim shorts -> checked lungi
-      shade = Math.min(1.25, 0.35 + v * 0.9); // keep the folds' shading
-    } else if (s < 0.25 && v > 0.4 && y > h * 0.33) {
-      out = CHAPPAL; // white sneakers (and their grey soles) -> brown leather chappals
-      shade = Math.min(1, v + 0.15);
-    } else if (hue >= 0 && hue < 45 && s > 0.12 && s < 0.6 && v > 0.3) {
-      // skin: deeper brown, keep the shading and the tattoos' contrast
-      px[i] = r * SKIN_TONE[0];
-      px[i + 1] = gr * SKIN_TONE[1];
-      px[i + 2] = b * SKIN_TONE[2];
-    }
-    if (out) {
-      px[i] = Math.min(255, out[0] * shade);
-      px[i + 1] = Math.min(255, out[1] * shade);
-      px[i + 2] = Math.min(255, out[2] * shade);
+    // Cloth shading from the original brightness, flattened so tattoos and the tee print
+    // don't show through as patterns.
+    const shade = THREE.MathUtils.clamp(0.78 + 0.3 * v, 0.86, 1.1);
+    switch (partAt(mask, i)) {
+      case 'shirt':
+        paint(i, SHIRT, shade * (x % SHIRT_STRIPE === 0 ? 0.93 : 1));
+        break;
+      case 'pants':
+        paint(i, PANTS, shade);
+        break;
+      case 'shoes':
+        paint(i, SHOES, THREE.MathUtils.clamp(0.7 + 0.5 * v, 0.75, 1.15));
+        break;
+      default:
+        // Skin (hands, face, neck): deeper brown, keeping its shading.
+        if (hue < 45 && s > 0.1 && s < 0.65 && v > 0.25) {
+          px[i] *= SKIN_TONE[0];
+          px[i + 1] *= SKIN_TONE[1];
+          px[i + 2] *= SKIN_TONE[2];
+        }
     }
   }
   g.putImageData(data, 0, 0);
@@ -116,124 +175,106 @@ function recolourTexture(old: THREE.Texture) {
   return tex;
 }
 
-/** Thundu: cream cotton with a red-and-maroon border along both long edges, faint weave. */
-function towelTexture() {
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 256;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#eee6d2';
-  g.fillRect(0, 0, 64, 256);
-  g.fillStyle = 'rgba(120, 100, 70, 0.08)';
-  for (let y = 0; y < 256; y += 3) g.fillRect(0, y, 64, 1);
-  for (const x of [3, 55]) {
-    g.fillStyle = '#b3202a';
-    g.fillRect(x, 0, 6, 256);
-    g.fillStyle = '#5a1018';
-    g.fillRect(x + 1, 0, 1, 256);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
 /**
- * The towel as one draped strip (model space): hangs down the chest, curves over the left
- * shoulder, hangs down the back. A segmented ribbon, so it reads as cloth, not boxes.
+ * Attach a rigid prop to a bone, at a position given in the MODEL's space (metres, front = +z,
+ * up = +y), measured in the bind pose. Bones carry the armature's 0.01 scale, so the offset is
+ * converted through the bone's inverse world matrix.
  */
-function towelGeometry(shoulder: THREE.Vector3) {
-  const W = 0.13;
-  const SEGS = 24;
-  const FRONT = 0.3; // hanging length in front / behind
-  const R = 0.105; // half the shoulder's depth
-  const top = shoulder.y + 0.075;
-  const pts: THREE.Vector3[] = [];
-  for (let i = 0; i <= SEGS; i++) {
-    const t = i / SEGS;
-    let y: number;
-    let z: number;
-    if (t < 0.35) {
-      const k = (0.35 - t) / 0.35;
-      z = R + 0.015 * k; // falls slightly away from the chest
-      y = top - FRONT * k;
-    } else if (t > 0.65) {
-      const k = (t - 0.65) / 0.35;
-      z = -R - 0.01 * k;
-      y = top - FRONT * 0.8 * k;
-    } else {
-      const a = ((t - 0.35) / 0.3) * Math.PI;
-      z = R * Math.cos(a);
-      y = top + 0.03 * Math.sin(a);
-    }
-    pts.push(new THREE.Vector3(shoulder.x + 0.045, y, shoulder.z + z));
-  }
-  const pos: number[] = [];
-  const uv: number[] = [];
-  const idx: number[] = [];
-  pts.forEach((p, i) => {
-    pos.push(p.x - W / 2, p.y, p.z, p.x + W / 2, p.y, p.z);
-    uv.push(0, i / SEGS, 1, i / SEGS);
-    if (i < SEGS) {
-      const a = i * 2;
-      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-    }
-  });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
-}
-
-/**
- * Attach a rigid prop to a bone, at a position / rotation given in the MODEL's space (metres,
- * front = +z, up = +y), measured in the bind pose. Bones carry the armature's 0.01 scale, so
- * the offset is converted through the bone's inverse world matrix.
- */
-function attach(model: THREE.Object3D, boneName: string, mesh: THREE.Mesh, modelPos: THREE.Vector3, modelRot = new THREE.Euler()) {
+function attach(model: THREE.Object3D, boneName: string, mesh: THREE.Mesh, modelPos: THREE.Vector3) {
   const bone = model.getObjectByName(boneName);
   if (!bone) return;
   model.updateWorldMatrix(true, true);
   const world = modelPos.clone().applyMatrix4(model.matrixWorld);
-  const inv = bone.matrixWorld.clone().invert();
-  mesh.position.copy(world.applyMatrix4(inv));
+  mesh.position.copy(world.applyMatrix4(bone.matrixWorld.clone().invert()));
   const boneQ = bone.getWorldQuaternion(new THREE.Quaternion());
-  const modelQ = model.getWorldQuaternion(new THREE.Quaternion());
-  mesh.quaternion.copy(boneQ.invert().multiply(modelQ).multiply(new THREE.Quaternion().setFromEuler(modelRot)));
-  const k = new THREE.Vector3().setFromMatrixScale(model.matrixWorld).x / new THREE.Vector3().setFromMatrixScale(bone.matrixWorld).x;
-  mesh.scale.setScalar(k);
-  mesh.castShadow = true;
+  mesh.quaternion.copy(boneQ.invert().multiply(model.getWorldQuaternion(new THREE.Quaternion())));
+  mesh.scale.setScalar(new THREE.Vector3().setFromMatrixScale(model.matrixWorld).x / new THREE.Vector3().setFromMatrixScale(bone.matrixWorld).x);
   bone.add(mesh);
 }
 
-/** Apply the look to the hero model (call once, before it's first rendered). */
+/**
+ * The skinned mesh's rest ("bind") pose, independent of where the model stands or how it is
+ * animated right now: vertex positions, the hip joint, and the units (the armature may be in cm).
+ */
+function bindPose(mesh: THREE.SkinnedMesh) {
+  const pos = mesh.geometry.attributes.position;
+  const at = (v: number, out: THREE.Vector3) => out.fromBufferAttribute(pos, v).applyMatrix4(mesh.bindMatrix);
+  const tmp = new THREE.Vector3();
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (let v = 0; v < pos.count; v++) {
+    const y = at(v, tmp).y;
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+  }
+  const unit = (y1 - y0) / HERO_HEIGHT; // bind units per metre
+  const hi = mesh.skeleton.bones.findIndex((b) => b.name === 'Hips');
+  const hipsInv = hi >= 0 ? mesh.skeleton.boneInverses[hi] : new THREE.Matrix4();
+  const hipsY = new THREE.Vector3().setFromMatrixPosition(hipsInv.clone().invert()).y;
+  return { at, unit, hipsInv, waistY: hipsY + WAIST_ABOVE_HIPS * unit };
+}
+
+/**
+ * Leather belt over the shirt / trouser seam: an elliptical band sized from the body's own rest
+ * pose at the waist line, built in the hip bone's space so it rides on the hips exactly.
+ */
+function addBelt(mesh: THREE.SkinnedMesh) {
+  const hips = mesh.skeleton.bones.find((b) => b.name === 'Hips');
+  if (!hips) return;
+  const bind = bindPose(mesh);
+  const p = new THREE.Vector3();
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let v = 0; v < mesh.geometry.attributes.position.count; v++) {
+    bind.at(v, p);
+    if (Math.abs(p.y - bind.waistY) > 0.02 * bind.unit) continue;
+    x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+    z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z);
+  }
+  if (!isFinite(x0)) return;
+  const u = bind.unit;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const rx = (x1 - x0) / 2 + 0.007 * u;
+  const rz = (z1 - z0) / 2 + 0.007 * u;
+  // Band: two rings of the ellipse, BELT_HEIGHT apart (rest-pose space), then into hip space.
+  const SEG = 32;
+  const verts: number[] = [];
+  const idx: number[] = [];
+  for (let k = 0; k <= SEG; k++) {
+    const a = (k / SEG) * Math.PI * 2;
+    for (const dy of [-BELT_HEIGHT / 2, BELT_HEIGHT / 2]) verts.push(cx + rx * Math.sin(a), bind.waistY + dy * u, cz + rz * Math.cos(a));
+    if (k < SEG) idx.push(2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 1, 2 * k + 3, 2 * k + 2);
+  }
+  const band = new THREE.BufferGeometry();
+  band.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  band.setIndex(idx);
+  band.applyMatrix4(bind.hipsInv);
+  band.computeVertexNormals();
+  const buckleGeo = new THREE.BoxGeometry(0.042 * u, 0.034 * u, 0.008 * u).translate(cx, bind.waistY, cz + rz + 0.002 * u).applyMatrix4(bind.hipsInv);
+  const belt = new THREE.Mesh(band, new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.6, side: THREE.DoubleSide }));
+  const buckle = new THREE.Mesh(buckleGeo, new THREE.MeshStandardMaterial({ color: 0xb8a070, metalness: 0.8, roughness: 0.35 }));
+  belt.castShadow = buckle.castShadow = true;
+  hips.add(belt, buckle);
+}
+
+/** Apply the look to the hero model (once; measurements use the rest pose, so any time works). */
 export function applyChennaiLook(model: THREE.Object3D) {
+  let body: THREE.SkinnedMesh | null = null;
   model.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
+    if (!(o instanceof THREE.SkinnedMesh)) return;
     const mat = o.material as THREE.MeshStandardMaterial;
-    if (mat.name === 'Ch42_Body' && mat.map) {
-      mat.map = recolourTexture(mat.map);
-      mat.roughness = 0.82; // cotton and skin: matte, so the environment light doesn't make it look wet
-    }
+    if (mat.name !== 'Ch42_Body' || !mat.map) return;
+    mat.map = recolourTexture(mat.map, o);
+    mat.roughness = 0.95; // cotton and skin: matte, no wet-look highlights
+    body = o;
   });
+  if (body) addBelt(body);
 
-  // Measure the bind pose in model space to place the props.
+  // Face details, relative to the head bone (base of the skull; the face is ~0.1 m in front).
   model.updateWorldMatrix(true, true);
-  const inModel = (name: string) => {
-    const b = model.getObjectByName(name);
-    return b ? model.worldToLocal(b.getWorldPosition(new THREE.Vector3())) : null;
-  };
-  const head = inModel('Head');
-  const shoulder = inModel('LeftShoulder');
-  const neck = inModel('Neck');
-  if (!head || !shoulder || !neck) return;
-
-  // Thundu draped over the left shoulder (geometry in model space, so it's attached at the origin).
-  const towelMat = new THREE.MeshStandardMaterial({ map: towelTexture(), roughness: 0.95, side: THREE.DoubleSide });
-  attach(model, 'LeftShoulder', new THREE.Mesh(towelGeometry(shoulder), towelMat), new THREE.Vector3());
-
-  // Face details, relative to the head bone (base of the skull): front of the face is ~0.1 m forward.
+  const hb = model.getObjectByName('Head');
+  if (!hb) return;
+  const head = model.worldToLocal(hb.getWorldPosition(new THREE.Vector3()));
   const dark = new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: 0.9 });
   attach(model, 'Head', new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.009, 0.012), dark), new THREE.Vector3(head.x, head.y + 0.035, head.z + 0.105));
   const ash = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 1 });
