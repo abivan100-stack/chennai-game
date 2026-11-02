@@ -108,6 +108,21 @@ export class Npc {
     this.animator.randomizePhase();
   }
 
+  private meshes: THREE.Mesh[] | null = null;
+  private shadow = true;
+  /** Only the nearest few cast shadows (each shadow is another draw call). */
+  setShadow(on: boolean) {
+    if (on === this.shadow) return;
+    this.shadow = on;
+    if (!this.meshes) {
+      this.meshes = [];
+      this.root.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) this.meshes!.push(o as THREE.Mesh);
+      });
+    }
+    for (const m of this.meshes) m.castShadow = on;
+  }
+
   /** Off-schedule NPCs leave the world: no collider (they're also hidden and not updated). */
   setPresent(on: boolean) {
     this.body.setEnabled(on);

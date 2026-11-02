@@ -9,6 +9,10 @@ import { Npc, type NpcOptions } from './npc';
 const ACTIVE_RADIUS = 40;
 /** ...and beyond this they aren't drawn at all. */
 const DRAW_RADIUS = 90;
+/** At most this many people drawn at once (nearest first): each costs a draw call + a shadow. */
+const MAX_DRAWN = 24;
+/** ...and only the nearest few cast a shadow. */
+const MAX_SHADOWS = 10;
 /** How close (m) the player must be to talk (E). */
 const TALK_RADIUS = 2.2;
 /** Bumping: centre distance (m) and minimum speed (m/s), on foot and in the auto. */
@@ -97,12 +101,41 @@ const SPAWNS: Spawn[] = [
   ...crowdOf(['Rajini fan Senthil', 'Vijay fan Prakash', 'Moviegoer Latha'], { block: [3, 4], lane: LANE_A, hours: [[11.5, 12.5], [14.5, 15.5], [17.5, 18.5], [20.5, 21.5]] }),
   // Ashtalakshmi temple: evening devotees on the sand.
   ...crowdOf(['Bhavani', 'Krishnan'], { loop: [[154, 428], [184, 428], [184, 460], [154, 460]], y: 0.1, hours: [[17, 20.5]] }),
+  // Nageswara Rao Park: morning and evening walkers on the path loop.
+  ...crowdOf(['Walker Rangan', 'Walker Uma', 'Walker Sekar', 'Walker Jaya', 'Walker Mani'], { loop: [[-59, -119], [-36, -119], [-36, -81], [-59, -81]], y: 0.05, hours: [[5.5, 9], [17, 20]] }),
+  // San Thome Basilica: mass-goers.
+  ...crowdOf(['Agnes', 'Thomas', 'Rosy'], { block: [4, 2], lane: LANE_A, hours: [[6, 9], [17, 19.5]] }),
+  // Santhome fish market: before sunrise to mid-morning.
+  ...crowdOf(['Fisherman Kuppan', 'Meen vikkira Amma', 'Hotel buyer Raju', 'Selvi'], { loop: [[146, 58], [160, 58], [160, 78], [146, 78]], y: 0.11, hours: [[5, 9.5]] }),
+  // Santhome beach fair: evening families.
+  ...crowdOf(['Family Suresh', 'Kutty Anu', 'Family Banu', 'Kutty Vishal', 'Balloon buyer Ravi', 'Couple Arun', 'Couple Divya'], { loop: [[148, 104], [182, 104], [182, 134], [148, 134]], y: 0.1, hours: [[17, 22]] }),
+  // Late-night tea at the auto stand.
+  ...crowdOf(['Auto driver Pandi', 'Night watchman', 'Auto driver Babu'], { block: [1, 3], lane: LANE_B, hours: [[21, 1.5]] }),
+  // Anna Salai / Teynampet shoppers and office crowd.
+  ...crowdOf(['Shopper Latha', 'Clerk Mohan', 'Shopper Ayesha', 'Sales Ravi'], { block: [-2, 2], lane: LANE_A, hours: [[9.5, 21.5]] }),
+  ...crowdOf(['Shopper Geetha', 'Peon Kannan', 'Shopper Rekha'], { block: [-2, 4], lane: LANE_B, hours: [[9.5, 21.5]] }),
+  // TTK Road / Alwarpet.
+  ...crowdOf(['Sabha rasika Mami', 'Cafe-goer Tara', 'Musician Hari'], { block: [-1, 2], lane: LANE_A, hours: [[8, 22]] }),
+  // Mandaveli streets.
+  ...crowdOf(['Milkman Velu', 'School kid Abi', 'Ammini', 'Tailor Bashir'], { block: [1, 4], lane: LANE_B, hours: [[6.5, 21]] }),
+  ...crowdOf(['Kolam paati', 'Vendor Murugesan', 'Nurse Joyce'], { block: [3, 5], lane: LANE_A, hours: [[6.5, 21]] }),
+  // R.A. Puram: evening walkers.
+  ...crowdOf(['Retired Iyer', 'Lakshmi mami', 'Dog walker Neha'], { block: [2, 6], lane: LANE_B, hours: [[6, 8], [17, 20]] }),
+  // Adyar Main Road shoppers.
+  ...crowdOf(['Shopper Kala', 'Student Rahul', 'Bank clerk Mary', 'Shopper Vinod'], { block: [1, 9], lane: LANE_A, hours: [[9, 22]] }),
+  // Taramani office streets.
+  ...crowdOf(['Techie Sharmila', 'Techie Naveen', 'Delivery boy Imran'], { block: [3, 9], lane: LANE_B, hours: [[8, 20.5]] }),
+  // Velachery gated community residents.
+  ...crowdOf(['Resident Anand', 'Resident Kavitha', 'Watchman Gurkha', 'Resident Sid'], { block: [-2, 10], lane: LANE_A, hours: [[6, 9], [16.5, 21.5]] }),
+  // Luz Church Road shoppers.
+  ...crowdOf(['Shopper Indira', 'Flower seller Ponni'], { block: [1, 1], lane: LANE_B, hours: [[7, 21]] }),
 ];
 
 /** A group of people sharing a route and hours, spread out along it, with varied looks. */
 function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y' | 'hours' | 'pace'>): Spawn[] {
   const models: NpcModelId[] = ['woman-casual', 'man-casual', 'woman-formal', 'man-worker', 'woman-suit', 'man-farmer'];
-  const tints = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0];
+  // Colour variants so the same six models don't look like twins in a crowd.
+  const tints = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0, 0xffe0b2, 0xc8e6c9, 0xbbdefb, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
   return names.map((name, i) => ({
     ...o,
     name,
@@ -145,7 +178,12 @@ export class Crowd {
     });
     this.hours = SPAWNS.map((s) => s.hours ?? DAYTIME);
     this.present = SPAWNS.map(() => true);
+    this.dist = new Float32Array(SPAWNS.length).fill(Infinity);
+    this.order = SPAWNS.map((_, i) => i);
   }
+
+  private readonly dist: Float32Array;
+  private readonly order: number[];
 
   private readonly hours: [number, number][][];
   private readonly present: boolean[];
@@ -165,13 +203,13 @@ export class Crowd {
         npc.setPresent(out);
       }
       if (!out) {
-        npc.root.visible = false;
+        this.dist[i] = Infinity;
         continue;
       }
       const p = npc.root.position;
       const dist = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
       const active = dist < ACTIVE_RADIUS;
-      npc.root.visible = dist < DRAW_RADIUS; // far ones aren't drawn (a draw call + a shadow each)
+      this.dist[i] = dist < DRAW_RADIUS ? dist : Infinity; // drawn-or-not decided below
       if (active) this.activeCount++;
       this.damageToPlayer += npc.update(dt, active, playerPos);
 
@@ -184,5 +222,13 @@ export class Crowd {
         if (line) this.onSay(npc.name, line);
       }
     }
+    // Draw only the nearest MAX_DRAWN (within DRAW_RADIUS); the rest are too far to notice.
+    for (let i = 0; i < this.order.length; i++) this.order[i] = i;
+    this.order.sort((a, b) => this.dist[a] - this.dist[b]);
+    this.order.forEach((idx, rank) => {
+      const npc = this.npcs[idx];
+      npc.root.visible = this.present[idx] && rank < MAX_DRAWN && this.dist[idx] !== Infinity;
+      npc.setShadow(rank < MAX_SHADOWS);
+    });
   }
 }
