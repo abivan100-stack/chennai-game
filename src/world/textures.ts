@@ -21,6 +21,8 @@ const SIGNS = [
   { en: 'Ganesh Flower Shop', ta: 'கணேஷ் பூக்கடை', bg: '#00695c', fg: '#fff59d' },
 ];
 export const SIGN_COUNT = SIGNS.length;
+/** Shop names + board colours (the map shows them too). */
+export const SHOP_SIGNS: readonly { en: string; bg: string }[] = SIGNS;
 
 function canvas(w: number, h: number) {
   const c = document.createElement('canvas');

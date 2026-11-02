@@ -22,6 +22,13 @@ import { DayNight } from './world/sky';
 import { createTemple } from './world/temple';
 import { TaxiJobs } from './missions/jobs';
 import { Minimap } from './ui/minimap';
+import { drawTownMap } from './ui/mapArt';
+import { Phone } from './ui/phone';
+import { Economy } from './missions/economy';
+import { LENDER, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, UNCLE } from './missions/data';
+import { Weather } from './world/weather';
+import { Traffic } from './vehicles/traffic';
+import { istTime } from './world/solar';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
@@ -35,9 +42,13 @@ async function main() {
   const { renderer, scene, camera } = createRenderer();
 
   // World
-  createGround(scene, world);
+  const ground = createGround(scene, world);
   const town = createBuildings(scene, world);
   const props = createProps(scene, world);
+  const townMap = drawTownMap({ footprints: town.footprints, trees: props.treePoints });
+  const weather = new Weather(scene);
+  const traffic = new Traffic(scene, world);
+  const economy = new Economy();
   const temple = createTemple(scene, world);
   const dayNight = new DayNight(scene);
   const crowd = new Crowd(scene, world, characters.npcs);
@@ -46,7 +57,7 @@ async function main() {
   // Start outside the temple's main gopuram on East Mada Street; uncle's auto at the kerb,
   // facing north in the left lane.
   const spawn = new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
-  const autoSpot = new THREE.Vector3(25 - 3.4, 0, -4);
+  const autoSpot = new THREE.Vector3(25 - 4.2, 0, -4); // tight to the kerb so traffic can pass
   const player = new PlayerController(world, scene, spawn, characters.hero);
   const auto = new AutoRickshaw(scene, world, autoSpot, Math.PI);
   const ride = new Ride(player, auto);
@@ -57,19 +68,43 @@ async function main() {
 
   // Fares: start once the player has climbed into the auto for the first time.
   const jobs = new TaxiJobs(scene, characters.npcs, auto);
-  const minimap = new Minimap();
-  let wallet = 0;
+  const minimap = new Minimap(townMap);
+  const showMoney = () => hud.setWallet(economy.cash, economy.loan);
+  const phone = new Phone({
+    jobs,
+    economy,
+    weather,
+    town: townMap,
+    clock: () => dayNight.clockLabel,
+    player: () => ({ x: player.position.x, z: player.position.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }),
+    auto: () => auto.group.position,
+    pay: (amount) => {
+      const paid = economy.pay(amount);
+      if (!paid) return;
+      showMoney();
+      phone.addMessage(LENDER, economy.paidOff ? MSG_PAID_OFF : MSG_PAID.replace('{paid}', paid.toLocaleString('en-IN')).replace('{left}', economy.loan.toLocaleString('en-IN')));
+    },
+  });
   jobs.onSay = (name, line) => hud.say(name, line);
   jobs.onPaid = (fare, tip) => {
-    wallet += fare + tip;
-    hud.setWallet(wallet);
+    economy.earn(fare + tip);
+    showMoney();
     console.log(`[fare] ₹${fare}${tip ? ` + ₹${tip} tip` : ''}`);
   };
+  jobs.onNewOrder = (o) => {
+    if (!jobs.busy) phone.notify(`🛺 New order: ${o.from.name} → ${o.to.name} · ₹${o.fare}`);
+  };
+  let online = false;
   ride.onDrivingChange = (driving) => {
     cam.mode = driving ? 'drive' : 'foot';
     cam.ignore = driving ? auto.collider : player.collider;
     hud.setSpeed(driving ? 0 : null);
-    if (driving) jobs.start();
+    if (driving && !online) {
+      online = true;
+      jobs.start();
+      phone.addMessage(LENDER, MSG_LENDER_HELLO);
+      phone.notify(`🛺 ${jobs.orders.length} ride orders waiting`);
+    }
   };
 
   // Quality
@@ -83,9 +118,10 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, quality, dayNight, crowd } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, quality, dayNight, crowd } });
 
-  hud.setWallet(0);
+  showMoney();
+  phone.addMessage(UNCLE, MSG_WELCOME);
   hud.setMission("Find your uncle's auto");
   console.log(`[world] ${town.count} buildings, ${props.lampCount} lamps, ${props.treeCount} trees, ${crowd.npcs.length} NPCs`);
 
@@ -115,6 +151,13 @@ async function main() {
     // --- Simulation: input once per frame, physics in fixed steps
     player.handleInput(input, cam.yaw);
     ride.update(dt, input);
+    if (input.wasPressed('KeyP')) phone.toggle();
+    if (input.wasPressed('KeyR')) weather.cycleOverride();
+    // Traffic stops for the player and the player's auto (and honks at them).
+    traffic.update(dt, [
+      { x: auto.group.position.x, z: auto.group.position.z, honk: !player.onFoot },
+      ...(player.onFoot ? [{ x: player.position.x, z: player.position.z, honk: true }] : []),
+    ]);
     accumulator = Math.min(accumulator + dt, PHYSICS_STEP * MAX_STEPS);
     while (accumulator >= PHYSICS_STEP) {
       player.step(PHYSICS_STEP);
@@ -137,7 +180,14 @@ async function main() {
       cam.update(dt, player.position);
     }
 
+    weather.update(dt, camera.position);
+    dayNight.rain = weather.rain;
+    dayNight.cloud = weather.cloud;
+    ground.setWet(weather.rain);
     dayNight.update(dt, input.isDown('KeyT'), player.position);
+    // New IST day: settle the moneylender's daily amount.
+    const settled = economy.tickDay(Math.floor(istTime(dayNight.timeMs).day));
+    if (settled === 'missed') phone.addMessage(LENDER, MSG_MISSED[Math.min(economy.missedDays, MSG_MISSED.length) - 1]);
     town.setNight(dayNight.night);
     props.setNight(dayNight.night);
     temple.setNight(dayNight.night);
@@ -148,6 +198,7 @@ async function main() {
       hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);
     }
     const pp = player.position;
+    phone.update(performance.now());
     minimap.update(performance.now(), { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }, auto.group.position, jobs.target);
 
     renderer.render(scene, camera);

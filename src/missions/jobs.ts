@@ -4,7 +4,7 @@ import { Animator } from '../characters/animator';
 import { CHARACTER_HEIGHT, NPC_MODELS, type CharacterAsset, type NpcModelId } from '../characters/catalog';
 import { AutoRickshaw, BENCH } from '../vehicles/auto';
 import { SIDEWALK_HEIGHT } from '../world/layout';
-import { PAID_LINES, PASSENGER_NAMES, PICKUP_LINES, RIDE_LINES, STOPS, payment, stopPoint, type Stop } from './data';
+import { PAID_LINES, PASSENGER_NAMES, PICKUP_LINES, RIDE_LINES, STOPS, fare, payment, stopPoint, type Stop } from './data';
 
 const NOTICE_RADIUS = 18; // passenger waves when the auto comes this close
 const PICKUP_RADIUS = 5.5; // stop this close to the passenger to pick them up
@@ -16,10 +16,22 @@ const SIT_SECONDS = 2.1;
 const SWIVEL_SECONDS = 0.5;
 const HOP_OUT_SECONDS = 0.6;
 const LEAVE_SECONDS = 3.5;
-const NEXT_JOB_DELAY = 4;
 const CHATTER_EVERY = 14; // s between passenger remarks while riding
 
-type Phase = 'off' | 'waiting' | 'boarding' | 'seating' | 'riding' | 'alighting' | 'between';
+type Phase = 'off' | 'idle' | 'waiting' | 'boarding' | 'seating' | 'riding' | 'alighting';
+
+/** A ride request on the phone. */
+export interface Order {
+  id: number;
+  name: string;
+  from: Stop;
+  to: Stop;
+  fare: number; // meter estimate
+  expires: number; // seconds left
+}
+
+const OPEN_ORDERS = 3;
+const ORDER_LIFETIME = [70, 140];
 
 const rand = <T>(arr: readonly T[]) => arr[Math.floor(Math.random() * arr.length)];
 const smooth = (t: number) => {
@@ -68,6 +80,11 @@ export class TaxiJobs {
   rides = 0;
   onSay: (name: string, line: string) => void = () => {};
   onPaid: (fare: number, tip: number) => void = () => {};
+  /** A new ride request arrived on the phone. */
+  onNewOrder: (order: Order) => void = () => {};
+  /** Open ride requests (shown on the phone). */
+  readonly orders: Order[] = [];
+  private nextId = 1;
 
   private readonly scene: THREE.Scene;
   private readonly assets: Map<NpcModelId, CharacterAsset>;
@@ -115,17 +132,44 @@ export class TaxiJobs {
       case 'riding':
         return `Drop ${this.name} at ${this.to.name} (green marker)`;
       default:
-        return 'Look for the next passenger';
+        return 'Open your phone (P) and accept a ride order';
     }
   }
 
+  /** Turn the ride app on (first time in the auto). */
   start() {
-    if (this.phase === 'off') this.spawn();
+    if (this.phase !== 'off') return;
+    this.phase = 'idle';
+    while (this.orders.length < OPEN_ORDERS) this.addOrder(false);
+  }
+
+  /** True while a ride is in progress (can't take another order). */
+  get busy() {
+    return this.phase !== 'off' && this.phase !== 'idle';
+  }
+
+  /** Accept a ride request: its passenger starts waiting at the pickup. */
+  accept(id: number) {
+    const i = this.orders.findIndex((o) => o.id === id);
+    if (i < 0 || this.busy || this.phase === 'off') return false;
+    const [o] = this.orders.splice(i, 1);
+    this.from = o.from;
+    this.to = o.to;
+    this.name = o.name;
+    this.spawnPassenger();
+    this.addOrder(true);
+    return true;
   }
 
   update(dt: number, driving: boolean) {
     if (this.phase === 'off') return;
     this.t += dt;
+    // Orders expire and get replaced by new ones.
+    for (let i = this.orders.length - 1; i >= 0; i--) {
+      this.orders[i].expires -= dt;
+      if (this.orders[i].expires <= 0) this.orders.splice(i, 1);
+    }
+    while (this.orders.length < OPEN_ORDERS) this.addOrder(true);
     this.pickupMarker.update(dt);
     this.dropMarker.update(dt);
     this.animator?.update(dt);
@@ -134,8 +178,7 @@ export class TaxiJobs {
     const autoPos = this.auto.group.position;
 
     switch (this.phase) {
-      case 'between':
-        if (this.t > NEXT_JOB_DELAY) this.spawn();
+      case 'idle':
         return;
 
       case 'waiting': {
@@ -244,27 +287,35 @@ export class TaxiJobs {
         }
         if (this.t < HOP_OUT_SECONDS + LEAVE_SECONDS) return;
         this.despawn();
-        this.go('between');
+        this.go('idle');
         return;
       }
     }
   }
 
-  /** New passenger waiting at a random stop, heading somewhere at least MIN_TRIP away. */
-  private spawn() {
-    const autoPos = this.auto.group.position;
-    // Not the stop you're already at.
-    const choices = STOPS.filter((s) => {
+  /** New ride request between two stops at least MIN_TRIP apart. */
+  private addOrder(notify: boolean) {
+    const from = rand(STOPS);
+    const fp = stopPoint(from, 'kerb');
+    const to = rand(STOPS.filter((s) => {
       const p = stopPoint(s, 'kerb');
-      return Math.hypot(p.x - autoPos.x, p.z - autoPos.z) > 25;
-    });
-    this.from = rand(choices.length ? choices : STOPS);
-    const fp = stopPoint(this.from, 'kerb');
-    this.to = rand(STOPS.filter((s) => {
-      const p = stopPoint(s, 'kerb');
-      return s !== this.from && Math.hypot(p.x - fp.x, p.z - fp.z) > MIN_TRIP;
+      return s !== from && Math.hypot(p.x - fp.x, p.z - fp.z) > MIN_TRIP;
     }));
-    this.name = rand(PASSENGER_NAMES);
+    const tp = stopPoint(to, 'kerb');
+    const order: Order = {
+      id: this.nextId++,
+      name: rand(PASSENGER_NAMES),
+      from,
+      to,
+      fare: fare(Math.hypot(tp.x - fp.x, tp.z - fp.z)),
+      expires: ORDER_LIFETIME[0] + Math.random() * (ORDER_LIFETIME[1] - ORDER_LIFETIME[0]),
+    };
+    this.orders.push(order);
+    if (notify) this.onNewOrder(order);
+  }
+
+  /** The accepted order's passenger appears at the pickup. */
+  private spawnPassenger() {
 
     const id = rand(Object.keys(NPC_MODELS) as NpcModelId[]);
     const asset = this.assets.get(id)!;

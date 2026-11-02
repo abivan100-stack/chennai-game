@@ -15,7 +15,8 @@ Step 2b done: NPC interactions: E to talk (both play a talking clip, Tanglish li
 Step 3 done: proper street (asphalt, lane markings, zebra crossings, raised sidewalks with black-yellow curbs, lamps with night light pools, trees), ~150 attached 1-4 storey shop-houses (shops + Tamil/English signboards, windows that light up at night, balconies, parapets, water tanks); detailed auto with Rapier raycast-vehicle driving; enter/exit animation sequence; 12 NPCs always walking/jogging, stepping around the player.
 Step 3b done: Mylapore layout (stylised from the real one): Kapaleeshwarar temple in the centre block (east gopuram on East Mada Street, smaller west gopuram, kavi-striped compound wall, shrine + vimana, pillared mandapam, golden flag post), temple tank west of it (striped steps, water, 16-pillar mandapam), the four Mada Streets + R.K. Mutt Rd / Luz Church Rd / Kutchery Rd / San Thome High Rd with Tamil/English street-name boards; buildings vary in width, depth, floor heights, shop count, sign size and roofline (incl. old tiled-roof houses with a thinnai). Driver's hips are pinned to the seat (Ride.lateUpdate) so entering is one straight move.
 Step 4 done: render interpolation (no stutter from the 60 Hz physics), taxi fares (passenger waits at a named stop, boards the back bench, drop at the destination marker, Chennai-style meter fare + quick-ride tip, wallet), minimap.
-Next: traffic (other autos/cars/buses on the roads), the moneylender loan + days, more missions, weather.
+Step 5 done: real town map (building footprints, shops with names, trees, street names, temple, tank) used by a zoomed player-centred minimap and the phone; phone (P) with Orders (accept ride requests), Map, Wallet (earnings, repay Kandasamy's ₹15,000 loan, ₹500/day due, missed-day messages), Messages, Weather; traffic (autos, cars, MTC bus) in left-hand lanes with honking; live Chennai weather from Open-Meteo driving rain, clouds, fog and wet roads (R cycles a test override).
+Next: losing the auto when payments are missed too often (game over / grace), save game (localStorage), more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
 - Vite 8 + TypeScript 7 (strict, `erasableSyntaxOnly`), npm
@@ -50,11 +51,14 @@ src/
                        freezes NPCs > 40 m from the player
     dialogue.ts        Tanglish line pools (pure data)
   missions/
-    data.ts            stops, passenger names, Tanglish lines, fare maths (pure data, checked)
-    jobs.ts            TaxiJobs: waiting -> boarding -> seating -> riding -> alighting, markers
+    data.ts            stops, passenger names, Tanglish lines + phone messages, fare maths (pure data, checked)
+    jobs.ts            TaxiJobs: phone orders; accepted -> waiting -> boarding -> seating -> riding -> alighting
+    economy.ts         cash, loan, daily due, missed days (pure logic, checked)
   vehicles/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
-                       (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET anchors
+                       (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET / BENCH anchors;
+                       buildAutoModel() shared with traffic
+    traffic.ts         AI autos/cars/bus: rounded block loops, left-hand lanes, stop for obstacles, honk
   world/
     layout.ts          street grid numbers + street names, roadSpans(), blocks() (kind: shops/temple/tank)
     temple.ts          Kapaleeshwarar temple + tank (gopurams, walls, shrine, mandapams, steps, water)
@@ -65,11 +69,14 @@ src/
     props.ts           instanced street lamps (+ light pools), trees, street-name sign posts; colliders
     sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog, `night` factor
     solar.ts           IST clock + sun direction over Chennai (pure math)
+    weather.ts         Open-Meteo live weather (temp, rain, cloud) + rain streaks; R = test override
   ui/
     hud.ts             wallet, mission, context prompt, "click to play"
     debug.ts           F3 panel: FPS, frame/CPU ms, draw calls, tris, quality, IST time, position, NPCs animated
     loading.ts         loading overlay + progress bar
-    minimap.ts         north-up town map (canvas): player arrow, auto, pickup/drop marker
+    mapArt.ts          draws the town map once (4 px/m): roads, buildings, shops, trees, labels
+    minimap.ts         round player-centred minimap cropped from the town map + markers
+    phone.ts           phone UI (P): Orders, Map, Wallet, Messages, Weather apps; toasts
 scripts/
   check.ts             runnable self-check for solar.ts + quality.ts (`npm run check`)
   build-models.mjs     character asset pipeline (`npm run models`)
@@ -83,7 +90,7 @@ assets-source/         raw FBX/glTF sources (git-ignored, see Asset pipeline)
 - `npm run build` — typecheck + production build to `dist/`
 - `npm run typecheck` / `npm run check` — tsc only / logic self-check (Node runs the .ts directly)
 - `npm run models` — rebuild `public/models/` from `assets-source/` (needs Blender 4.4+; set `BLENDER=path` if not at the default Windows path or on PATH)
-- In dev, `window.game` exposes `{ world, player, cam, auto, quality, dayNight, crowd }` for console debugging.
+- In dev, `window.game` exposes `{ world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, quality, dayNight, crowd }` for console debugging.
 
 ## Asset pipeline (characters)
 Sources live in `assets-source/` (git-ignored; 54 MB hero FBX). `npm run models` does:

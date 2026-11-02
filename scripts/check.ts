@@ -2,6 +2,7 @@
 import { sunDirection, istClock } from '../src/world/solar.ts';
 import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/quality.ts';
 import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
+import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -44,5 +45,19 @@ for (const s of STOPS) {
   const w = stopPoint(s, 'sidewalk');
   assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && Math.abs(k.x) < 100 && Math.abs(k.z) < 100, `stop ${s.name} inside the town`);
 }
+
+// --- Economy ---
+const eco = new Economy();
+assert(eco.tickDay(100) === null, 'first day just starts');
+eco.earn(300);
+assert(eco.pay(1000) === 300 && eco.cash === 0 && eco.loan === LOAN_TOTAL - 300, 'pay limited by cash');
+assert(eco.dueToday === DAILY_DUE - 300, 'part of today paid');
+assert(eco.tickDay(101) === 'missed' && eco.missedDays === 1, 'short payment = missed day');
+eco.earn(600);
+eco.pay(DAILY_DUE);
+assert(eco.tickDay(102) === 'ok' && eco.missedDays === 0, 'full payment resets the count');
+eco.earn(LOAN_TOTAL * 2);
+eco.pay(Infinity);
+assert(eco.paidOff && eco.loan === 0 && eco.dueToday === 0, 'loan can be paid off, never below zero');
 
 console.log('check: all passed');

@@ -66,3 +66,14 @@ export function stopPoint(s: Stop, where: 'kerb' | 'sidewalk') {
   const offset = s.side * (where === 'kerb' ? 3.4 : 6.0);
   return s.axis === 'x' ? { x: s.line + offset, z: s.along } : { x: s.along, z: s.line + offset };
 }
+
+// ---- Phone messages ------------------------------------------------------------------------
+export const UNCLE = 'Chithappa';
+export const LENDER = 'Kandasamy (kadan)';
+export const MSG_WELCOME =
+  'Thambi, en auto ippo unnodadhu. Kandasamy kitta ₹15,000 kadan irukku. Daily ₹500 kattu, illana auto-va eduthuttu poiduvaan. Nalla ottu, nalla per vaangu!';
+export const MSG_LENDER_HELLO = 'Naan dhaan Kandasamy. Un chithappa auto-ku ₹15,000 baaki. Daily ₹500 — marakkaadha!';
+export const MSG_MISSED = ['Dei! Nethu kattala. Inniku double-aa kattu!', 'Rendu naal aachu kattala. Ippadiye pona auto en kitta dhaan!', 'Kadaisi warning thambi. Naalaiku auto-va eduthuduven!'];
+/** {paid}, {left} */
+export const MSG_PAID = 'Seri, ₹{paid} vandhuchu. Innum ₹{left} baaki.';
+export const MSG_PAID_OFF = 'Mudinjuthu! Kadan full-aa kattiteenga. Auto ippo full-aa ungaludhu. Vaazhthukkal!';

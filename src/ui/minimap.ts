@@ -1,8 +1,8 @@
-import { HALF, ROAD_HALF, ROAD_LINES, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE } from '../world/layout';
+import { MAP_PPM, mapPx } from './mapArt';
 
-const SIZE = 180; // px
-const SCALE = SIZE / WORLD_SIZE; // px per metre
-const REFRESH_MS = 66; // ~15 fps is plenty for a map
+const SIZE = 180; // px on screen
+const VIEW_M = 75; // metres across the minimap
+const REFRESH_MS = 50;
 
 export interface MapMarker {
   x: number;
@@ -11,85 +11,82 @@ export interface MapMarker {
 }
 
 /**
- * North-up map of the whole town in the bottom-left corner. The streets are drawn once to an
- * offscreen canvas; each refresh only stamps that and draws the markers on top.
+ * Round minimap in the bottom-left, centred on the player, north up. Crops the pre-drawn town
+ * map (buildings, shops, street names) and draws the auto, the player and the job marker; a
+ * marker that is off the edge is pinned to the rim so you always know which way to go.
  */
 export class Minimap {
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly base: HTMLCanvasElement;
+  private readonly town: HTMLCanvasElement;
   private last = 0;
-  private t = 0;
 
-  constructor() {
+  constructor(town: HTMLCanvasElement) {
     const canvas = document.getElementById('minimap') as HTMLCanvasElement;
     canvas.width = canvas.height = SIZE;
     this.ctx = canvas.getContext('2d')!;
-    this.base = drawBase();
+    this.town = town;
   }
 
-  update(now: number, player: { x: number; z: number; yaw: number }, auto: { x: number; z: number }, target: MapMarker | null) {
+  update(now: number, player: { x: number; z: number; yaw: number }, auto: { x: number; z: number }, marker: MapMarker | null) {
     if (now - this.last < REFRESH_MS) return;
-    this.t += now - this.last;
     this.last = now;
     const g = this.ctx;
-    g.drawImage(this.base, 0, 0);
+    const k = SIZE / VIEW_M; // screen px per metre
+    const src = VIEW_M * MAP_PPM;
+    const toScreen = (x: number, z: number) => ({ x: SIZE / 2 + (x - player.x) * k, y: SIZE / 2 + (z - player.z) * k });
 
-    if (target) {
-      const pulse = 4 + Math.sin(this.t / 150) * 1.5;
-      g.fillStyle = target.kind === 'pickup' ? '#ffd21f' : '#35e06b';
-      g.strokeStyle = '#000';
-      g.lineWidth = 1.5;
+    g.save();
+    g.clearRect(0, 0, SIZE, SIZE);
+    g.beginPath();
+    g.arc(SIZE / 2, SIZE / 2, SIZE / 2, 0, Math.PI * 2);
+    g.clip();
+    g.fillStyle = '#d9cfb6';
+    g.fillRect(0, 0, SIZE, SIZE);
+    g.drawImage(this.town, mapPx(player.x) - src / 2, mapPx(player.z) - src / 2, src, src, 0, 0, SIZE, SIZE);
+
+    // The auto.
+    const a = toScreen(auto.x, auto.z);
+    g.fillStyle = '#f5c400';
+    g.strokeStyle = '#000';
+    g.lineWidth = 1.5;
+    g.fillRect(a.x - 4, a.y - 4, 8, 8);
+    g.strokeRect(a.x - 4, a.y - 4, 8, 8);
+
+    // Job marker, clamped to the rim when off-map.
+    if (marker) {
+      let m = toScreen(marker.x, marker.z);
+      const dx = m.x - SIZE / 2;
+      const dy = m.y - SIZE / 2;
+      const r = Math.hypot(dx, dy);
+      const max = SIZE / 2 - 8;
+      if (r > max) m = { x: SIZE / 2 + (dx / r) * max, y: SIZE / 2 + (dy / r) * max };
+      g.fillStyle = marker.kind === 'pickup' ? '#ffd21f' : '#35e06b';
       g.beginPath();
-      g.arc(px(target.x), px(target.z), pulse, 0, Math.PI * 2);
+      g.arc(m.x, m.y, 6 + Math.sin(now / 150) * 1.5, 0, Math.PI * 2);
       g.fill();
       g.stroke();
     }
 
-    // The auto: small yellow square.
-    g.fillStyle = '#f5c400';
-    g.strokeStyle = '#000';
-    g.fillRect(px(auto.x) - 3, px(auto.z) - 3, 6, 6);
-    g.strokeRect(px(auto.x) - 3, px(auto.z) - 3, 6, 6);
-
-    // The player: arrow pointing where they face (yaw 0 = +z = down on the map).
-    g.save();
-    g.translate(px(player.x), px(player.z));
+    // The player: arrow (yaw 0 = facing +z = down on the map).
+    g.translate(SIZE / 2, SIZE / 2);
     g.rotate(-player.yaw);
     g.fillStyle = '#ffffff';
     g.strokeStyle = '#000';
     g.beginPath();
-    g.moveTo(0, 7);
-    g.lineTo(5, -5);
+    g.moveTo(0, 8);
+    g.lineTo(6, -6);
     g.lineTo(0, -2);
-    g.lineTo(-5, -5);
+    g.lineTo(-6, -6);
     g.closePath();
     g.fill();
     g.stroke();
     g.restore();
-  }
-}
 
-const px = (metres: number) => (metres + HALF) * SCALE;
-
-function drawBase() {
-  const c = document.createElement('canvas');
-  c.width = c.height = SIZE;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#c9bfa8'; // building blocks
-  g.fillRect(0, 0, SIZE, SIZE);
-  const rect = (b: { x0: number; x1: number; z0: number; z1: number }, colour: string) => {
-    g.fillStyle = colour;
-    g.fillRect(px(b.x0), px(b.z0), (b.x1 - b.x0) * SCALE, (b.z1 - b.z0) * SCALE);
-  };
-  rect(TEMPLE_BLOCK(), '#e89a3c');
-  rect(TANK_BLOCK(), '#3f8fb0');
-  g.fillStyle = '#4a4a4f';
-  for (const c of ROAD_LINES) {
-    g.fillRect(px(c - ROAD_HALF), 0, ROAD_HALF * 2 * SCALE, SIZE);
-    g.fillRect(0, px(c - ROAD_HALF), SIZE, ROAD_HALF * 2 * SCALE);
+    g.fillStyle = '#fff';
+    g.strokeStyle = '#000';
+    g.font = '700 12px system-ui, sans-serif';
+    g.lineWidth = 3;
+    g.strokeText('N', SIZE / 2 - 4, 14);
+    g.fillText('N', SIZE / 2 - 4, 14);
   }
-  g.fillStyle = '#fff';
-  g.font = '700 10px system-ui, sans-serif';
-  g.fillText('N', SIZE - 12, 12);
-  return c;
 }

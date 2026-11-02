@@ -20,6 +20,12 @@ Note: the Mixamo-derived GLBs are fine inside the game, but keep them out of any
 
 The town (roads, buildings, temple, tank, signboards, lamps, trees) and the auto rickshaw are generated in code; their textures are drawn on canvases at load. Shop names on the signboards are made up. The layout is a stylised take on Mylapore (temple facing east, tank to the west, the four Mada Streets, R.K. Mutt Road), from public descriptions such as Wikipedia's Kapaleeshwarar Temple article; no map data or images are copied.
 
+## Data
+
+| Data | Source | License |
+|---|---|---|
+| Live Chennai weather (temperature, rain, cloud cover) | [Open-Meteo.com](https://open-meteo.com/) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — weather data by Open-Meteo.com |
+
 ## Code libraries
 
 three.js (MIT), Rapier (Apache-2.0), Vite (MIT), glTF-Transform (MIT), meshoptimizer (MIT).

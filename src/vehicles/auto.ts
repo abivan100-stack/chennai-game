@@ -62,7 +62,8 @@ export class AutoRickshaw {
   private handbrake = true;
 
   constructor(scene: THREE.Scene, world: RAPIER.World, position: THREE.Vector3, heading = 0) {
-    const { headlight, tail } = this.buildModel();
+    const { headlight, tail, wheels } = buildAutoModel(this.group);
+    this.wheelMeshes.push(...wheels);
     this.headlight = headlight;
     this.tail = tail;
     this.group.position.copy(position);
@@ -193,94 +194,100 @@ export class AutoRickshaw {
   }
 
   // ---------------------------------------------------------------------------------------
-  private buildModel() {
-    const yellow = new THREE.MeshStandardMaterial({ color: 0xf5c400, roughness: 0.38, metalness: 0.15 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.85 });
-    const chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, roughness: 0.25, metalness: 0.9 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x9fc4d6, roughness: 0.05, transparent: true, opacity: 0.28, depthWrite: false });
-    const seat = new THREE.MeshStandardMaterial({ color: 0x4a1418, roughness: 0.7 });
-    const headlight = new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0 });
-    const tail = new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
-    const amber = new THREE.MeshStandardMaterial({ color: 0xff9800, emissive: 0x803000, emissiveIntensity: 0.3 });
-    const plate = new THREE.MeshStandardMaterial({ map: plateTexture(), roughness: 0.5 });
+}
 
-    const rb = (w: number, h: number, d: number, r: number, x: number, y: number, z: number, rx = 0) =>
-      new RoundedBoxGeometry(w, h, d, 3, r).rotateX(rx).translate(x, y, z);
-    const bx = (w: number, h: number, d: number, x: number, y: number, z: number, rx = 0) =>
-      new THREE.BoxGeometry(w, h, d).rotateX(rx).translate(x, y, z);
-    const rod = (from: THREE.Vector3, to: THREE.Vector3, r: number) => {
-      const len = from.distanceTo(to);
-      const g = new THREE.CylinderGeometry(r, r, len, 6);
-      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
-      return g.applyQuaternion(q).translate((from.x + to.x) / 2, (from.y + to.y) / 2, (from.z + to.z) / 2);
-    };
-    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+/**
+ * Build the auto rickshaw's meshes into `group` (model space: ground y = 0, front +z).
+ * Shared by the player's auto and traffic autos. Returns the parts that animate.
+ */
+export function buildAutoModel(group: THREE.Group) {
+const wheels: THREE.Object3D[] = [];
+  const yellow = new THREE.MeshStandardMaterial({ color: 0xf5c400, roughness: 0.38, metalness: 0.15 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.85 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, roughness: 0.25, metalness: 0.9 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x9fc4d6, roughness: 0.05, transparent: true, opacity: 0.28, depthWrite: false });
+  const seat = new THREE.MeshStandardMaterial({ color: 0x4a1418, roughness: 0.7 });
+  const headlight = new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0 });
+  const tail = new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
+  const amber = new THREE.MeshStandardMaterial({ color: 0xff9800, emissive: 0x803000, emissiveIntensity: 0.3 });
+  const plate = new THREE.MeshStandardMaterial({ map: plateTexture(), roughness: 0.5 });
 
-    const parts: [THREE.BufferGeometry[], THREE.Material][] = [
-      [[
-        rb(1.32, 0.52, 1.15, 0.1, 0, 0.72, -0.7), // rear passenger tub
-        rb(0.8, 1.0, 0.32, 0.1, 0, 0.86, 1.08, -0.12), // front cowl
-        rb(0.22, 0.12, 0.6, 0.05, 0, 0.5, 0.98), // front mudguard
-        bx(0.04, 0.26, 0.85, 0.61, 0.56, 0.28), // side skirts
-        bx(0.04, 0.26, 0.85, -0.61, 0.56, 0.28),
-        rb(1.4, 0.05, 0.12, 0.02, 0, 1.79, 0.9), // yellow canopy lip at the front
-      ], yellow],
-      [[
-        bx(1.2, 0.1, 2.3, 0, 0.42, -0.05), // floor pan
-        rb(1.42, 0.09, 2.1, 0.04, 0, 1.84, -0.15), // canvas roof
-        rb(1.36, 0.78, 0.06, 0.03, 0, 1.43, -1.24), // rear canvas wall
-        bx(0.04, 0.5, 0.62, 0.69, 1.55, -0.92), // rear side flaps
-        bx(0.04, 0.5, 0.62, -0.69, 1.55, -0.92),
-        rb(0.74, 0.1, 0.26, 0.03, 0, 1.33, 0.98), // dashboard
-        bx(1.1, 0.06, 0.06, 0, 1.79, 0.98), // windscreen top bar
-        rod(V(0.55, 1.3, 1.05), V(0.62, 1.8, 0.95), 0.025), // front pillars
-        rod(V(-0.55, 1.3, 1.05), V(-0.62, 1.8, 0.95), 0.025),
-        rod(V(0.66, 0.95, -0.22), V(0.68, 1.82, -0.22), 0.025), // middle pillars
-        rod(V(-0.66, 0.95, -0.22), V(-0.68, 1.82, -0.22), 0.025),
-        rod(V(0, 0.95, 0.95), V(0, 1.23, 0.6), 0.03), // steering column
-        rod(V(0.17, 1.25, 0.6), V(0.3, 1.26, 0.59), 0.032), // grips (where the Driving pose's hands are)
-        rod(V(-0.17, 1.25, 0.6), V(-0.3, 1.26, 0.59), 0.032),
-      ], black],
-      [[
-        rod(V(-0.31, 1.25, 0.6), V(0.31, 1.25, 0.6), 0.018), // handlebar
-        rb(0.62, 0.05, 0.05, 0.02, 0, 0.62, 1.29), // front bumper
-        rb(1.3, 0.05, 0.05, 0.02, 0, 0.5, -1.33), // rear bumper
-      ], chrome],
-      [[bx(1.08, 0.5, 0.015, 0, 1.55, 1.0, -0.2)], glass],
-      [[
-        rb(0.5, 0.12, 0.42, 0.05, 0, 0.82, 0.36), // driver seat
-        rb(0.5, 0.3, 0.08, 0.04, 0, 1.02, 0.12, -0.15), // driver backrest
-        rb(1.18, 0.14, 0.46, 0.06, 0, 1.04, -0.78), // passenger bench
-        rb(1.18, 0.46, 0.1, 0.05, 0, 1.33, -1.13, -0.1), // bench backrest
-      ], seat],
-      [[new THREE.CylinderGeometry(0.09, 0.09, 0.08, 16).rotateX(Math.PI / 2).translate(0, 1.08, 1.26)], headlight],
-      [[bx(0.12, 0.08, 0.03, 0.55, 0.75, -1.29), bx(0.12, 0.08, 0.03, -0.55, 0.75, -1.29)], tail],
-      [[bx(0.07, 0.05, 0.03, 0.3, 1.22, 1.24), bx(0.07, 0.05, 0.03, -0.3, 1.22, 1.24)], amber],
-      [[bx(0.34, 0.11, 0.01, 0, 0.66, 1.27, -0.12), bx(0.34, 0.11, 0.01, 0, 0.66, -1.3).rotateY(Math.PI).translate(0, 0, -2.6)], plate],
-    ];
-    for (const [geos, mat] of parts) {
-      const mesh = new THREE.Mesh(mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g))), mat);
-      mesh.castShadow = mat !== glass;
-      mesh.receiveShadow = true;
-      this.group.add(mesh);
-    }
+  const rb = (w: number, h: number, d: number, r: number, x: number, y: number, z: number, rx = 0) =>
+    new RoundedBoxGeometry(w, h, d, 3, r).rotateX(rx).translate(x, y, z);
+  const bx = (w: number, h: number, d: number, x: number, y: number, z: number, rx = 0) =>
+    new THREE.BoxGeometry(w, h, d).rotateX(rx).translate(x, y, z);
+  const rod = (from: THREE.Vector3, to: THREE.Vector3, r: number) => {
+    const len = from.distanceTo(to);
+    const g = new THREE.CylinderGeometry(r, r, len, 6);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+    return g.applyQuaternion(q).translate((from.x + to.x) / 2, (from.y + to.y) / 2, (from.z + to.z) / 2);
+  };
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
-    // Wheels: tyre + hub in one vertex-coloured mesh each (spun/steered every frame).
-    const wb = new GeoBuilder();
-    const spin = new THREE.Matrix4().makeRotationZ(Math.PI / 2);
-    wb.add(new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.13, 16), spin, new THREE.Color(0x111111));
-    wb.add(new THREE.CylinderGeometry(0.11, 0.11, 0.14, 8), spin, new THREE.Color(0x9aa0a6));
-    const wheelGeo = wb.build();
-    const wheelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
-    for (const w of WHEELS) {
-      const mesh = new THREE.Mesh(wheelGeo, wheelMat);
-      mesh.position.set(w.x, WHEEL_RADIUS, w.z);
-      mesh.castShadow = true;
-      this.wheelMeshes.push(mesh);
-      this.group.add(mesh);
-    }
-    return { headlight, tail };
+  const parts: [THREE.BufferGeometry[], THREE.Material][] = [
+    [[
+      rb(1.32, 0.52, 1.15, 0.1, 0, 0.72, -0.7), // rear passenger tub
+      rb(0.8, 1.0, 0.32, 0.1, 0, 0.86, 1.08, -0.12), // front cowl
+      rb(0.22, 0.12, 0.6, 0.05, 0, 0.5, 0.98), // front mudguard
+      bx(0.04, 0.26, 0.85, 0.61, 0.56, 0.28), // side skirts
+      bx(0.04, 0.26, 0.85, -0.61, 0.56, 0.28),
+      rb(1.4, 0.05, 0.12, 0.02, 0, 1.79, 0.9), // yellow canopy lip at the front
+    ], yellow],
+    [[
+      bx(1.2, 0.1, 2.3, 0, 0.42, -0.05), // floor pan
+      rb(1.42, 0.09, 2.1, 0.04, 0, 1.84, -0.15), // canvas roof
+      rb(1.36, 0.78, 0.06, 0.03, 0, 1.43, -1.24), // rear canvas wall
+      bx(0.04, 0.5, 0.62, 0.69, 1.55, -0.92), // rear side flaps
+      bx(0.04, 0.5, 0.62, -0.69, 1.55, -0.92),
+      rb(0.74, 0.1, 0.26, 0.03, 0, 1.33, 0.98), // dashboard
+      bx(1.1, 0.06, 0.06, 0, 1.79, 0.98), // windscreen top bar
+      rod(V(0.55, 1.3, 1.05), V(0.62, 1.8, 0.95), 0.025), // front pillars
+      rod(V(-0.55, 1.3, 1.05), V(-0.62, 1.8, 0.95), 0.025),
+      rod(V(0.66, 0.95, -0.22), V(0.68, 1.82, -0.22), 0.025), // middle pillars
+      rod(V(-0.66, 0.95, -0.22), V(-0.68, 1.82, -0.22), 0.025),
+      rod(V(0, 0.95, 0.95), V(0, 1.23, 0.6), 0.03), // steering column
+      rod(V(0.17, 1.25, 0.6), V(0.3, 1.26, 0.59), 0.032), // grips (where the Driving pose's hands are)
+      rod(V(-0.17, 1.25, 0.6), V(-0.3, 1.26, 0.59), 0.032),
+    ], black],
+    [[
+      rod(V(-0.31, 1.25, 0.6), V(0.31, 1.25, 0.6), 0.018), // handlebar
+      rb(0.62, 0.05, 0.05, 0.02, 0, 0.62, 1.29), // front bumper
+      rb(1.3, 0.05, 0.05, 0.02, 0, 0.5, -1.33), // rear bumper
+    ], chrome],
+    [[bx(1.08, 0.5, 0.015, 0, 1.55, 1.0, -0.2)], glass],
+    [[
+      rb(0.5, 0.12, 0.42, 0.05, 0, 0.82, 0.36), // driver seat
+      rb(0.5, 0.3, 0.08, 0.04, 0, 1.02, 0.12, -0.15), // driver backrest
+      rb(1.18, 0.14, 0.46, 0.06, 0, 1.04, -0.78), // passenger bench
+      rb(1.18, 0.46, 0.1, 0.05, 0, 1.33, -1.13, -0.1), // bench backrest
+    ], seat],
+    [[new THREE.CylinderGeometry(0.09, 0.09, 0.08, 16).rotateX(Math.PI / 2).translate(0, 1.08, 1.26)], headlight],
+    [[bx(0.12, 0.08, 0.03, 0.55, 0.75, -1.29), bx(0.12, 0.08, 0.03, -0.55, 0.75, -1.29)], tail],
+    [[bx(0.07, 0.05, 0.03, 0.3, 1.22, 1.24), bx(0.07, 0.05, 0.03, -0.3, 1.22, 1.24)], amber],
+    [[bx(0.34, 0.11, 0.01, 0, 0.66, 1.27, -0.12), bx(0.34, 0.11, 0.01, 0, 0.66, -1.3).rotateY(Math.PI).translate(0, 0, -2.6)], plate],
+  ];
+  for (const [geos, mat] of parts) {
+    const mesh = new THREE.Mesh(mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g))), mat);
+    mesh.castShadow = mat !== glass;
+    mesh.receiveShadow = true;
+    group.add(mesh);
   }
+
+  // Wheels: tyre + hub in one vertex-coloured mesh each (spun/steered every frame).
+  const wb = new GeoBuilder();
+  const spin = new THREE.Matrix4().makeRotationZ(Math.PI / 2);
+  wb.add(new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.13, 16), spin, new THREE.Color(0x111111));
+  wb.add(new THREE.CylinderGeometry(0.11, 0.11, 0.14, 8), spin, new THREE.Color(0x9aa0a6));
+  const wheelGeo = wb.build();
+  const wheelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
+  for (const w of WHEELS) {
+    const mesh = new THREE.Mesh(wheelGeo, wheelMat);
+    mesh.position.set(w.x, WHEEL_RADIUS, w.z);
+    mesh.castShadow = true;
+    wheels.push(mesh);
+    group.add(mesh);
+  }
+  return { headlight, tail, wheels };
 }
 
 /** Tamil Nadu commercial plate: black text on yellow. */

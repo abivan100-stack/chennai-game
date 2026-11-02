@@ -4,7 +4,7 @@ A browser open-world game set in Mylapore, Chennai. You inherit your uncle's old
 
 Built with Vite, TypeScript, three.js and Rapier physics. Runs as a static site.
 
-> Status: early prototype. Walk around Mylapore, get into uncle's auto, pick up passengers and earn fares.
+> Status: early prototype. Walk around Mylapore, get into uncle's auto, accept ride orders on your phone, earn fares and repay the moneylender. Weather is live from Chennai.
 
 ## Requirements
 - Node.js 22.18 or newer (tested on Node 24)
@@ -37,6 +37,8 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 | W / S (in the auto) | Accelerate / brake, then reverse |
 | A / D (in the auto) | Steer |
 | Space (in the auto) | Handbrake |
+| P | Phone: ride orders, map, wallet (repay the loan), messages, weather |
+| R | Cycle test weather: rain / clear / live (debug) |
 | T (hold) | Fast-forward time (debug) |
 | F3 | Debug panel + quality setting |
 

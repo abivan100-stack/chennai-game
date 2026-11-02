@@ -70,8 +70,10 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
 
   const asphalt = asphaltTexture();
   const paveTex = pavingTexture();
+  // Rain makes the asphalt darker and shinier (see setWet).
+  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95 });
   const meshes = [
-    new THREE.Mesh(roads.build(), new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95 })),
+    new THREE.Mesh(roads.build(), roadMat),
     new THREE.Mesh(
       marks.build(),
       new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }),
@@ -86,6 +88,11 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
 
   // Physics: thick ground slab (thin colliders let fast things tunnel) + 4 edge walls.
   world.createCollider(RAPIER.ColliderDesc.cuboid(HALF, 0.5, HALF).setTranslation(0, -0.5, 0));
+  const wet = { setWet(f: number) {
+    roadMat.roughness = 0.95 - 0.6 * f;
+    roadMat.metalness = 0.25 * f;
+    roadMat.color.setScalar(1 - 0.35 * f);
+  } };
   for (const [x, z, hx, hz] of [
     [HALF, 0, 0.5, HALF],
     [-HALF, 0, 0.5, HALF],
@@ -94,6 +101,7 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
   ]) {
     world.createCollider(RAPIER.ColliderDesc.cuboid(hx, 10, hz).setTranslation(x, 10, z));
   }
+  return wet;
 }
 
 /** Flat painted rectangle on the road: centred at (across, along), size w (across) x l (along). */

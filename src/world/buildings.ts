@@ -27,6 +27,18 @@ function seeded(seed: number) {
 }
 
 type Facing = 'n' | 's' | 'e' | 'w';
+
+/** Building outline for the map: centre, frontage w, depth d, yaw (front = local +z). */
+export interface Footprint {
+  cx: number;
+  cz: number;
+  w: number;
+  d: number;
+  yaw: number;
+  color: string;
+  shop: number | null; // index into SHOP_SIGNS of its first shop board
+  oldHouse: boolean;
+}
 /** Yaw that turns a building's local +z (its front) to face the road. */
 const YAW: Record<Facing, number> = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
 
@@ -46,6 +58,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const signs = new GeoBuilder();
   const sign = signTextures();
   let count = 0;
+  const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
   function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean) {
@@ -57,6 +70,8 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     const floorH = range(3.0, 3.5);
     const h = groundH + (floors - 1) * floorH;
     const wall = new THREE.Color(pick(PALETTE));
+    const fp: Footprint = { cx, cz, w, d, yaw: YAW[facing], color: `#${wall.getHexString()}`, shop: null, oldHouse };
+    footprints.push(fp);
     const m = new THREE.Matrix4().makeRotationY(YAW[facing]).setPosition(cx, 0, cz);
     const P = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(m);
     const N = (x: number, z: number) => new THREE.Vector3(x, 0, z).transformDirection(m);
@@ -144,7 +159,9 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
         const x = -hw + bayW * (bay + 0.5);
         const sw = bayW - 0.3;
         const sh = THREE.MathUtils.clamp(sw / 7, 0.45, showroom ? 1.6 : 1.0);
-        const [v0, v1] = sign.rowV(Math.floor(rand() * SIGN_COUNT));
+        const signIndex = Math.floor(rand() * SIGN_COUNT);
+        if (fp.shop === null) fp.shop = signIndex;
+        const [v0, v1] = sign.rowV(signIndex);
         const z = hd + 0.78;
         const s = [P(x - sw / 2, groundH, z), P(x + sw / 2, groundH, z), P(x + sw / 2, groundH + sh, z), P(x - sw / 2, groundH + sh, z)];
         signs.quad(s[0], s[1], s[2], s[3], [[0, v0], [1, v0], [1, v1], [0, v1]], wall, N(0, 1));
@@ -218,6 +235,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
 
   return {
     count,
+    footprints,
     /** 0 = day, 1 = night: lights up windows, shops and signs. */
     setNight(f: number) {
       facadeMat.emissiveIntensity = f * 0.9;

@@ -94,6 +94,8 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   return {
     lampCount: lamps.length,
     treeCount: trees.length,
+    /** Tree positions (for the map). */
+    treePoints: trees.map((m) => ({ x: m.elements[12], z: m.elements[14] })),
     setNight(f: number) {
       headMat.emissiveIntensity = f * 4;
       poolMat.opacity = f * 0.55;

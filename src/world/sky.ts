@@ -8,6 +8,7 @@ const FAST_FORWARD_HOURS_PER_SEC = 1;
 const SHADOW_RANGE = 25;
 const LIGHT_DISTANCE = 60;
 
+const RAIN_FOG = new THREE.Color(0x9aa3ab);
 const NIGHT_FOG = new THREE.Color(0x1c2644);
 const DAY_FOG = new THREE.Color(0xbfd0da);
 const DUSK_FOG = new THREE.Color(0xd08a62);
@@ -35,6 +36,9 @@ export class DayNight {
   private readonly sunDir = new THREE.Vector3();
   /** 0 = daylight, 1 = full night (drives windows, street lamps, headlights). */
   night = 0;
+  /** Weather inputs (0..1), set by Weather each frame. */
+  rain = 0;
+  cloud = 0;
   private offsetMs = 0;
   private effects = true;
 
@@ -81,7 +85,7 @@ export class DayNight {
     const sunI = 3 * smooth(-0.02, 0.12, e);
     const moonI = 0.7 * smooth(0, -0.12, e);
     if (sunI > 0) {
-      this.sun.intensity = sunI;
+      this.sun.intensity = sunI * (1 - 0.65 * this.cloud); // overcast dims the sun
       this.sun.color.lerpColors(SUN_LOW, SUN_HIGH, smooth(0, 0.4, e));
       this.sun.position.copy(this.sunDir);
     } else {
@@ -99,12 +103,18 @@ export class DayNight {
     this.hemi.groundColor.setHex(0x3a3328).multiplyScalar(0.3 + 0.7 * day);
 
     this.fog.color.lerpColors(NIGHT_FOG, DAY_FOG, day).lerp(DUSK_FOG, dusk * 0.6);
+    // Rain: grey, closer fog.
+    this.fog.color.lerp(RAIN_FOG.clone().multiplyScalar(0.3 + 0.7 * day), this.rain * 0.7);
+    this.fog.near = 50 - 35 * this.rain;
+    this.fog.far = 170 - 90 * this.rain;
 
     // The Preetham sky goes pitch black after dusk; below that, the flat fog-coloured background reads better.
     this.sky.visible = this.effects && e > -0.05;
     const u = this.sky.material.uniforms;
     u.sunPosition.value.copy(this.sunDir);
     u.time.value += dt;
+    u.cloudCoverage.value = 0.3 + 0.6 * this.cloud;
+    u.cloudDensity.value = 0.4 + 0.5 * this.cloud;
   }
 
   /** Effects off = skip the per-pixel sky/cloud shader; the fog-coloured background shows instead. */

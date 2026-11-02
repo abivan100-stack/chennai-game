@@ -4,8 +4,10 @@ const SAY_SECONDS = 4;
 let sayTimer = 0;
 
 export const hud = {
-  setWallet(rupees: number) {
+  /** Cash, and the loan still owed to the moneylender. */
+  setWallet(rupees: number, loan = 0) {
     $('wallet').textContent = `₹ ${rupees.toLocaleString('en-IN')}`;
+    if (loan > 0) $('wallet').append(Object.assign(document.createElement('div'), { className: 'loan', textContent: `Kadan ₹${loan.toLocaleString('en-IN')}` }));
   },
   setMission(text: string) {
     const el = $('mission');
