@@ -2,29 +2,26 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { busModel } from '../vehicles/models';
 import { GeoBuilder } from './geo';
-import { BEACH_X, BOUNDS, DEPOT_LOT } from './layout';
+import { BEACH_X, BOUNDS, DEPOT_LOT, MRTS_STATIONS, MRTS_X, SETBACK, Z_LINES } from './layout';
 
 /**
  * Mandaveli and the MRTS. The MTC bus depot sits on Venkatakrishna Road. Like the real city, the
- * Buckingham Canal and the elevated MRTS line run NORTH-SOUTH just west of town (past the
- * west wall), with Thirumayilai station west of Mylapore and Mandaveli station further south;
- * a suburban train runs along it, stopping at both. The canal is beyond the wall, so you can
- * see it but not walk into the water. Plain land fills the space past the north and south
- * edges so the town doesn't end in a void.
+ * elevated MRTS line runs NORTH-SOUTH over the Buckingham Canal west of Mylapore (the canal
+ * itself, with its bridges, is part of the ground: world/ground.ts), with Thirumayilai and
+ * Mandaveli stations; a suburban train runs along it, stopping at both. Plain land fills the
+ * space past the town's edges so it doesn't end in a void.
  */
 
 // The line is built in its own frame: x = along the line (becomes world z, north -> south),
 // z = across it (0 at the town's west wall, growing westwards).
 const CANAL = { z0: 9, z1: 21, y: -1.1 }; // water strip, sunk below the banks
-const FAR_BANK = 320; // land beyond the canal
 const RAIL_Z = 15; // the viaduct runs right over the canal
 const DECK_Y = 9; // rail level
 const SPAN = 16; // m between viaduct piers
 const LINE_X = [-460, 560]; // the line runs well past both ends of town
-const STATIONS = [
-  { x0: -58, x1: 6, ta: 'திருமயிலை', en: 'THIRUMAYILAI  ·  MRTS' },
-  { x0: 128, x1: 192, ta: 'மந்தைவெளி', en: 'MANDAVELI  ·  MRTS' },
-];
+const STATION_LEN = 64;
+const STATION_TA = ['திருமயிலை', 'மந்தைவெளி'];
+const STATIONS = MRTS_STATIONS.map(([z, name], i) => ({ x0: z - STATION_LEN / 2, x1: z + STATION_LEN / 2, ta: STATION_TA[i], en: `${name.replace(' MRTS', '').toUpperCase()}  ·  MRTS` }));
 const TRAIN = { coaches: 4, coachLen: 20, gap: 0.8, speed: 13, wait: 25, dwell: 12 }; // m/s, s
 const OUTSKIRTS = 600; // m of plain land past the north and south edges
 
@@ -115,10 +112,11 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
     world.createCollider(RAPIER.ColliderDesc.cuboid(1.25, 1.6, 5).setTranslation(g.position.x, 1.6, g.position.z));
   }
 
-  // ---- Land past the north and south edges (the beach covers the east, the canal the west) --
+  // ---- Land past the north, south and west edges (the beach covers the east) ---------------
   for (const [z0, z1] of [[BOUNDS.z1, BOUNDS.z1 + OUTSKIRTS], [BOUNDS.z0 - OUTSKIRTS, BOUNDS.z0]]) {
-    geo.box(BEACH_X - BOUNDS.x0, 0.6, z1 - z0, (BOUNDS.x0 + BEACH_X) / 2, -0.3, (z0 + z1) / 2, EARTH);
+    geo.box(BEACH_X - BOUNDS.x0 + OUTSKIRTS, 0.6, z1 - z0, (BOUNDS.x0 - OUTSKIRTS + BEACH_X) / 2, -0.3, (z0 + z1) / 2, EARTH);
   }
+  geo.box(OUTSKIRTS, 0.6, BOUNDS.z1 - BOUNDS.z0, BOUNDS.x0 - OUTSKIRTS / 2, -0.3, (BOUNDS.z0 + BOUNDS.z1) / 2, EARTH);
 
   const town = new THREE.Mesh(geo.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
   town.castShadow = town.receiveShadow = true;
@@ -127,14 +125,14 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
   // ---- Canal, banks, MRTS viaduct and stations, in the line's own frame ---------------------
   const line = new THREE.Group();
   line.rotation.y = -Math.PI / 2; // line x -> world +z (south), line z -> world -x (west)
-  line.position.set(BOUNDS.x0, 0, 0);
+  line.position.set(MRTS_X, 0, 0);
   scene.add(line);
   const lg = new GeoBuilder();
   const len = LINE_X[1] - LINE_X[0];
   const mid = (LINE_X[0] + LINE_X[1]) / 2;
-  lg.box(len, 0.6, CANAL.z0, mid, -0.6, CANAL.z0 / 2, EARTH); // town-side bank
-  lg.box(len, 0.6, FAR_BANK - CANAL.z1, mid, -0.6, (CANAL.z1 + FAR_BANK) / 2, EARTH);
+  const onBridge = (x: number) => Z_LINES.some((c) => Math.abs(x - c) < SETBACK + 1); // keep piers off the road bridges
   for (let x = LINE_X[0]; x <= LINE_X[1]; x += SPAN) {
+    if (onBridge(x)) continue;
     lg.box(1.4, DECK_Y - 0.6, 1.4, x, (DECK_Y - 0.6) / 2 + CANAL.y, RAIL_Z, CONCRETE); // piers standing in the canal
     lg.box(1.6, 0.8, 6.5, x, DECK_Y - 0.6, RAIL_Z, CONCRETE_DARK); // pier caps
   }
@@ -160,10 +158,6 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
   const lineMesh = new THREE.Mesh(lg.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
   lineMesh.castShadow = lineMesh.receiveShadow = true;
   line.add(lineMesh);
-  line.add(new THREE.Mesh(
-    new THREE.PlaneGeometry(len, CANAL.z1 - CANAL.z0).rotateX(-Math.PI / 2).translate(mid, CANAL.y, (CANAL.z0 + CANAL.z1) / 2),
-    new THREE.MeshStandardMaterial({ color: 0x3e5a4a, roughness: 0.15, metalness: 0.2 }),
-  ));
 
   // ---- The train: runs north to south, stopping at each station ---------------------------
   const train = new THREE.Mesh(trainGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 }));

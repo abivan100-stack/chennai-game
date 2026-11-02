@@ -57,6 +57,14 @@ const SPAWNS: Spawn[] = [
   { name: 'Sundari paati', model: 'woman-formal', block: [1, 5], lane: LANE_B, start: 0.3, height: 1.55, tint: 0xffe0b2 },
   { name: 'Ganesan', model: 'man-farmer', block: [3, 5], lane: LANE_A, reverse: true, start: 0.5, height: 1.66 },
   { name: 'Keerthana', model: 'woman-casual', block: [2, 4], lane: LANE_A, start: 0.8, height: 1.6, tint: 0xb2dfdb },
+  // Alwarpet / Teynampet
+  { name: 'Srinivasan sir', model: 'man-casual', block: [-1, 1], lane: LANE_A, start: 0.2, height: 1.7, tint: 0xeeeeee },
+  { name: 'Nithya', model: 'woman-suit', block: [-2, 2], lane: LANE_B, reverse: true, start: 0.5, height: 1.6 },
+  { name: 'Imran', model: 'man-worker', block: [0, 1], lane: LANE_A, start: 0.7, height: 1.72 },
+  // R.A. Puram / Adyar: evening walkers
+  { name: 'Padma maami', model: 'woman-formal', block: [1, 6], lane: LANE_B, start: 0.35, height: 1.56, tint: 0xf8bbd0 },
+  { name: 'Venkat', model: 'man-casual', block: [2, 7], lane: LANE_A, start: 0.6, pace: 'run', height: 1.74 },
+  { name: 'Shalini', model: 'woman-casual', block: [3, 8], lane: LANE_A, reverse: true, start: 0.15, height: 1.6 },
 ];
 
 /** Point a fraction `t` of the way round a closed loop. */

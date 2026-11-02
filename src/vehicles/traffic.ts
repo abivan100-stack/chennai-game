@@ -218,6 +218,18 @@ export class Traffic {
       ['auto', 1, 5, 0.5],
       ['scooter', 3, 5, 0.3, 0x8e24aa],
       ['car', 2, 4, 0.8, 0x607d8b],
+      // Alwarpet / Teynampet (across the canal)
+      ['bus', -1, 2, 0.3],
+      ['auto', -2, 1, 0.5],
+      ['car', -1, 4, 0.2, 0x455a64],
+      ['scooter', -2, 3, 0.7, 0x43a047],
+      ['car', 0, 0, 0.4, 0xeeeeee],
+      // R.A. Puram / Adyar
+      ['auto', 1, 6, 0.6],
+      ['car', 2, 7, 0.3, 0x1565c0],
+      ['bike', 0, 7, 0.5, 0x212121],
+      ['auto', 3, 8, 0.2],
+      ['bus', 1, 8, 0.6],
     ];
     for (const [kind, i, j, start, colour] of fleet) {
       const group = new THREE.Group();

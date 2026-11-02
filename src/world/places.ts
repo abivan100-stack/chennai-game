@@ -4,7 +4,7 @@ import { buildAutoModel } from '../vehicles/auto';
 import { PLACE_MENUS } from './food';
 import type { Eatery } from './eateries';
 import { GeoBuilder } from './geo';
-import { BEACH_FAIR, FISH_MARKET, PLACE_LOTS, type Lot } from './layout';
+import { BEACH_FAIR, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, FISH_MARKET, PLACE_LOTS, type Lot } from './layout';
 import { jailerPoster } from './posters';
 import { sandY } from './santhome';
 
@@ -61,8 +61,11 @@ const SIGNS: [string, string, string, string][] = [
   ['ஸ்ரீ ராம் மெடிக்கல்ஸ்', 'SRI RAM MEDICALS · PHARMACY', '#ffffff', '#1b5e20'],
   ['சாந்தோம் மீன் சந்தை', 'SANTHOME FISH MARKET', '#0277bd', '#ffffff'],
   ['சாந்தோம் பீச் திருவிழா', 'SANTHOME BEACH FAIR', '#ad1457', '#fff59d'],
+  ['விவேகானந்தா கல்லூரி', 'VIVEKANANDA COLLEGE', '#8d2b1e', '#ffe9b0'],
+  ['மெட்ராஸ் படகு சங்கம்', 'MADRAS BOAT CLUB · EST. 1867', '#ffffff', '#0d3b66'],
+  ['அடையார் ஆலமர வளாகம்', 'ADYAR BANYAN CAMPUS', '#33691e', '#ffffff'],
 ];
-const SIGN = { park: 0, church: 1, market: 2, stand: 3, bunk: 4, mechanic: 5, cinema: 6, bank: 7, pharmacy: 8, fish: 9, fair: 10 };
+const SIGN = { park: 0, church: 1, market: 2, stand: 3, bunk: 4, mechanic: 5, cinema: 6, bank: 7, pharmacy: 8, fish: 9, fair: 10, college: 11, boat: 12, campus: 13 };
 
 function signAtlas() {
   const c = document.createElement('canvas');
@@ -413,6 +416,91 @@ export function createPlaces(scene: THREE.Scene, world: RAPIER.World) {
     box(f, 1.4, 0.45, 0.12, f.w / 2 - 1.2, 4.55, 2.85, C(0x00e676), false);
     const p = f.at(0, 1.6);
     service('pharmacy', 'Sri Ram Medicals', new THREE.Vector3(p.x, 0, p.z), 2.6, false);
+  }
+
+  // ---- Vivekananda College: red-brick block with a clock tower, playground, compound wall ----
+  {
+    const f = frame(COLLEGE_LOT());
+    const { w, d } = f;
+    const brick = C(0xb5533c);
+    const trim = C(0xf3ead8);
+    const bv = d - 9; // main block depth position
+    box(f, w - 4, 10.5, 8, 0, 0, bv, brick);
+    for (const y of [3.5, 7]) box(f, w - 3.8, 0.3, 8.2, 0, y, bv, trim, false);
+    box(f, w - 3.6, 0.6, 8.4, 0, 10.5, bv, trim, false);
+    for (let i = 0; i < 9; i++) for (const y of [1.4, 4.9, 8.4]) box(f, 1.2, 1.6, 0.08, -w / 2 + 4.5 + i * ((w - 9) / 8), y, bv - 4.03, C(0x2f3d4a), false);
+    // Clock tower over the entrance.
+    box(f, 4.2, 6, 4.2, 0, 10.5, bv - 1, brick, false);
+    box(f, 4.6, 0.4, 4.6, 0, 16.5, bv - 1, trim, false);
+    shape(f, new THREE.ConeGeometry(3.1, 3, 4).rotateY(Math.PI / 4), 0, 18.4, bv - 1, C(0x5d4037));
+    shape(f, new THREE.CylinderGeometry(1.1, 1.1, 0.12, 20).rotateX(Math.PI / 2), 0, 13.6, bv - 3.13, WHITE);
+    box(f, 2.6, 3, 0.1, 0, 0, bv - 4.05, C(0x4a2e1c), false); // door
+    // Playground with a cricket pitch and goalposts, trees along the side.
+    box(f, w - 6, 0.03, bv - 12, 0, 0, 3 + (bv - 12) / 2, C(0xc8b27a), false);
+    box(f, 2.4, 0.04, 14, 0, 0.01, 3 + (bv - 12) / 2, C(0xe2d3a0), false);
+    for (const v of [3 + (bv - 12) / 2 - 6.8, 3 + (bv - 12) / 2 + 6.8]) for (const s of [-0.2, 0, 0.2]) box(f, 0.05, 0.7, 0.05, s, 0, v, WHITE, false);
+    for (const u of [-w / 2 + 2, w / 2 - 2]) for (let v = 4; v < bv - 5; v += 7) tree(f, u, v, 0.9);
+    // Compound wall with the gate arch on Luz Church Road.
+    const gate = 6;
+    const side = (w - gate) / 2;
+    for (const s of [-1, 1]) {
+      box(f, side, 1.6, 0.3, s * (gate / 2 + side / 2), 0, 0.2, trim);
+      box(f, 0.8, 4.5, 0.8, s * (gate / 2 + 0.4), 0, 0.2, brick);
+    }
+    box(f, gate + 1.6, 0.5, 0.8, 0, 4.5, 0.2, brick, false);
+    board(f, SIGN.college, 0, 5, -0.25, gate + 2, 1.1);
+    box(f, 0.3, 1.6, d, -w / 2, 0, d / 2, trim);
+    box(f, 0.3, 1.6, d, w / 2, 0, d / 2, trim);
+    box(f, w, 1.6, 0.3, 0, 0, d - 0.2, trim);
+  }
+
+  // ---- Madras Boat Club on the Adyar's north bank: clubhouse, lawn, jetty and rowing boats ----
+  {
+    const lot = BOAT_CLUB_LOT();
+    const f = frame(lot);
+    const { w, d } = f;
+    box(f, w - 1, 0.03, d - 0.5, 0, 0, d / 2, GRASS, false);
+    box(f, 15, 4.2, 5.5, -4, 0, d - 3.2, WHITE);
+    shape(f, new THREE.ConeGeometry(9, 2.2, 4).rotateY(Math.PI / 4).scale(1, 1, 0.42), -4, 5.3, d - 3.2, C(0xa0442a));
+    for (let i = 0; i < 6; i++) box(f, 0.25, 3.2, 0.25, -10.5 + i * 2.6, 0, d - 6.3, WHITE);
+    box(f, 15.4, 0.25, 1.5, -4, 3.2, d - 5.8, C(0xa0442a), false); // verandah roof
+    board(f, SIGN.boat, 6, 1.1, 0.05, 8, 1);
+    box(f, 0.8, 1.4, 0.8, 1.5, 0, 0.4, WHITE);
+    box(f, w - 2, 1, 0.2, 0, 0, 0.2, WHITE, true, 0);
+    // Jetty and boats on the river (seen over the parapet).
+    const jy = -0.75;
+    box(f, 3, 0.15, 12, 8, jy, d + 6.5, WOOD, false);
+    for (const s of [-1.3, 1.3]) for (let v = d + 1; v < d + 13; v += 3) box(f, 0.15, 0.8, 0.15, 8 + s, jy - 0.6, v, C(0x4e342e), false);
+    const hull = new THREE.CylinderGeometry(0.28, 0.28, 7.5, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.5, 1);
+    for (const [u, v, c] of [[3, d + 4, C(0xf5f5f5)], [2.4, d + 8, C(0x1565c0)], [13, d + 10, C(0xc62828)]] as const) shape(f, hull, u, -0.85, v, c, Math.PI / 2);
+  }
+
+  // ---- Adyar Banyan Campus across the river: lawns, a heritage hall, giant banyans ----
+  {
+    const lot = CAMPUS_LOT();
+    const f = frame(lot);
+    const { w, d } = f;
+    box(f, w - 1, 0.03, d - 1, 0, 0, d / 2, C(0x6b9e45), false);
+    box(f, 14, 6, 8, 0, 0, d - 7, C(0xf4efe2));
+    for (let i = 0; i < 7; i++) box(f, 0.5, 5, 0.5, -6 + i * 2, 0, d - 11.3, WHITE);
+    box(f, 14.6, 0.6, 1.4, 0, 5, d - 11.3, C(0xf4efe2), false);
+    shape(f, new THREE.SphereGeometry(2.6, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0, 6, d - 7, C(0xd7ccc8));
+    // Banyans: wide crowns on thick trunks with hanging roots.
+    for (const [u, v, s] of [[-11, 7, 1.5], [10, 9, 1.3], [-10, d - 6, 1.1]] as const) {
+      shape(f, new THREE.CylinderGeometry(0.5 * s, 0.75 * s, 4.5 * s, 8).translate(0, 2.25 * s, 0), u, 0, v, TRUNK);
+      shape(f, new THREE.IcosahedronGeometry(3 * s, 1).scale(1.6, 0.55, 1.6), u, 5.6 * s, v, LEAF);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        shape(f, new THREE.CylinderGeometry(0.06, 0.08, 4.2 * s, 4).translate(0, 2.1 * s, 0), u + Math.cos(a) * 3 * s, 0, v + Math.sin(a) * 3 * s, TRUNK);
+      }
+      const p = f.at(u, v);
+      world.createCollider(RAPIER.ColliderDesc.cylinder(2.2 * s, 0.75 * s).setTranslation(p.x, 2.2 * s, p.z));
+    }
+    const gate = 5;
+    const side = (w - gate) / 2;
+    for (const s of [-1, 1]) box(f, side, 1.4, 0.3, s * (gate / 2 + side / 2), 0, 0.2, C(0xe9e2d0));
+    board(f, SIGN.campus, -(gate / 2 + side / 2), 1.5, 0.05, 8, 1);
+
   }
 
   // ---- Santhome fish market: tarp roofs, fish tables, ice boxes ----

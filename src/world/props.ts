@@ -2,18 +2,19 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
-import { ROAD_HALF, SIDEWALK_HEIGHT, X_LINES, X_ROADS, Z_LINES, Z_ROADS, roadSpans, roads } from './layout';
+import { BOUNDS, ROAD_HALF, SIDEWALK_HEIGHT, inWater, X_LINES, X_ROADS, Z_LINES, Z_ROADS, roadSpans, roads } from './layout';
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
 const LAMP_SPACING = 14; // close enough that the light pools join up along the street at night
 const TREE_SPACING = 13;
+const TREE_TILE = 330; // street trees are instanced per tile of this size (culling)
 const LAMP_HEIGHT = 6.5;
 /** Backdrop groves past the edges: [x0, x1, z0, z1, count] (north, south, and beyond the canal). */
 const OUTSKIRT_GROVES: [number, number, number, number, number][] = [
-  [-100, 130, -260, -110, 70],
-  [-100, 130, 230, 380, 70],
-  [-400, -130, -300, 400, 90],
+  [BOUNDS.x0, 130, BOUNDS.z0 - 160, BOUNDS.z0 - 10, 80],
+  [BOUNDS.x0, 130, BOUNDS.z1 + 10, BOUNDS.z1 + 160, 80],
+  [BOUNDS.x0 - 260, BOUNDS.x0 - 10, BOUNDS.z0 - 150, BOUNDS.z1 + 150, 110],
 ];
 
 interface TreeKind {
@@ -111,6 +112,8 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
           }
           for (let s = a + 4 + rand() * 4; s < b - 4; s += TREE_SPACING * (0.7 + rand() * 0.6)) {
             if (lampAlongs.some((l) => Math.abs(l - s) < 3) || offEnd(s)) continue;
+            const at = place(s);
+            if (inWater(at.x, at.z, 4)) continue; // no trees on the bridges
             const scale = 0.8 + rand() * 0.5;
             trees.push(new THREE.Matrix4().makeRotationY(rand() * Math.PI * 2).scale(new THREE.Vector3(scale, scale, scale)).setPosition(place(s)));
           }
@@ -150,15 +153,26 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   const treeMeshes: THREE.Object3D[] = [];
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
   const leaf = new THREE.Color();
-  kinds.forEach((k, ki) => {
-    const mine = placed.filter((t) => t.kind === ki).map((t) => t.m);
-    if (!mine.length) return;
-    const trunk = instanced(k.trunk, trunkMat, mine);
-    const canopy = instanced(k.canopy, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), mine);
-    mine.forEach((_, i) => canopy.setColorAt(i, k.colour(leaf, rand())));
-    trunk.castShadow = canopy.castShadow = true;
-    treeMeshes.push(trunk, canopy);
+  // Grouped by map tile (and the backdrop groves on their own, without shadows) so whole
+  // tiles off screen or outside the shadow box are skipped instead of drawing every tree.
+  const canopyMats = kinds.map(() => new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }));
+  const groups = new Map<string, { kind: number; ms: THREE.Matrix4[]; street: boolean }>();
+  placed.forEach((t, i) => {
+    const street = i < trees.length;
+    const x = t.m.elements[12];
+    const z = t.m.elements[14];
+    const key = street ? `${t.kind}:${Math.floor(x / TREE_TILE)},${Math.floor(z / TREE_TILE)}` : `${t.kind}:far`;
+    if (!groups.has(key)) groups.set(key, { kind: t.kind, ms: [], street });
+    groups.get(key)!.ms.push(t.m);
   });
+  for (const g of groups.values()) {
+    const k = kinds[g.kind];
+    const trunk = instanced(k.trunk, trunkMat, g.ms);
+    const canopy = instanced(k.canopy, canopyMats[g.kind], g.ms);
+    g.ms.forEach((_, i) => canopy.setColorAt(i, k.colour(leaf, rand())));
+    canopy.castShadow = g.street; // thin trunks' shadows aren't worth the cost
+    treeMeshes.push(trunk, canopy);
+  }
 
   scene.add(poles, heads, pools, ...treeMeshes, streetSigns(world));
 

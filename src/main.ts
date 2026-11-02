@@ -37,7 +37,7 @@ import { createMandaveli } from './world/mandaveli';
 import { createPosters } from './world/posters';
 import { createHospital } from './world/hospital';
 import { createPlaces, type Service } from './world/places';
-import { CINEMA, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
+import { CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
@@ -775,6 +775,7 @@ async function main() {
     dayNight.rain = weather.rain;
     dayNight.cloud = weather.cloud;
     ground.setWet(weather.rain);
+    ground.update(dt);
     dayNight.update(dt, input.isDown('KeyT'), player.position);
     scene.environmentIntensity = ENV_NIGHT + (ENV_DAY - ENV_NIGHT) * (1 - dayNight.night);
     renderer.toneMappingExposure = EXPOSURE_DAY + (EXPOSURE_NIGHT - EXPOSURE_DAY) * dayNight.night; // eyes adjust at night
@@ -864,6 +865,11 @@ async function main() {
         jobs.addOrderFrom(CINEMA);
         jobs.addOrderFrom(CINEMA);
         phone.notify(PLACE_LINES.showOver);
+      }
+      if (lastShowHour >= 0 && COLLEGE_RUSH.includes(hour) && jobs.phase !== 'off') {
+        jobs.addOrderFrom(COLLEGE);
+        jobs.addOrderFrom(COLLEGE);
+        phone.notify(PLACE_LINES.collegeRush);
       }
       lastShowHour = hour;
     }

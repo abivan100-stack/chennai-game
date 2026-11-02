@@ -1,4 +1,5 @@
 import type { Footprint } from '../world/buildings';
+import { BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
@@ -24,10 +25,12 @@ export interface TownMap {
   labels: MapLabel[];
 }
 
-/** Metres -> map pixels (x right = east, y down = south). The world's west and north edges are both at -100, so one function serves both axes. */
-export const mapPx = (m: number) => (m - BOUNDS.x0) * MAP_PPM;
-export const MAP_W = (BOUNDS.x1 - BOUNDS.x0) * MAP_PPM;
-export const MAP_H = (BOUNDS.z1 - BOUNDS.z0) * MAP_PPM;
+/** The map's top-left corner, the same on both axes so one function serves x and z. */
+const MAP_ORIGIN = Math.min(BOUNDS.x0, BOUNDS.z0);
+/** Metres -> map pixels (x right = east, y down = south). */
+export const mapPx = (m: number) => (m - MAP_ORIGIN) * MAP_PPM;
+export const MAP_W = (BOUNDS.x1 - MAP_ORIGIN) * MAP_PPM;
+export const MAP_H = (BOUNDS.z1 - MAP_ORIGIN) * MAP_PPM;
 
 // Navigation-app palette.
 const C = {
@@ -49,7 +52,8 @@ const C = {
 };
 export const MAP_LAND = C.land;
 /** The outer roads and the Beach Road are the big ones (yellow, like a main road on a nav app). */
-const isMain = (r: RoadLine) => Math.abs(r.c) === 70 || r.c === BEACH_ROAD;
+const MAIN_ROADS = [-70, 70, BEACH_ROAD, -145, -265, -130, 300];
+const isMain = (r: RoadLine) => MAIN_ROADS.includes(r.c);
 
 /**
  * Draw the town once, without text (labels come back separately, so a rotating minimap can
@@ -74,6 +78,17 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(SEA_X), 0, MAP_W - P(SEA_X), MAP_H);
   labels.push({ text: 'Santhome Beach', x: (BEACH_X + SEA_X) / 2, z: 15, kind: 'landmark' });
   labels.push({ text: 'Bay of Bengal', x: (SEA_X + BOUNDS.x1) / 2, z: -40, kind: 'landmark' });
+
+  // The Buckingham Canal and the Adyar river (the roads drawn next bridge them).
+  g.fillStyle = C.water;
+  for (const w of waterRects()) g.fillRect(P(w.x0), P(w.z0), M(w.x1 - w.x0), M(w.z1 - w.z0));
+  labels.push({ text: 'Adyar River', x: -180, z: (RIVER.z0 + RIVER.z1) / 2, kind: 'landmark' });
+  labels.push({ text: 'Adyar River', x: 40, z: (RIVER.z0 + RIVER.z1) / 2, kind: 'landmark' });
+  labels.push({ text: 'Buckingham Canal', x: (CANAL.x0 + CANAL.x1) / 2, z: 100, kind: 'landmark' });
+  labels.push({ text: 'ALWARPET', x: -175, z: -45, kind: 'landmark' });
+  labels.push({ text: 'TEYNAMPET', x: -235, z: 50, kind: 'landmark' });
+  labels.push({ text: 'R.A. PURAM', x: -48, z: 270, kind: 'landmark' });
+  labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'landmark' });
 
   /** A band `half` wide either side of each road's centre line, over the road's length. */
   const bands = (half: number, colour: string, only?: boolean) => {
@@ -142,14 +157,12 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(dep.x0), P(dep.z0), M(dep.x1 - dep.x0), M(dep.z1 - dep.z0));
   badge(g, P((dep.x0 + dep.x1) / 2), P((dep.z0 + dep.z1) / 2), '#1d4fa8', 'D');
   labels.push({ text: 'MTC Bus Depot', x: (dep.x0 + dep.x1) / 2, z: dep.z0 + 22, kind: 'landmark' });
-  // The MRTS runs north-south just past the west edge, along the Buckingham Canal.
-  g.fillStyle = '#7fb3c8';
-  g.fillRect(0, 0, M(2.5), MAP_H);
+  // The MRTS viaduct runs north-south over the Buckingham Canal.
   g.fillStyle = '#9a9488';
-  g.fillRect(M(2.5), 0, M(1.5), MAP_H);
-  for (const [z, name] of [[-26, 'Thirumayilai MRTS'], [160, 'Mandaveli MRTS']] as const) {
-    badge(g, P(BOUNDS.x0 + 6), P(z), '#f4a000', 'M');
-    labels.push({ text: name, x: BOUNDS.x0 + 16, z: z + 7, kind: 'landmark' });
+  g.fillRect(P(MRTS_X - 16.5), P(BOUNDS.z0), M(3), MAP_H);
+  for (const [z, name] of MRTS_STATIONS) {
+    badge(g, P(MRTS_X - 6), P(z), '#f4a000', 'M');
+    labels.push({ text: name, x: MRTS_X + 4, z: z + 7, kind: 'landmark' });
   }
   labels.push({ text: 'MANDAVELI', x: -48, z: 150, kind: 'landmark' });
   labels.push({ text: 'SANTHOME', x: 100, z: -90, kind: 'landmark' });
@@ -176,6 +189,9 @@ export function drawTownMap(data: MapData): TownMap {
     [pl.pharmacy, '#c8e6c9', '#1b5e20', '+', 'Pharmacy'],
     [FISH_MARKET, '#b3e5fc', '#0277bd', 'F', 'Fish market'],
     [BEACH_FAIR, '#f8bbd0', '#ad1457', '★', 'Beach fair'],
+    [COLLEGE_LOT(), '#f3d9cf', '#8d2b1e', '🎓', 'Vivekananda College'],
+    [BOAT_CLUB_LOT(), '#c8e6c9', '#0d3b66', '⛵', 'Madras Boat Club'],
+    [CAMPUS_LOT(), '#a5d6a7', '#33691e', '🌳', 'Adyar Banyan Campus'],
   ];
   for (const [lot, fill, colour, letter, name] of placeMarks) {
     g.fillStyle = fill;

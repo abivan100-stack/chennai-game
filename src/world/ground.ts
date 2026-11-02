@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { BEACH_ROAD, BEACH_X, BOUNDS, ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, roadSpans, roads, type RoadLine } from './layout';
+import { BEACH_ROAD, BEACH_X, BOUNDS, RIVER, ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, roadSpans, roads, waterRects, type RoadLine } from './layout';
 import { tankRect } from './temple';
 import { asphaltTexture, curbTexture, pavingTexture } from './textures';
 
@@ -9,6 +9,34 @@ const WHITE = new THREE.Color(0xffffff);
 const UP = new THREE.Vector3(0, 1, 0);
 const DASH = 3; // centre-line dash length (m); gaps are the same
 const ZEBRA_STRIPES = 8;
+const WATER_Y = -1.0; // canal / river surface, below the banks
+const BANK_DEPTH = 1.6; // stone bank faces go this far down
+const PARAPET = { h: 0.6, w: 0.3 }; // low wall along the banks and the bridges' sides
+type Rect = { x0: number; x1: number; z0: number; z1: number };
+
+/** Split the rectangle `area` into cells that avoid every hole (a grid on all the edges). */
+function cellsAround(area: Rect, holes: Rect[]): Rect[] {
+  const xs = [...new Set([area.x0, area.x1, ...holes.flatMap((h) => [h.x0, h.x1])])].filter((x) => x >= area.x0 && x <= area.x1).sort((a, b) => a - b);
+  const zs = [...new Set([area.z0, area.z1, ...holes.flatMap((h) => [h.z0, h.z1])])].filter((z) => z >= area.z0 && z <= area.z1).sort((a, b) => a - b);
+  const out: Rect[] = [];
+  for (let j = 0; j < zs.length - 1; j++) {
+    // Merge runs of free cells along x so the slab needs few colliders.
+    let run: Rect | null = null;
+    for (let i = 0; i < xs.length - 1; i++) {
+      const c = { x0: xs[i], x1: xs[i + 1], z0: zs[j], z1: zs[j + 1] };
+      const mx = (c.x0 + c.x1) / 2;
+      const mz = (c.z0 + c.z1) / 2;
+      const hole = holes.some((h) => mx > h.x0 && mx < h.x1 && mz > h.z0 && mz < h.z1);
+      if (hole) {
+        if (run) out.push(run);
+        run = null;
+      } else if (run) run.x1 = c.x1;
+      else run = c;
+    }
+    if (run) out.push(run);
+  }
+  return out;
+}
 
 /** A road runs along `axis` at centre-line `c`. Map (across, height, along) -> world. */
 type Road = RoadLine;
@@ -21,22 +49,61 @@ const dir = (r: Road, across: number, along: number) => at(r, across, 0, along).
  * invisible edge walls. 4 draw calls total; sidewalks get colliders (the 0.15 m kerb is climbable).
  */
 export function createGround(scene: THREE.Scene, world: RAPIER.World) {
-  // Ground: four rectangles around the temple tank's pit.
-  const t = tankRect();
-  const earth = new GeoBuilder();
-  const rect = (x0: number, x1: number, z0: number, z1: number) => {
-    const c = [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0, z0), new THREE.Vector3(x1, 0, z1), new THREE.Vector3(x0, 0, z1)];
-    earth.quad(c[0], c[1], c[2], c[3], [[0, 0], [0, 0], [0, 0], [0, 0]], WHITE, UP);
-  };
+  // Ground: the town's floor with holes for the temple tank's pit, the canal and the river.
   // Earth stops at the beach; the sand (with its own floor collider) and the sea are world/santhome.ts.
-  const { x0, z0, z1 } = BOUNDS;
-  rect(x0, BEACH_X, z0, t.z0);
-  rect(x0, BEACH_X, t.z1, z1);
-  rect(x0, t.x0, t.z0, t.z1);
-  rect(t.x1, BEACH_X, t.z0, t.z1);
+  const water = waterRects();
+  const area = { x0: BOUNDS.x0, x1: BEACH_X, z0: BOUNDS.z0, z1: BOUNDS.z1 };
+  const earth = new GeoBuilder();
+  for (const r of cellsAround(area, [tankRect(), ...water])) {
+    const c = [new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, 0, r.z0), new THREE.Vector3(r.x1, 0, r.z1), new THREE.Vector3(r.x0, 0, r.z1)];
+    earth.quad(c[0], c[1], c[2], c[3], [[0, 0], [0, 0], [0, 0], [0, 0]], WHITE, UP);
+  }
+  // Floor slab (thick: thin colliders let fast things tunnel); the tank pit keeps its own walls.
+  for (const r of cellsAround(area, water)) {
+    world.createCollider(RAPIER.ColliderDesc.cuboid((r.x1 - r.x0) / 2, 0.5, (r.z1 - r.z0) / 2).setTranslation((r.x0 + r.x1) / 2, -0.5, (r.z0 + r.z1) / 2));
+  }
   const ground = new THREE.Mesh(earth.build(), new THREE.MeshStandardMaterial({ color: 0x7d7262, roughness: 1 }));
   ground.receiveShadow = true;
   scene.add(ground);
+
+  // Canal and river: water surface, stone bank faces, a parapet all round each stretch (on a
+  // bridge that's its railing) and an invisible wall so nobody falls in.
+  const banks = new GeoBuilder();
+  const waterGeo = new GeoBuilder();
+  const stone = new THREE.Color(0x8f877a);
+  const parapet = new THREE.Color(0xd9d3c4);
+  const STONE_UV = [[0, 0], [0, 0], [0, 0], [0, 0]];
+  for (const w of water) {
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    waterGeo.quad(V(w.x0, WATER_Y, w.z0), V(w.x1, WATER_Y, w.z0), V(w.x1, WATER_Y, w.z1), V(w.x0, WATER_Y, w.z1), [[w.x0 / 8, w.z0 / 8], [w.x1 / 8, w.z0 / 8], [w.x1 / 8, w.z1 / 8], [w.x0 / 8, w.z1 / 8]], WHITE, UP);
+    const edges: [THREE.Vector3, THREE.Vector3, THREE.Vector3][] = [
+      [V(w.x0, 0, w.z0), V(w.x1, 0, w.z0), V(0, 0, 1)], // north edge, facing into the water (+z)
+      [V(w.x1, 0, w.z1), V(w.x0, 0, w.z1), V(0, 0, -1)],
+      [V(w.x0, 0, w.z1), V(w.x0, 0, w.z0), V(1, 0, 0)],
+      [V(w.x1, 0, w.z0), V(w.x1, 0, w.z1), V(-1, 0, 0)],
+    ];
+    for (const [a, b, n] of edges) {
+      // A canal stretch opens into the river: no bank or wall on that edge (the river's own
+      // parapet across the canal mouth reads as a lock gate).
+      const canal = w.z1 - w.z0 !== RIVER.z1 - RIVER.z0;
+      if (canal && a.z === b.z && (a.z === RIVER.z0 || a.z === RIVER.z1)) continue;
+      banks.quad(a, b, b.clone().setY(-BANK_DEPTH), a.clone().setY(-BANK_DEPTH), STONE_UV, stone, n);
+      const len = a.distanceTo(b);
+      const mid = a.clone().add(b).multiplyScalar(0.5).addScaledVector(n, -PARAPET.w / 2);
+      const along = Math.abs(n.x) > 0.5 ? 'z' : 'x';
+      const [sx, sz] = along === 'x' ? [len, PARAPET.w] : [PARAPET.w, len];
+      banks.box(sx, PARAPET.h, sz, mid.x, PARAPET.h / 2, mid.z, parapet);
+      world.createCollider(RAPIER.ColliderDesc.cuboid(sx / 2, 1, sz / 2).setTranslation(mid.x, 1, mid.z));
+    }
+  }
+  const waterTex = new THREE.CanvasTexture(waterCanvas());
+  waterTex.wrapS = waterTex.wrapT = THREE.RepeatWrapping;
+  const waterMat = new THREE.MeshStandardMaterial({ map: waterTex, color: 0x5d7f6c, roughness: 0.12, metalness: 0.25 });
+  const waterMesh = new THREE.Mesh(waterGeo.build(), waterMat);
+  const bankMesh = new THREE.Mesh(banks.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+  bankMesh.castShadow = bankMesh.receiveShadow = true;
+  waterMesh.receiveShadow = true;
+  scene.add(waterMesh, bankMesh);
 
   const asphaltB = new GeoBuilder();
   const marks = new GeoBuilder();
@@ -91,18 +158,24 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
     scene.add(m);
   }
 
-  // Physics: thick ground slab (thin colliders let fast things tunnel) + 4 edge walls.
+  // Physics: the floor slab is built with the ground above; here the 4 edge walls.
   const cx = (BOUNDS.x0 + BOUNDS.x1) / 2;
   const cz = (BOUNDS.z0 + BOUNDS.z1) / 2;
   const hx = (BOUNDS.x1 - BOUNDS.x0) / 2;
   const hz = (BOUNDS.z1 - BOUNDS.z0) / 2;
-  const gx = (BOUNDS.x0 + BEACH_X) / 2; // the town's floor slab stops where the beach starts
-  world.createCollider(RAPIER.ColliderDesc.cuboid((BEACH_X - BOUNDS.x0) / 2, 0.5, hz).setTranslation(gx, -0.5, cz));
-  const wet = { setWet(f: number) {
+  let t = 0;
+  const wet = {
+    /** Ripple the canal and river. */
+    update(dt: number) {
+      t += dt;
+      waterTex.offset.set(t * 0.01, t * 0.02);
+    },
+    setWet(f: number) {
     roadMat.roughness = 0.95 - 0.6 * f;
     roadMat.metalness = 0.25 * f;
     roadMat.color.setScalar(1 - 0.35 * f);
-  } };
+    },
+  };
   // Edge walls (the sea side is walled off in the water by world/santhome.ts).
   for (const [x, z, wx, wz] of [
     [BOUNDS.x1, cz, 0.5, hz],
@@ -113,6 +186,26 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
     world.createCollider(RAPIER.ColliderDesc.cuboid(wx, 10, wz).setTranslation(x, 10, z));
   }
   return wet;
+}
+
+/** Soft ripples for the canal and river (drawn once). */
+function waterCanvas() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 70; i++) {
+    g.strokeStyle = `rgba(150, 175, 160, ${0.25 + Math.random() * 0.3})`;
+    g.lineWidth = 1 + Math.random() * 2;
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + 6, y - 3, x + 14, y);
+    g.stroke();
+  }
+  return c;
 }
 
 /** Flat painted rectangle on the road: centred at (across, along), size w (across) x l (along). */

@@ -11,17 +11,30 @@
  *     run just past the south edge, world/mandaveli.ts).
  *   - East of San Thome High Road: Santhome. The San Thome Basilica block, then Kamarajar
  *     Salai (Beach Road), then the beach and the sea (world/santhome.ts).
+ *   - West of R.K. Mutt Road: the Buckingham Canal (MRTS above it, bridges where the roads
+ *     cross), then Alwarpet (TTK Road, bungalows) and Teynampet (Eldams Road, Anna Salai).
+ *   - North: Dr. Radhakrishnan Salai. South of Mandaveli: R.A. Puram, Greenways Road, the Adyar
+ *     river (bridges on every north-south road, the boat club on its bank) and Adyar beyond it.
+ * Block grid indices keep the original Mylapore numbering (temple = [2, 2]); the new areas to
+ * the west and north get negative indices.
  * Directions: -z = north, +x = east.
  *
  * Cross-section from a road centre line outwards:
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
 /** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
-export const BOUNDS = { x0: -100, x1: 250, z0: -100, z1: 220 }; // z 100..220: Mandaveli (south)
+export const BOUNDS = { x0: -300, x1: 250, z0: -160, z1: 420 };
 /** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
-export const X_LINES = [-70, -25, 25, 70, 125];
+export const X_LINES = [-265, -205, -145, -70, -25, 25, 70, 125];
 /** Roads running east-west (centre line z = c). They end at the Beach Road. */
-export const Z_LINES = [-70, -25, 25, 70, 125, 180];
+export const Z_LINES = [-130, -70, -25, 25, 70, 125, 180, 240, 300, 390];
+/** Water the roads cross on bridges: the canal (north-south strip) and the Adyar river (east-west). */
+export const CANAL = { x0: -121, x1: -109 };
+export const RIVER = { z0: 318, z1: 346 };
+/** The MRTS line's reference x (its frame starts here; the canal lies 9-21 m west of it). */
+export const MRTS_X = -100;
+/** MRTS stations: centre (world z) and name; each sits between two cross roads. */
+export const MRTS_STATIONS: [number, string][] = [[0, 'Thirumayilai MRTS'], [152.5, 'Mandaveli MRTS']];
 export const BEACH_ROAD = X_LINES[X_LINES.length - 1];
 export const ROAD_HALF = 5;
 export const SIDEWALK_WIDTH = 2.5;
@@ -47,6 +60,9 @@ export function roads(): RoadLine[] {
 
 /** Street names (English, Tamil). X_ROADS run north-south at x = line; Z_ROADS run east-west at z = line. */
 export const X_ROADS: Record<number, [string, string]> = {
+  [-265]: ['Anna Salai (Mount Road)', 'அண்ணா சாலை'],
+  [-205]: ['Eldams Road', 'எல்டாம்ஸ் சாலை'],
+  [-145]: ['TTK Road', 'டி.டி.கே. சாலை'],
   [-70]: ['R.K. Mutt Road', 'ஆர்.கே. மடம் சாலை'],
   [-25]: ['West Mada Street', 'மேற்கு மாட வீதி'],
   [25]: ['East Mada Street', 'கிழக்கு மாட வீதி'],
@@ -54,12 +70,16 @@ export const X_ROADS: Record<number, [string, string]> = {
   [125]: ['Kamarajar Salai (Beach Road)', 'காமராஜர் சாலை'],
 };
 export const Z_ROADS: Record<number, [string, string]> = {
+  [-130]: ['Dr. Radhakrishnan Salai', 'டாக்டர் ராதாகிருஷ்ணன் சாலை'],
   [-70]: ['Luz Church Road', 'லஸ் சர்ச் சாலை'],
   [-25]: ['North Mada Street', 'வடக்கு மாட வீதி'],
   [25]: ['South Mada Street', 'தெற்கு மாட வீதி'],
   [70]: ['Kutchery Road', 'கச்சேரி சாலை'],
   [125]: ['Venkatakrishna Road', 'வெங்கடகிருஷ்ணா சாலை'],
   [180]: ["St. Mary's Road", 'செயின்ட் மேரீஸ் சாலை'],
+  [240]: ['R.A. Puram 2nd Main Road', 'ஆர்.ஏ. புரம் 2வது பிரதான சாலை'],
+  [300]: ['Greenways Road', 'கிரீன்வேஸ் சாலை'],
+  [390]: ['Adyar Main Road', 'அடையார் பிரதான சாலை'],
 };
 
 /**
@@ -78,7 +98,7 @@ export function roadSpans(r: RoadLine): [number, number][] {
   return spans;
 }
 
-export type BlockKind = 'shops' | 'temple' | 'tank' | 'church' | 'beach';
+export type BlockKind = 'shops' | 'houses' | 'temple' | 'tank' | 'church' | 'beach';
 export interface Block {
   i: number; // column (west -> east)
   j: number; // row (north -> south)
@@ -92,7 +112,12 @@ export interface Block {
 }
 
 const CENTRE = 2; // block index of the temple (both axes)
-const SANTHOME = X_LINES.length - 1; // block column between San Thome High Road and the Beach Road
+const SANTHOME = 4; // block column between San Thome High Road and the Beach Road
+/** Grid index offsets: the original Mylapore grid started at R.K. Mutt Road / Luz Church Road. */
+const I0 = X_LINES.filter((c) => c < -70).length;
+const J0 = Z_LINES.filter((c) => c < -70).length;
+/** Alwarpet (just past the canal) and R.A. Puram / Adyar are leafy: houses behind compound walls. */
+const housesAt = (i: number, j: number) => i === -1 || (j >= 6 && i <= SANTHOME);
 
 /** City blocks between roads: lot rectangles (inside the sidewalks) + what goes there. */
 export function blocks(): Block[] {
@@ -101,14 +126,17 @@ export function blocks(): Block[] {
   const out: Block[] = [];
   const lo = (e: number[], i: number) => (i === 0 ? e[0] + WORLD_MARGIN : e[i] + SETBACK);
   const hi = (e: number[], i: number) => (i === e.length - 2 ? e[e.length - 1] - WORLD_MARGIN : e[i + 1] - SETBACK);
-  for (let i = 0; i < ex.length - 1; i++) {
-    for (let j = 0; j < ez.length - 1; j++) {
+  for (let ii = 0; ii < ex.length - 1; ii++) {
+    for (let jj = 0; jj < ez.length - 1; jj++) {
+      const i = ii - I0;
+      const j = jj - J0;
       const kind: BlockKind = i > SANTHOME ? 'beach'
+        : housesAt(i, j) ? 'houses'
         : j !== CENTRE ? 'shops'
         : i === CENTRE ? 'temple' : i === CENTRE - 1 ? 'tank' : i === SANTHOME ? 'church' : 'shops';
       out.push({
-        i, j, x0: lo(ex, i), x1: hi(ex, i), z0: lo(ez, j), z1: hi(ez, j), kind,
-        road: { w: i > 0, e: i < ex.length - 2, n: j > 0, s: j < ez.length - 2 },
+        i, j, x0: lo(ex, ii), x1: hi(ex, ii), z0: lo(ez, jj), z1: hi(ez, jj), kind,
+        road: { w: ii > 0, e: ii < ex.length - 2, n: jj > 0, s: jj < ez.length - 2 },
       });
     }
   }
@@ -174,8 +202,8 @@ export const PLACE_LOTS = () => {
     church: lot(luzS.x0 + 1, luzS.x1 - 1, luzS.z0, luzS.z0 + 24, 'n'),
     market: lot(tankS.x0, tankS.x0 + 17.5, tankS.z0, tankS.z0 + 20, 'n'),
     stand: lot(tankS.x0 + 17.5, tankS.x1, tankS.z0, tankS.z0 + 14, 'n'),
-    bunk: lot(rkm.x0, rkm.x1, rkm.z0, rkm.z0 + 17, 'e'),
-    mechanic: lot(rkm.x0, rkm.x1, rkm.z0 + 18, rkm.z1, 'e'),
+    bunk: lot(rkm.x1 - 20.5, rkm.x1, rkm.z0, rkm.z0 + 17, 'e'),
+    mechanic: lot(rkm.x1 - 20.5, rkm.x1, rkm.z0 + 18, rkm.z1, 'e'),
     cinema: lot(kutE.x0, kutE.x1, kutE.z0, kutE.z0 + 24, 'n'),
     bank: lot(kutW.x0, kutW.x0 + 14, kutW.z0, kutW.z0 + 14, 'n'),
     pharmacy: lot(kutW.x0 + 15, kutW.x0 + 26, kutW.z0, kutW.z0 + 12, 'n'),
@@ -185,6 +213,57 @@ export const PLACE_LOTS = () => {
 /** On Santhome beach: the fish market by the fishermen's huts and the evening fair further south. */
 export const FISH_MARKET = { x0: 144, x1: 162, z0: 56, z1: 80 };
 export const BEACH_FAIR = { x0: 144, x1: 186, z0: 100, z1: 138 };
+
+/** Rectangles of open water (canal and river), leaving out the road bands that bridge them. */
+export function waterRects() {
+  const out: { x0: number; x1: number; z0: number; z1: number }[] = [];
+  /** Split [a, b] around the road bands (centre lines `lines`, half-width SETBACK). */
+  const gaps = (a: number, b: number, lines: number[]) => {
+    const cuts = lines.filter((c) => c + SETBACK > a && c - SETBACK < b).sort((m, n) => m - n);
+    const res: [number, number][] = [];
+    let s = a;
+    for (const c of cuts) {
+      if (c - SETBACK > s) res.push([s, c - SETBACK]);
+      s = Math.max(s, c + SETBACK);
+    }
+    if (b > s) res.push([s, b]);
+    return res;
+  };
+  // The canal meets the river; the river runs east until the Beach Road (a sand bar beyond it).
+  for (const [a, b] of [[BOUNDS.z0, RIVER.z0], [RIVER.z1, BOUNDS.z1]]) {
+    for (const [z0, z1] of gaps(a, b, Z_LINES)) out.push({ x0: CANAL.x0, x1: CANAL.x1, z0, z1 });
+  }
+  for (const [x0, x1] of gaps(BOUNDS.x0, BEACH_ROAD + SETBACK, X_LINES)) out.push({ x0, x1, z0: RIVER.z0, z1: RIVER.z1 });
+  return out;
+}
+
+/** Strips kept free of buildings: the canal + MRTS ticket halls, and the river with its banks. */
+export const WATER_LOTS = () => [
+  { x0: CANAL.x0 - 5, x1: MRTS_X, z0: BOUNDS.z0, z1: BOUNDS.z1 },
+  { x0: BOUNDS.x0, x1: BEACH_X, z0: RIVER.z0 - 2, z1: RIVER.z1 + 2 },
+];
+
+/** True if (x, z) is in open water (or within `margin` of it). */
+export function inWater(x: number, z: number, margin = 0) {
+  return waterRects().some((r) => x > r.x0 - margin && x < r.x1 + margin && z > r.z0 - margin && z < r.z1 + margin);
+}
+
+/**
+ * Vivekananda College (north of Luz Church Road, block [2, 0], gate facing south), the Madras
+ * Boat Club on the Adyar's north bank, and a green campus (banyans, lawns) across the river.
+ */
+export const COLLEGE_LOT = (): Lot => {
+  const b = block(CENTRE, 0);
+  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 's' };
+};
+export const BOAT_CLUB_LOT = (): Lot => {
+  const b = block(CENTRE + 1, 8);
+  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: RIVER.z0, front: 'n' };
+};
+export const CAMPUS_LOT = (): Lot => {
+  const b = block(CENTRE, 8);
+  return { x0: b.x0, x1: b.x1, z0: RIVER.z1 + 2, z1: b.z1, front: 's' };
+};
 
 export const POLICE_LOT = () => {
   const b = block(CENTRE, CENTRE + 1);

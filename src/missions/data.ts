@@ -14,6 +14,9 @@ export interface Stop {
 
 export const STAND = 'Mylapore auto stand';
 export const CINEMA = 'Kamadhenu Cinemas';
+export const COLLEGE = 'Vivekananda College';
+/** Game hours when classes start / end: students want autos (ride orders from the college). */
+export const COLLEGE_RUSH = [9, 16];
 
 export const STOPS: Stop[] = [
   { name: 'Kapaleeshwarar Temple', axis: 'x', line: 25, along: 8, side: -1 },
@@ -33,7 +36,7 @@ export const STOPS: Stop[] = [
   // Mandaveli
   { name: 'Mandaveli bus depot', axis: 'z', line: 125, along: 0, side: 1 },
   { name: 'Mandaveli MRTS station', axis: 'x', line: -70, along: 160, side: -1 },
-  { name: 'Thirumayilai MRTS station', axis: 'x', line: -70, along: -40, side: -1 },
+  { name: 'Thirumayilai MRTS station', axis: 'x', line: -70, along: 5, side: -1 },
   { name: 'Venkatakrishna Road', axis: 'z', line: 125, along: -50, side: -1 },
   // Neighbourhood places (world/places.ts)
   { name: 'Luz Church', axis: 'z', line: -70, along: -40, side: 1 },
@@ -42,6 +45,19 @@ export const STOPS: Stop[] = [
   { name: STAND, axis: 'z', line: 25, along: -38, side: 1 },
   { name: CINEMA, axis: 'z', line: 70, along: 47, side: 1 },
   { name: 'Santhome beach fair', axis: 'x', line: 125, along: 112, side: 1 },
+  // North, Alwarpet / Teynampet, R.A. Puram / Adyar
+  { name: COLLEGE, axis: 'z', line: -70, along: 0, side: -1 },
+  { name: 'Dr. Radhakrishnan Salai', axis: 'z', line: -130, along: 40, side: 1 },
+  { name: 'Alwarpet TTK Road', axis: 'x', line: -145, along: -40, side: 1 },
+  { name: 'Alwarpet signal', axis: 'x', line: -145, along: 100, side: -1 },
+  { name: 'Eldams Road', axis: 'x', line: -205, along: 45, side: 1 },
+  { name: 'Teynampet signal', axis: 'x', line: -265, along: -45, side: 1 },
+  { name: 'Anna Salai bus stop', axis: 'x', line: -265, along: 150, side: 1 },
+  { name: 'R.A. Puram', axis: 'z', line: 240, along: -48, side: 1 },
+  { name: 'Madras Boat Club', axis: 'z', line: 300, along: 47.5, side: 1 },
+  { name: 'Greenways Road', axis: 'z', line: 300, along: -170, side: -1 },
+  { name: 'Adyar Banyan Campus', axis: 'z', line: 390, along: 0, side: -1 },
+  { name: 'Adyar signal', axis: 'z', line: 390, along: 70, side: -1 },
 ];
 export const HOSPITAL = 'Isabel Hospital';
 
@@ -63,6 +79,7 @@ export const PLACE_LINES = {
   standBusy: 'Ippo oru sawaari irukke anna, adha mudinga first.',
   standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
   showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
+  collegeRush: '🎓 College rush! Vivekananda College-la students auto-ku wait pannuraanga.',
   lowFuel: 'Petrol kammiyaa irukku! R.K. Mutt Road bunk-ku ponga.',
   noFuel: 'Petrol theernthuduchu! Mella thallikittu bunk-ku ponga.',
   crash: 'Dei! Auto-ku adi pattuchu! (condition {cond}%)',

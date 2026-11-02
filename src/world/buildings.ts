@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, blocks } from './layout';
+import { BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
 import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
@@ -12,6 +12,14 @@ const TANK_CHANCE = 0.5;
 const STAIR_ROOM_CHANCE = 0.3;
 const OLD_HOUSE_CHANCE = 0.14; // tiled-roof house with a pillared verandah (thinnai), no shop
 const SHOWROOM_CHANCE = 0.08; // one wide shop with a big signboard
+const TILE = 180; // metres: buildings are merged per tile (frustum culling works per tile)
+/** Leafy residential blocks (Alwarpet, R.A. Puram, Adyar): detached houses behind compound walls. */
+const HOUSE = { yard: 3.5, gap: 2.5, width: [9, 15], oldChance: 0.3, wallH: 1.3, gate: 2.2 };
+const YARD_TREE = new THREE.IcosahedronGeometry(1.6, 1).scale(1, 0.85, 1);
+const YARD_TRUNK = new THREE.CylinderGeometry(0.12, 0.18, 2.6, 6);
+const LEAF = new THREE.Color(0x3f7f35);
+const BARK = new THREE.Color(0x6a5038);
+const COMPOUND = new THREE.Color(0xe9e2d0);
 
 /** Mylapore-ish painted walls. */
 const PALETTE = [0xf4b6c2, 0x9fd3e6, 0xd8e89a, 0xf6e7c1, 0xf7b267, 0xc7b8ea, 0xa8e6cf, 0xfafafa, 0xf9e079, 0xe0a899];
@@ -56,23 +64,59 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const rand = seeded(42);
   const range = (a: number, b: number) => a + rand() * (b - a);
   const pick = <T>(arr: readonly T[]) => arr[Math.floor(rand() * arr.length)];
-  const facade = new GeoBuilder();
-  const shops = new GeoBuilder();
-  const plain = new GeoBuilder();
-  const signs = new GeoBuilder();
+  // The town is split into square tiles, 4 merged meshes each, so the renderer can skip tiles
+  // that are off screen (and the shadow pass only draws the tiles near the player).
+  const tiles = new Map<string, { facade: GeoBuilder; shops: GeoBuilder; plain: GeoBuilder; signs: GeoBuilder }>();
+  let facade!: GeoBuilder;
+  let shops!: GeoBuilder;
+  let plain!: GeoBuilder;
+  let signs!: GeoBuilder;
+  const useTile = (x: number, z: number) => {
+    const key = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
+    let t = tiles.get(key);
+    if (!t) tiles.set(key, (t = { facade: new GeoBuilder(), shops: new GeoBuilder(), plain: new GeoBuilder(), signs: new GeoBuilder() }));
+    ({ facade, shops, plain, signs } = t);
+  };
   const sign = signTextures();
   let count = 0;
   const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
-  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS())];
-  function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean) {
+  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS())];
+  function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean, house = false) {
     // Leave the police station's and supermarkets' lots empty (rotated footprint: swap w/d for east/west facing).
     const hw0 = (facing === 'e' || facing === 'w' ? d : w) / 2;
     const hd0 = (facing === 'e' || facing === 'w' ? w : d) / 2;
     if (reserved.some((lot) => cx + hw0 > lot.x0 && cx - hw0 < lot.x1 && cz + hd0 > lot.z0 && cz - hd0 < lot.z1)) return;
     count++;
-    const oldHouse = !showroom && rand() < OLD_HOUSE_CHANCE;
+    useTile(cx, cz);
+    const oldHouse = !showroom && rand() < (house ? HOUSE.oldChance : OLD_HOUSE_CHANCE);
+    if (house) {
+      // Set the house back behind a front yard; a compound wall with a gate on the old front line.
+      const yaw0 = YAW[facing];
+      const fx = Math.sin(yaw0);
+      const fz = Math.cos(yaw0);
+      const wm = new THREE.Matrix4().makeRotationY(yaw0).setPosition(cx, 0, cz);
+      const W = (x: number, z: number) => new THREE.Vector3(x, 0, z).applyMatrix4(wm);
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw0);
+      const gateX = (rand() - 0.5) * (w - HOUSE.gate - 2);
+      const segs: [number, number][] = [[-w / 2, gateX - HOUSE.gate / 2], [gateX + HOUSE.gate / 2, w / 2]];
+      for (const [a, b] of segs) {
+        if (b - a < 0.3) continue;
+        const p = W((a + b) / 2, d / 2 - 0.1);
+        plain.box(b - a, HOUSE.wallH, 0.2, p.x, HOUSE.wallH / 2, p.z, COMPOUND, yaw0);
+        world.createCollider(RAPIER.ColliderDesc.cuboid((b - a) / 2, HOUSE.wallH / 2, 0.1).setTranslation(p.x, HOUSE.wallH / 2, p.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }));
+      }
+      if (w > 8) { // a tree in the yard
+        const tp = W(gateX > 0 ? -w / 4 : w / 4, d / 2 - HOUSE.yard / 2);
+        plain.add(YARD_TRUNK, new THREE.Matrix4().setPosition(tp.x, 1.3, tp.z), BARK);
+        plain.add(YARD_TREE, new THREE.Matrix4().setPosition(tp.x, 3.4, tp.z), LEAF);
+        world.createCollider(RAPIER.ColliderDesc.cylinder(1.3, 0.2).setTranslation(tp.x, 1.3, tp.z));
+      }
+      cx -= fx * HOUSE.yard / 2;
+      cz -= fz * HOUSE.yard / 2;
+      d -= HOUSE.yard;
+    }
     const r = rand();
     const floors = oldHouse ? (r < 0.6 ? 1 : 2) : r < 0.1 ? 1 : r < 0.42 ? 2 : r < 0.78 ? 3 : 4;
     const groundH = range(3.2, 4.1);
@@ -108,7 +152,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       const out = N(wl.n[0], wl.n[1]);
       const windowsU = Math.max(1, Math.round(wl.len / 3)) / 2; // the facade tile is 2 windows wide
       const g = [P(ax, 0, az), P(bx, 0, bz), P(bx, groundH, bz), P(ax, groundH, az)];
-      if (wl.front && !oldHouse) {
+      if (wl.front && !oldHouse && !house) {
         const u1 = bays / 2 + shopShift;
         shops.quad(g[0], g[1], g[2], g[3], [[shopShift, 0], [u1, 0], [u1, 1], [shopShift, 1]], wall, out);
       } else if (wl.front) {
@@ -160,10 +204,10 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
         plain.add(TANK_GEO, new THREE.Matrix4().setPosition(p), TANK);
       }
 
-      // Sunshade over the shops, one signboard per shop sized to its width.
-      box(w, 0.1, 0.8, 0, groundH - 0.05, hd + 0.4, wall);
+      // Sunshade over the shops, one signboard per shop sized to its width (houses: none).
+      if (!house) box(w, 0.1, 0.8, 0, groundH - 0.05, hd + 0.4, wall);
       const bayW = w / bays;
-      for (let bay = 0; bay < bays; bay++) {
+      for (let bay = 0; bay < (house ? 0 : bays); bay++) {
         if (!showroom && rand() < 0.1) continue; // the odd shop without a board
         const x = -hw + bayW * (bay + 0.5);
         const sw = bayW - 0.3;
@@ -204,30 +248,32 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   }
 
   /** Fill a street frontage from `a` to `b` with buildings of varied width (and the odd alley). */
-  function row(a: number, b: number, place: (start: number, width: number, depth: number, showroom: boolean) => void) {
+  function row(a: number, b: number, place: (start: number, width: number, depth: number, showroom: boolean) => void, houses = false) {
     let x = a;
     while (b - x >= 4) {
-      const showroom = rand() < SHOWROOM_CHANCE;
-      let w = Math.round((showroom ? range(13, 18) : range(4, 13)) * 2) / 2;
+      const showroom = !houses && rand() < SHOWROOM_CHANCE;
+      let w = Math.round((showroom ? range(13, 18) : houses ? range(HOUSE.width[0], HOUSE.width[1]) : range(4, 13)) * 2) / 2;
       w = Math.min(w, b - x);
       if (b - x - w < 4) w = b - x; // last one takes the remainder
-      place(x, w, range(DEPTH[0], DEPTH[1]), showroom);
+      place(x, w, range(DEPTH[0], DEPTH[1]) + (houses ? HOUSE.yard : 0), showroom);
       x += w;
-      if (rand() < ALLEY_CHANCE) x += ALLEY_WIDTH;
+      if (houses) x += HOUSE.gap; // detached
+      else if (rand() < ALLEY_CHANCE) x += ALLEY_WIDTH;
     }
   }
 
   for (const blk of blocks()) {
-    if (blk.kind !== 'shops') continue;
+    if (blk.kind !== 'shops' && blk.kind !== 'houses') continue;
+    const h = blk.kind === 'houses';
     const { x0, x1, z0, z1, road } = blk;
-    const dMax = DEPTH[1];
-    if (road.n) row(x0, x1, (s, w, d, sr) => building(w, d, s + w / 2, z0 + d / 2, 'n', sr));
-    if (road.s) row(x0, x1, (s, w, d, sr) => building(w, d, s + w / 2, z1 - d / 2, 's', sr));
+    const dMax = DEPTH[1] + (h ? HOUSE.yard : 0);
+    if (road.n) row(x0, x1, (s, w, d, sr) => building(w, d, s + w / 2, z0 + d / 2, 'n', sr, h), h);
+    if (road.s) row(x0, x1, (s, w, d, sr) => building(w, d, s + w / 2, z1 - d / 2, 's', sr, h), h);
     // Side rows fit between the north/south rows.
     const za = road.n ? z0 + dMax : z0;
     const zb = road.s ? z1 - dMax : z1;
-    if (road.w) row(za, zb, (s, w, d, sr) => building(w, d, x0 + d / 2, s + w / 2, 'w', sr));
-    if (road.e) row(za, zb, (s, w, d, sr) => building(w, d, x1 - d / 2, s + w / 2, 'e', sr));
+    if (road.w) row(za, zb, (s, w, d, sr) => building(w, d, x0 + d / 2, s + w / 2, 'w', sr, h), h);
+    if (road.e) row(za, zb, (s, w, d, sr) => building(w, d, x1 - d / 2, s + w / 2, 'e', sr, h), h);
   }
 
   const fTex = facadeTextures();
@@ -238,11 +284,14 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const shopMat = lit(sTex.map, sTex.emissive);
   const signMat = new THREE.MeshStandardMaterial({ map: sign.map, emissiveMap: sign.map, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.6 });
   const plainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
-  for (const [geo, mat] of [[facade, facadeMat], [shops, shopMat], [plain, plainMat], [signs, signMat]] as const) {
-    const mesh = new THREE.Mesh(geo.build(), mat);
-    mesh.castShadow = mat !== signMat;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
+  for (const t of tiles.values()) {
+    for (const [geo, mat] of [[t.facade, facadeMat], [t.shops, shopMat], [t.plain, plainMat], [t.signs, signMat]] as const) {
+      if (geo.empty) continue;
+      const mesh = new THREE.Mesh(geo.build(), mat);
+      mesh.castShadow = mat !== signMat;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+    }
   }
 
   return {

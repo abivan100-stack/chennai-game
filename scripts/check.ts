@@ -9,6 +9,7 @@ import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts
 import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
 import { SHOP_SIGNS } from '../src/world/textures.ts';
 import { SignalCycle } from '../src/world/trafficLights.ts';
+import { BOUNDS, inWater } from '../src/world/layout.ts';
 import { CRASH_DV, PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from '../src/vehicles/upkeep.ts';
 
 function assert(cond: boolean, msg: string) {
@@ -50,7 +51,7 @@ assert(payment(100, 10).tip === 32 && payment(100, 120).tip === 0, 'quick rides 
 for (const s of STOPS) {
   const k = stopPoint(s, 'kerb');
   const w = stopPoint(s, 'sidewalk');
-  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && k.x > -100 && k.x < 205 && k.z > -100 && k.z < 220, `stop ${s.name} inside the town (not in the sea)`);
+  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && k.x > BOUNDS.x0 && k.x < 205 && k.z > BOUNDS.z0 && k.z < BOUNDS.z1 && !inWater(k.x, k.z, 1) && !inWater(w.x, w.z, 1), `stop ${s.name} inside the town (not in the sea)`);
 }
 
 // --- Economy ---
@@ -163,5 +164,9 @@ const fineRes = bk.charge(700);
 assert(fineRes.owed === 0 && bk.cash === 0 && bk.savings === 300, 'fine paid from cash, then the bank');
 assert(bk.withdraw(1000) === 300 && bk.cash === 300 && bk.savings === 0, 'withdraw is capped by savings');
 assert(bk.pickpocket(0.25) === 75 && bk.cash === 225, 'pickpocket takes a share of the cash');
+
+// --- Canal and river: water between the bridges, dry on every road crossing ---
+assert(inWater(-115, 0) && inWater(-115, 100) && inWater(0, 330) && inWater(-175, 330), 'canal and river are water');
+assert(!inWater(-115, -25) && !inWater(-115, 70) && !inWater(-25, 330) && !inWater(125, 330), 'roads cross the water on bridges');
 
 console.log('check: all passed');
