@@ -11,12 +11,13 @@ const HIPS_ABOVE_SEAT = 0.1; // hip joint height over the stool top when seated
 const STAND_OUT = 0.45; // stand this far in front of the stool before sitting
 const TURN_SECONDS = 0.4;
 const SIT_SECONDS = 2.1;
+const SWIVEL_SECONDS = 0.6; // turn on the stool to face the table
 const BITE_SECONDS = 2.2; // plate -> mouth -> chew -> back
 const ARM_BLEND = 0.6; // seconds to move the hand onto / off the food
 const MOUTH = { forward: 0.13, down: 0.03 }; // from the Head bone
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
 
-type Phase = 'none' | 'approach' | 'turn' | 'sit' | 'eat' | 'stand' | 'snack';
+type Phase = 'none' | 'approach' | 'turn' | 'sit' | 'swivelIn' | 'eat' | 'swivelOut' | 'stand' | 'snack';
 
 const smooth = (t: number) => {
   const c = THREE.MathUtils.clamp(t, 0, 1);
@@ -196,9 +197,14 @@ export class Meal {
         this.hipTarget.copy(this.standSpot).setY(this.standSpot.y + HIPS_STANDING);
         this.hipTarget.lerp(this.tmp.copy(e.seat).setY(e.seat.y + HIPS_ABOVE_SEAT), smooth(this.t / SIT_SECONDS));
         if (this.t < SIT_SECONDS) return;
+        this.go('swivelIn');
+        return;
+      case 'swivelIn':
+        this.yaw = lerpAngle(e.seatYaw, e.eatYaw, smooth(this.t / SWIVEL_SECONDS));
+        if (this.t < SWIVEL_SECONDS) return;
         // Leaf goes on the table, food heaped on it.
         this.plate.position.copy(e.table);
-        this.plate.rotation.y = e.seatYaw;
+        this.plate.rotation.y = e.eatYaw;
         this.plateFood.scale.setScalar(1);
         this.plate.visible = true;
         this.ik = true;
@@ -226,10 +232,15 @@ export class Meal {
           return;
         }
         this.plate.visible = false;
+        this.go('swivelOut');
+        return;
+      }
+      case 'swivelOut':
+        this.yaw = lerpAngle(e.eatYaw, e.seatYaw, smooth(this.t / SWIVEL_SECONDS));
+        if (this.t < SWIVEL_SECONDS) return;
         this.player.animator.play('stand_up', { once: true, fade: 0.3 });
         this.go('stand');
         return;
-      }
       case 'stand': {
         this.hipTarget.copy(e.seat).setY(e.seat.y + HIPS_ABOVE_SEAT);
         this.hipTarget.lerp(this.tmp.copy(this.standSpot).setY(this.standSpot.y + HIPS_STANDING), smooth(this.t / SIT_SECONDS));

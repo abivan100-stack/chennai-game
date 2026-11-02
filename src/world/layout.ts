@@ -95,6 +95,20 @@ export const TANK_BLOCK = () => block(CENTRE - 1, CENTRE);
  * Mylapore Police Station: a lot on the north side of Kutchery Road, south of the temple
  * (block [2, 3]). Building rows leave it empty; world/policeStation.ts builds it.
  */
+/**
+ * Walk-in supermarkets (world/supermarket.ts): one across East Mada Street from the temple's
+ * main gopuram (entrance facing west), one on North Mada Street (entrance facing south).
+ * 16 m frontage x 14 m deep. Building rows leave these lots empty.
+ */
+export const SUPERMARKET_LOTS = () => {
+  const east = block(CENTRE + 1, CENTRE);
+  const north = block(CENTRE, CENTRE - 1);
+  return [
+    { x0: east.x0, x1: east.x0 + 14, z0: -8, z1: 8, facing: 'w' as const },
+    { x0: -8, x1: 8, z0: north.z1 - 14, z1: north.z1, facing: 's' as const },
+  ];
+};
+
 export const POLICE_LOT = () => {
   const b = block(CENTRE, CENTRE + 1);
   const mid = (b.x0 + b.x1) / 2;

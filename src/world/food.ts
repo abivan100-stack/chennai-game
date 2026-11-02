@@ -67,17 +67,65 @@ export const MENUS: Record<string, Menu> = {
       { name: 'Murukku', price: 30, energy: 18, seconds: 5, color: '#c99a4a' },
     ],
   },
-  'Kapali Supermarket': {
+  'Kapali Bakery': {
     kind: 'shop',
-    greet: 'Welcome sir! Offer-la juice irukku.',
+    greet: 'Puff ippo dhaan vandhuchu, sooda irukku!',
     items: [
-      { name: 'Bread & jam', price: 45, energy: 28, seconds: 6, color: '#e9c89a' },
-      { name: 'Banana bunch', price: 40, energy: 30, seconds: 7, color: '#f2d43a' },
-      { name: 'Mango juice', price: 35, energy: 15, seconds: 4, color: '#f59e1b' },
-      { name: 'Chips', price: 20, energy: 12, seconds: 4, color: '#f7e27a' },
+      { name: 'Veg puff', price: 25, energy: 16, seconds: 4, color: '#e0a85a' },
+      { name: 'Egg puff', price: 30, energy: 18, seconds: 4, color: '#e8b45e' },
+      { name: 'Plum cake', price: 50, energy: 25, seconds: 5, color: '#5d3a1a' },
+      { name: 'Tea', price: 15, energy: 6, seconds: 4, color: '#c8955a' },
     ],
   },
 };
+
+/** Supermarket shelves (world/supermarket.ts): pick into the basket, pay at the counter. */
+export interface Shelf {
+  name: string;
+  items: FoodItem[];
+}
+export const SHELVES: Shelf[] = [
+  {
+    name: 'Biscuits & snacks',
+    items: [
+      { name: 'Biscuit packet', price: 20, energy: 14, seconds: 5, color: '#d9572b' },
+      { name: 'Chips', price: 20, energy: 12, seconds: 4, color: '#f7e27a' },
+      { name: 'Murukku', price: 30, energy: 18, seconds: 5, color: '#c99a4a' },
+      { name: 'Chocolate', price: 40, energy: 15, seconds: 3, color: '#4e2a14' },
+    ],
+  },
+  {
+    name: 'Fruits',
+    items: [
+      { name: 'Banana', price: 10, energy: 10, seconds: 4, color: '#f2d43a' },
+      { name: 'Apple', price: 30, energy: 14, seconds: 5, color: '#c62828' },
+      { name: 'Guava', price: 20, energy: 12, seconds: 4, color: '#9ccc65' },
+    ],
+  },
+  {
+    name: 'Bakery',
+    items: [
+      { name: 'Bread & jam', price: 45, energy: 28, seconds: 6, color: '#e9c89a' },
+      { name: 'Veg puff', price: 25, energy: 16, seconds: 4, color: '#e0a85a' },
+      { name: 'Plum cake', price: 50, energy: 25, seconds: 5, color: '#5d3a1a' },
+    ],
+  },
+  {
+    name: 'Cold drinks',
+    items: [
+      { name: 'Mango juice', price: 35, energy: 15, seconds: 4, color: '#f59e1b' },
+      { name: 'Rose milk', price: 30, energy: 14, seconds: 4, color: '#f48fb1' },
+      { name: 'Buttermilk', price: 15, energy: 8, seconds: 3, color: '#f5f5f0' },
+      { name: 'Water bottle', price: 20, energy: 5, seconds: 3, color: '#90caf9' },
+    ],
+  },
+];
+export const BASKET_MAX = 3;
+export const CASHIER = 'Cashier';
+export const CASHIER_HELLO = 'Vanakkam sir! Basket-la podunga, counter-la pay pannunga.';
+export const CASHIER_THANKS = 'Thank you sir, marubadi vaanga!';
+export const SHOPLIFT_LINE = 'Dei! Kaasu kudukkaama poriya?! Thirudan, thirudan! Police!';
+export const BASKET_FULL = 'Basket full anna. Mudhalla pay pannunga.';
 
 export const NO_MONEY = 'Kaasu illaiye anna... sambadhichitu vaanga.';
 export const MEAL_DONE = 'Saapdu semma! Vayiru full.';

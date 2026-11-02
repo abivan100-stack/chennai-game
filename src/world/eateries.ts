@@ -11,15 +11,17 @@ const STOOL_TOP = 0.46;
 const OUT_SEAT = 0.75; // stool distance out from the shopfront (under the sunshade)
 const ASK_DIST = 1.4; // where you stand to order, out from the shopfront
 const ORDER_RADIUS = 1.6;
+const TABLE_GAP = 0.6; // stool centre to table centre
 
 export interface Eatery {
   name: string;
   menu: Menu;
   /** Where you stand to order (sidewalk). */
   spot: THREE.Vector3;
-  /** Hotels: stool top centre, which way you face sitting on it, table top centre. */
+  /** Hotels: stool top centre; you sit down facing the road (seatYaw), then swivel to face the table (eatYaw). */
   seat: THREE.Vector3;
   seatYaw: number;
+  eatYaw: number;
   table: THREE.Vector3;
 }
 
@@ -38,12 +40,12 @@ export function createEateries(scene: THREE.Scene, world: RAPIER.World, footprin
       const f = new THREE.Vector3(Math.sin(s.yaw), 0, Math.cos(s.yaw)); // out to the road
       const t = new THREE.Vector3(Math.cos(s.yaw), 0, -Math.sin(s.yaw)); // along the shopfront
       const base = new THREE.Vector3(s.x, SIDEWALK_HEIGHT, s.z);
-      // Sitting faces the road; the table is at your right hand (the model's right is -t).
-      const seat = base.clone().addScaledVector(f, OUT_SEAT).addScaledVector(t, 0.35);
-      const table = seat.clone().addScaledVector(t, -0.55);
+      // Stool, and the table in front of it along the shopfront (knees go under the table).
+      const seat = base.clone().addScaledVector(f, OUT_SEAT).addScaledVector(t, -0.3);
+      const table = seat.clone().addScaledVector(t, TABLE_GAP);
       seat.y += STOOL_TOP;
       table.y += TABLE_TOP;
-      list.push({ name, menu, spot: base.clone().addScaledVector(f, ASK_DIST), seat, seatYaw: s.yaw, table });
+      list.push({ name, menu, spot: base.clone().addScaledVector(f, ASK_DIST), seat, seatYaw: s.yaw, eatYaw: s.yaw + Math.PI / 2, table });
     }
   }
 
@@ -62,7 +64,7 @@ export function createEateries(scene: THREE.Scene, world: RAPIER.World, footprin
   const q = new THREE.Quaternion();
   const one = new THREE.Vector3(1, 1, 1);
   hotels.forEach((e, i) => {
-    q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, e.seatYaw);
+    q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, e.eatYaw);
     tables.setMatrixAt(i, m.compose(new THREE.Vector3(e.table.x, SIDEWALK_HEIGHT, e.table.z), q, one));
     stools.setMatrixAt(i, m.compose(new THREE.Vector3(e.seat.x, SIDEWALK_HEIGHT, e.seat.z), q, one));
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(e.table.x, SIDEWALK_HEIGHT + TABLE_TOP / 2, e.table.z).setRotation(q));

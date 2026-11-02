@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { POLICE_LOT, blocks } from './layout';
+import { POLICE_LOT, SUPERMARKET_LOTS, blocks } from './layout';
 import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
@@ -63,12 +63,12 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
-  const lot = POLICE_LOT();
+  const reserved = [POLICE_LOT(), ...SUPERMARKET_LOTS()];
   function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean) {
-    // Leave the police station's lot empty (rotated footprint: swap w/d for east/west facing).
+    // Leave the police station's and supermarkets' lots empty (rotated footprint: swap w/d for east/west facing).
     const hw0 = (facing === 'e' || facing === 'w' ? d : w) / 2;
     const hd0 = (facing === 'e' || facing === 'w' ? w : d) / 2;
-    if (cx + hw0 > lot.x0 && cx - hw0 < lot.x1 && cz + hd0 > lot.z0 && cz - hd0 < lot.z1) return;
+    if (reserved.some((lot) => cx + hw0 > lot.x0 && cx - hw0 < lot.x1 && cz + hd0 > lot.z0 && cz - hd0 < lot.z1)) return;
     count++;
     const oldHouse = !showroom && rand() < OLD_HOUSE_CHANCE;
     const r = rand();

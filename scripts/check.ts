@@ -6,7 +6,7 @@ import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
 import { route, routeLength } from '../src/missions/route.ts';
 import { LOSE_SECONDS, Wanted } from '../src/combat/wanted.ts';
 import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts';
-import { MENUS } from '../src/world/food.ts';
+import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
 import { SHOP_SIGNS } from '../src/world/textures.ts';
 
 function assert(cond: boolean, msg: string) {
@@ -103,5 +103,12 @@ for (const [shop, menu] of Object.entries(MENUS)) {
   for (const it of menu.items) assert(it.price > 0 && it.energy > 0 && it.seconds >= 3, `${shop} / ${it.name}: sane numbers`);
   assert(SHOP_SIGNS.some((s) => s.en === shop), `${shop}: has a signboard`);
 }
+for (const shelf of SHELVES) {
+  assert(shelf.items.length >= 1 && shelf.items.length <= 4, `${shelf.name}: 1-4 items (keys 1-4)`);
+  for (const it of shelf.items) assert(it.price > 0 && it.energy > 0, `${shelf.name} / ${it.name}: sane numbers`);
+}
+assert(BASKET_MAX >= 1, 'basket holds something');
+const wp = new Wanted();
+assert(wp.report('assaultPolice') === 2 && wp.report('assaultPolice') === 3, 'hitting police: 2 stars, then 3');
 
 console.log('check: all passed');

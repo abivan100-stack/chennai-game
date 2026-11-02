@@ -8,8 +8,8 @@ import { ROAD_LINES } from '../world/layout';
 import { policeModel } from '../vehicles/models';
 
 // ---- Tuning -------------------------------------------------------------------------------
-const CHASE_SPEED = 14;
-const CORNER_SPEED = 7;
+const CHASE_SPEED = 22;
+const CORNER_SPEED = 9;
 const STOP_DIST = 13; // jeep stops and officers get out this close to you
 const REBOARD_DIST = 30; // you got away from the officers on foot: they get back in
 const SPAWN_DIST = [38, 55]; // dispatched units appear on a road this far from you, out of sight
@@ -25,10 +25,22 @@ const ARREST_SECONDS = 1.2; // "hands up" time before you're arrested
 const FIRE_EVERY = [0.9, 1.6];
 const DAMAGE = { foot: 11, vehicle: 6 };
 const UNIFORM = 0xc9b07a; // Tamil Nadu Police khaki
+// Fist fights with officers
+const OFFICER_HP = 100;
+const HIT_DAMAGE = { punch: 25, swing: 40, kick: 35 };
+const STAGGER_SECONDS = 0.7;
+const KICK_DOWN_SECONDS = 3;
+const KO_SECONDS = 25; // beaten officer stays down this long
+const MELEE_RANGE = 1.8; // closer than this they punch instead of shooting / arresting
+const BRAWL_RANGE = 6; // on foot and this close: they rush in for a fist fight instead of shooting
+const MELEE_EVERY = 1.6;
+const MELEE_HIT_AT = 0.45; // s into their punch when it lands
+const MELEE_DAMAGE = 6;
 const LINES = {
   dismount: ['Nillu! Police!', 'Odaadha! Kai-ya thooku!', 'Vandi-la irundhu irangu!'],
   shoot: ['Shoot pannuvom! Saranderu!', 'Kadaisi warning!'],
   arrest: ['Kai-ya thooku! Arrest panrom!'],
+  down: ['Aiyo! Backup anuppunga!', 'Dei... police-a adikkariya?!'],
 };
 
 const pick = <T>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
@@ -64,6 +76,10 @@ interface Officer {
   collider: RAPIER.Collider;
   cooldown: number;
   down: number;
+  hp: number;
+  /** Seconds into the current punch, -1 = not punching. */
+  punchT: number;
+  punchCooldown: number;
 }
 
 /** One police jeep with two officers. */
@@ -151,7 +167,7 @@ function makeOfficer(scene: THREE.Scene, world: RAPIER.World, asset: CharacterAs
   const rb = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -50, 0));
   const collider = world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.3), rb);
   collider.setEnabled(false);
-  return { root, anim, gun, body: rb, collider, cooldown: 1, down: 0 };
+  return { root, anim, gun, body: rb, collider, cooldown: 1, down: 0, hp: OFFICER_HP, punchT: -1, punchCooldown: 0 };
 }
 
 /**
@@ -216,10 +232,27 @@ export class Police {
     return this.units.flatMap((u) => u.officers).filter((o) => o.root.visible);
   }
 
-  /** Melee hit on an officer: they stagger. */
-  hitOfficer(o: Officer, knockdown: boolean) {
-    o.down = knockdown ? 3 : 1;
-    o.anim.play(knockdown ? 'fall' : 'hit', { once: true, fade: 0.08 });
+  /** Melee hit on an officer: stagger, knocked over (kick) or out cold (no health left). */
+  hitOfficer(o: Officer, move: 'punch' | 'swing' | 'kick', from: THREE.Vector3) {
+    if (o.hp <= 0) return;
+    o.hp -= HIT_DAMAGE[move];
+    o.punchT = -1;
+    // Knocked back a little, away from the player.
+    const p = o.root.position;
+    const d = Math.hypot(p.x - from.x, p.z - from.z) || 1;
+    const push = move === 'punch' ? 0.25 : 0.5;
+    p.x += ((p.x - from.x) / d) * push;
+    p.z += ((p.z - from.z) / d) * push;
+    o.anim.play('idle', { fade: 0 }); // restart the reaction clip even if it's already playing
+    if (o.hp <= 0) {
+      o.down = KO_SECONDS;
+      o.collider.setEnabled(false); // you can step over him
+      o.anim.play('fall', { once: true, fade: 0.08 });
+      this.shout(pick(LINES.down));
+    } else {
+      o.down = move === 'kick' ? KICK_DOWN_SECONDS : STAGGER_SECONDS;
+      o.anim.play(move === 'kick' ? 'fall' : 'hit', { once: true, fade: 0.05 });
+    }
   }
 
   update(dt: number, ctx: PoliceContext): PoliceEvents {
@@ -255,12 +288,13 @@ export class Police {
       for (const o of u.officers) {
         const r = this.updateOfficer(o, dt, ctx);
         nearest = Math.min(nearest, r.dist);
+        nearestOfficer = Math.min(nearestOfficer, r.arrestDist);
         ev.damage += r.damage;
         ev.seen ||= r.seen;
         ev.officerHit ||= r.runOver;
       }
-      nearestOfficer = Math.min(nearestOfficer, nearest);
-      if (nearest > REBOARD_DIST) this.remount(u);
+      // Got away from them: back in the jeep. (Not while one of them lies beaten on the road.)
+      if (nearest > REBOARD_DIST && u.officers.every((o) => o.hp > 0)) this.remount(u);
     });
     this.setSiren(this.units.some((u) => u.state === 'chase'));
 
@@ -397,6 +431,8 @@ export class Police {
       o.body.setTranslation({ x: o.root.position.x, y: 0.9, z: o.root.position.z }, true);
       o.cooldown = 1 + i * 0.5;
       o.down = 0;
+      o.hp = OFFICER_HP;
+      o.punchT = -1;
       o.anim.play('run', { fade: 0 });
     });
     this.shout(pick(LINES.dismount));
@@ -416,7 +452,7 @@ export class Police {
 
   /** One officer's turn: move (with collisions), arrest or shoot. */
   private updateOfficer(o: Officer, dt: number, ctx: PoliceContext) {
-    const r = { dist: Infinity, damage: 0, seen: false, runOver: false };
+    const r = { dist: Infinity, arrestDist: Infinity, damage: 0, seen: false, runOver: false };
     if (!o.root.visible) return r;
     const p = o.root.position;
     const dx = ctx.player.x - p.x;
@@ -433,16 +469,43 @@ export class Police {
     });
     if (o.down > 0) {
       o.down -= dt;
-      if (o.down <= 0) o.anim.play('idle', { fade: 0.4 });
+      if (o.down <= 0) {
+        if (o.hp <= 0) {
+          o.hp = OFFICER_HP / 2; // groggy, but back up
+          o.collider.setEnabled(true);
+        }
+        o.anim.play('idle', { fade: 0.4 });
+      }
       o.anim.update(dt);
       return r;
     }
+    r.arrestDist = d; // only officers on their feet can arrest you
     const see = d < SIGHT && this.canSee(p, 1.45, ctx);
     r.seen = see;
     o.root.rotation.y = Math.atan2(dx, dz);
     const armed = ctx.level >= 2;
     let move = 0;
-    if (armed && see && d < SHOOT_RANGE) {
+    o.punchCooldown -= dt;
+    if (o.punchT >= 0) {
+      // Mid-punch: it lands once, if you're still in reach.
+      const before = o.punchT;
+      o.punchT += dt;
+      if (before < MELEE_HIT_AT && o.punchT >= MELEE_HIT_AT && d < MELEE_RANGE + 0.3 && !ctx.vehicle) {
+        r.damage = MELEE_DAMAGE * (ctx.blocking ? 0.3 : 1);
+      }
+      if (o.punchT > MELEE_EVERY * 0.8) o.punchT = -1;
+    } else if (armed && d < MELEE_RANGE && !ctx.vehicle) {
+      // Too close for the gun: fists.
+      if (o.punchCooldown <= 0) {
+        o.punchCooldown = MELEE_EVERY;
+        o.punchT = 0;
+        o.anim.play('idle', { fade: 0 });
+        o.anim.play('punch', { once: true, fade: 0.08 });
+      }
+    } else if (armed && d < BRAWL_RANGE && !ctx.vehicle) {
+      o.anim.play('run');
+      move = RUN_SPEED * 0.8; // close in for the fight
+    } else if (armed && see && d < SHOOT_RANGE) {
       o.anim.play('shoot');
       o.cooldown -= dt;
       if (o.cooldown <= 0) {

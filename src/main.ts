@@ -35,13 +35,14 @@ import { Police } from './combat/police';
 import { Melee, type Target } from './combat/melee';
 import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
-import { DRIVER_SEAT, SPEC, type Vehicle } from './vehicles/traffic';
+import { DRIVER_SEAT, SPEC, VEHICLE_NAMES, type Vehicle } from './vehicles/traffic';
 import { BEATEN } from './npcs/dialogue';
 import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
 import { ATTACK_COST, Energy, type Activity } from './player/energy';
 import { Meal } from './player/meal';
 import { createEateries, type Eatery } from './world/eateries';
-import { MEAL_DONE, NO_MONEY } from './world/food';
+import { BASKET_FULL, BASKET_MAX, CASHIER, CASHIER_HELLO, CASHIER_THANKS, MEAL_DONE, NO_MONEY, SHOPLIFT_LINE, type FoodItem, type Shelf } from './world/food';
+import { createSupermarkets, type Store } from './world/supermarket';
 import { ROAD_LINES } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
@@ -74,6 +75,7 @@ async function main() {
   const dayNight = new DayNight(scene);
   const crowd = new Crowd(scene, world, characters.npcs);
   const eateries = createEateries(scene, world, town.footprints);
+  const markets = createSupermarkets(scene, world, characters.npcs.get('woman-formal')!);
   const energy = new Energy();
   crowd.onSay = (name, line) => hud.say(name, line);
 
@@ -108,7 +110,26 @@ async function main() {
   };
   const closeMenu = () => {
     menuFor = null;
+    shelfOpen = null;
     hud.menu(null);
+  };
+  // Supermarket shopping: pick into the basket at the shelves, pay at the counter.
+  let basket: FoodItem[] = [];
+  let shelfOpen: Shelf | null = null;
+  let inStore: Store | null = null;
+  const basketTotal = () => basket.reduce((sum, it) => sum + it.price, 0);
+  const openShelf = (s: Shelf) => {
+    shelfOpen = s;
+    hud.menu({
+      title: s.name,
+      greet: `Basket: ${basket.length}/${BASKET_MAX}${basket.length ? ` · ₹${basketTotal()}` : ''}`,
+      rows: s.items.map((it) => ({ label: it.name, price: it.price, energy: it.energy, affordable: economy.cash >= basketTotal() + it.price })),
+    });
+  };
+  /** Paid groceries are eaten standing, like a snack from a shop. */
+  const SHOP_EATERY: Eatery = {
+    name: CASHIER, menu: { kind: 'shop', greet: '', items: [] },
+    spot: new THREE.Vector3(), seat: new THREE.Vector3(), seatYaw: 0, eatYaw: 0, table: new THREE.Vector3(),
   };
   type Officer = ReturnType<typeof police.officersOut>[number];
   /** Everyone the player can hit: pedestrians and officers on foot (built only mid-attack). */
@@ -189,7 +210,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -235,6 +256,7 @@ async function main() {
     hud.banner(title, sub.replace('{fine}', String(fine)));
     meal.forceStop();
     closeMenu();
+    basket = [];
     downFor = 3.5;
   };
   const release = () => {
@@ -292,7 +314,51 @@ async function main() {
         meal.start(at, item);
       }
     }
-    const talkTo = onFootFree && !nearAuto && !other && !eatery ? crowd.nearest : null;
+    // Supermarket: shelves -> basket -> counter. Walking out with unpaid items = theft.
+    const store = markets.storeAt(player.position);
+    if (inStore && !store && basket.length && !meal.busy) {
+      hud.say(CASHIER, SHOPLIFT_LINE);
+      wanted.report('theft');
+      energy.eat(basket.reduce((sum, it) => sum + it.energy, 0)); // scoffed on the run
+      basket = [];
+    }
+    if (store && !inStore && free) hud.say(CASHIER, CASHIER_HELLO);
+    inStore = store;
+    const shelf = store && onFootFree ? markets.shelfAt(store, player.position) : null;
+    const counter = !!store && onFootFree && !shelf && markets.atCounter(store, player.position);
+    if (shelfOpen && shelfOpen !== shelf) closeMenu();
+    if (shelf && input.wasPressed('KeyE')) {
+      if (shelfOpen) closeMenu();
+      else openShelf(shelf);
+    } else if (shelfOpen) {
+      const open = shelfOpen;
+      const item = open.items.find((_, n) => input.wasPressed(`Digit${n + 1}`));
+      if (item && basket.length >= BASKET_MAX) hud.say(CASHIER, BASKET_FULL);
+      else if (item) {
+        basket.push(item);
+        hud.say('Basket', `${item.name} ₹${item.price} (${basket.length}/${BASKET_MAX})`);
+        openShelf(open); // refresh the basket line
+      }
+    }
+    if (counter && basket.length && input.wasPressed('KeyE')) {
+      const total = basketTotal();
+      if (economy.cash < total) hud.say(CASHIER, NO_MONEY);
+      else {
+        economy.cash -= total;
+        showMoney();
+        hud.say(CASHIER, CASHIER_THANKS);
+        if (melee.stickOut) melee.toggleStick();
+        meal.start(SHOP_EATERY, {
+          name: basket.map((it) => it.name).join(' + '),
+          price: total,
+          energy: basket.reduce((sum, it) => sum + it.energy, 0),
+          seconds: Math.min(12, basket.reduce((sum, it) => sum + it.seconds, 0)),
+          color: basket[0].color,
+        });
+        basket = [];
+      }
+    }
+    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store ? crowd.nearest : null;
     const stolenSpeed = stolen ? traffic.speedOf(stolen) : 0;
     if (free && input.wasPressed('KeyF')) {
       if (stolen) {
@@ -301,7 +367,7 @@ async function main() {
       else if (ride.canExit) ride.exit();
       else if (other) takeVehicle(other);
     }
-    if (onFootFree && !menuFor && input.wasPressed('Digit1')) melee.toggleStick();
+    if (onFootFree && !menuFor && !shelfOpen && input.wasPressed('Digit1')) melee.toggleStick();
     if (onFootFree && input.wasPressed('Mouse0')) {
       melee.attack(meleeTargets);
       energy.spend(ATTACK_COST);
@@ -316,13 +382,16 @@ async function main() {
       player.talk(Math.atan2(p.x - player.position.x, p.z - player.position.z), 4.5);
       hud.say(talkTo.name, talkTo.talk());
     }
-    const otherName = other ? (other.kind === 'bus' ? 'bus' : other.kind === 'car' ? 'car' : 'auto') : '';
+    const otherName = other ? VEHICLE_NAMES[other.kind] : '';
     hud.setPrompt(
       !free ? null
         : stolen ? (Math.abs(stolenSpeed) < 3 ? 'F - Get out' : null)
         : nearAuto ? 'F - Get in'
         : ride.canExit ? 'F - Get out'
         : other ? (other.driver ? `F - Steal the ${otherName} (police will come!)` : `F - Get in the ${otherName}`)
+        : shelf ? (shelfOpen ? null : `E - ${shelf.name} (basket ${basket.length}/${BASKET_MAX})`)
+        : counter ? (basket.length ? `E - Pay ₹${basketTotal()} at the counter` : 'Cashier: pick something from the shelves first')
+        : store && basket.length && !meal.busy ? `Basket: ${basket.length} item(s), ₹${basketTotal()} - pay at the counter`
         : eatery ? (menuFor ? null : `E - Saapdalaam: ${eatery.name} (${eatery.menu.kind === 'hotel' ? 'hotel' : 'snacks'})`)
         : meal.phase === 'eat' || meal.phase === 'snack' ? 'W/A/S/D - Stop eating'
         : talkTo ? `E - Talk to ${talkTo.name}` : null,
@@ -368,16 +437,18 @@ async function main() {
     const struck = melee.update(dt, meleeTargets);
     if (struck) {
       let crime = false;
+      let copHit = false;
       for (const ref of struck.hits) {
         if (ref instanceof Npc) {
           const line = ref.struck(struck.move, BEATEN);
           if (line) hud.say(ref.name, line);
           crime = true;
         } else {
-          police.hitOfficer(ref, struck.move === 'kick');
-          wanted.report('assaultPolice');
+          police.hitOfficer(ref, struck.move, player.position);
+          copHit = true;
         }
       }
+      if (copHit) wanted.report('assaultPolice'); // one blow = one crime, however many it hit
       if (crime) wanted.report('assault');
       hitStop = HIT_STOP[struck.move];
       cam.shake(struck.move === 'punch' ? 0.05 : 0.09);
@@ -411,6 +482,7 @@ async function main() {
     props.setNight(dayNight.night);
     temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
+    markets.update(dt, player.position);
     crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto);
 
     // Police: chase, arrest, shoot. Wanted level fades when they lose you.

@@ -20,7 +20,7 @@ const SIGNS = [
   { en: 'Kumaran Mobiles', ta: 'குமரன் மொபைல்ஸ்', bg: '#e65100', fg: '#ffffff' },
   { en: 'Ganesh Flower Shop', ta: 'கணேஷ் பூக்கடை', bg: '#00695c', fg: '#fff59d' },
   { en: 'Hotel Mylai Bhavan', ta: 'ஹோட்டல் மயிலை பவன்', bg: '#ff8f00', fg: '#3e1b00' },
-  { en: 'Kapali Supermarket', ta: 'கபாலி சூப்பர் மார்க்கெட்', bg: '#2e7d32', fg: '#ffffff' },
+  { en: 'Kapali Bakery', ta: 'கபாலி பேக்கரி', bg: '#6d4c41', fg: '#ffe0b2' },
 ];
 export const SIGN_COUNT = SIGNS.length;
 /** Shop names + board colours (the map shows them too). */

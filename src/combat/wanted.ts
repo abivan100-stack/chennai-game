@@ -31,8 +31,8 @@ export class Wanted {
       case 'assault':
         this.level = Math.min(MAX_STARS, Math.max(1, this.level + 1));
         break;
-      case 'assaultPolice':
-        this.level = MAX_STARS;
+      case 'assaultPolice': // +1 star, at least 2 (they shoot from a distance now)
+        this.level = Math.min(MAX_STARS, Math.max(2, this.level + 1));
         break;
     }
     if (this.level > before) this.hidden = 0;

@@ -75,8 +75,8 @@ export function createPoliceStation(scene: THREE.Scene, world: RAPIER.World) {
   }
 
   return {
-    /** Where the police jeep waits: at the kerb outside the gate, facing west. */
-    jeepSpot: new THREE.Vector3(cx + 6, 0, lot.z1 + 2.5 + 2.6),
+    /** Where the police jeeps wait: in the forecourt behind the wall (out of the traffic lane), facing west. */
+    jeepSpot: new THREE.Vector3(cx + 6.5, 0.03, lot.z1 - 2.6),
     /** Where you're let out (sidewalk outside the gate, facing the road). */
     releaseSpot: new THREE.Vector3(cx, SIDEWALK_HEIGHT, lot.z1 + 1.3),
     centre: new THREE.Vector3(cx, 0, (lot.z0 + lot.z1) / 2),

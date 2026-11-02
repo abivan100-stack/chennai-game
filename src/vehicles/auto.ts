@@ -6,9 +6,9 @@ import { GeoBuilder } from '../world/geo';
 import { plateTexture } from './plates';
 
 // ---- Driving feel ---------------------------------------------------------------------------
-const MAX_SPEED = 14; // m/s (~50 km/h, a loaded auto on a city road)
+const MAX_SPEED = 18; // m/s (~65 km/h; autos in Chennai traffic are quick)
 const MAX_REVERSE = 4;
-const ENGINE_FORCE = 900; // N per rear wheel
+const ENGINE_FORCE = 1250; // N per rear wheel
 const BRAKE = 12;
 const HANDBRAKE = 30;
 const ROLLING_BRAKE = 0.6; // engine braking when off the throttle

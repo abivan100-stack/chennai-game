@@ -5,7 +5,7 @@ import { Animator } from '../characters/animator';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { block, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
-import { busModel, carModel } from './models';
+import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel } from './models';
 import { randomPlate } from './plates';
 
 const LANE = SETBACK - 2.5; // lane centre: 2.5 m left of the road centre line (we drive on the left)
@@ -15,11 +15,21 @@ const LOOKAHEAD = 7; // m along the path to judge an upcoming turn
 const HONK_AFTER = 2.5; // s blocked before honking
 const HONK_EVERY = 4;
 
-export type Kind = 'auto' | 'car' | 'bus';
+export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry';
+/** What the prompt calls each kind ("F - Steal the ..."). */
+export const VEHICLE_NAMES: Record<Kind, string> = {
+  auto: 'auto', car: 'car', bus: 'bus', scooter: 'scooter', bike: 'bike', taxi: 'Ambassador taxi', van: 'van', tempo: 'mini truck', lorry: 'lorry',
+};
 export const SPEC: Record<Kind, { speed: number; length: number; width: number; height: number; mass: number }> = {
-  auto: { speed: 7, length: 2.6, width: 1.3, height: 1.9, mass: 350 },
-  car: { speed: 9, length: 3.8, width: 1.65, height: 1.5, mass: 900 },
-  bus: { speed: 6, length: 10, width: 2.5, height: 3.1, mass: 8000 },
+  auto: { speed: 10, length: 2.6, width: 1.3, height: 1.9, mass: 350 },
+  car: { speed: 13, length: 3.8, width: 1.65, height: 1.5, mass: 900 },
+  bus: { speed: 9, length: 10, width: 2.5, height: 3.1, mass: 8000 },
+  scooter: { speed: 11, length: 1.8, width: 0.7, height: 1.2, mass: 150 },
+  bike: { speed: 12, length: 2.0, width: 0.75, height: 1.2, mass: 180 },
+  taxi: { speed: 12, length: 4.4, width: 1.75, height: 1.6, mass: 1100 },
+  van: { speed: 11, length: 3.5, width: 1.5, height: 1.75, mass: 800 },
+  tempo: { speed: 10, length: 4.0, width: 1.6, height: 1.8, mass: 1200 },
+  lorry: { speed: 8, length: 7.5, width: 2.45, height: 3.0, mass: 9000 },
 };
 /** After a shove, a vehicle goes limp (pure physics) this long, then steers back to its lane. */
 const KNOCK_SECONDS = 2.5;
@@ -28,15 +38,27 @@ const GRIP = 0.25; // fraction of the velocity error corrected per step (tyre gr
 
 /** Handling when the player drives a stolen vehicle (arcade). */
 const HANDLING: Record<Kind, { top: number; accel: number; turn: number }> = {
-  auto: { top: 13, accel: 5, turn: 1.9 },
-  car: { top: 18, accel: 7, turn: 1.6 },
-  bus: { top: 11, accel: 2.5, turn: 0.8 },
+  auto: { top: 18, accel: 6, turn: 1.9 },
+  car: { top: 26, accel: 9, turn: 1.6 },
+  bus: { top: 15, accel: 3, turn: 0.8 },
+  scooter: { top: 20, accel: 8, turn: 2.4 },
+  bike: { top: 27, accel: 10, turn: 2.4 },
+  taxi: { top: 24, accel: 7, turn: 1.5 },
+  van: { top: 22, accel: 7, turn: 1.7 },
+  tempo: { top: 19, accel: 5, turn: 1.5 },
+  lorry: { top: 14, accel: 2.2, turn: 0.7 },
 };
 /** Driver's hip position per vehicle (model space). India drives right-hand: driver on the right (-x). */
 export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
   auto: SEAT,
   car: new THREE.Vector3(-0.38, 0.78, 0.0),
   bus: new THREE.Vector3(-0.8, 1.45, 4.0),
+  scooter: new THREE.Vector3(0, 0.9, -0.2),
+  bike: new THREE.Vector3(0, 0.98, -0.3),
+  taxi: new THREE.Vector3(-0.4, 0.82, 0.15),
+  van: new THREE.Vector3(-0.36, 0.88, 0.85),
+  tempo: new THREE.Vector3(-0.36, 0.98, 1.1),
+  lorry: new THREE.Vector3(-0.55, 1.75, 2.7),
 };
 const FLEE_SECONDS = 6;
 const FLEE_SPEED = 3.5;
@@ -171,6 +193,14 @@ export class Traffic {
       ['car', 2, 1, 0.5, 0x2b5fb3],
       ['auto', 2, 3, 0.4],
       ['car', 3, 3, 0.1, 0xf4f4f4],
+      ['scooter', 2, 2, 0.85, 0xd32f2f],
+      ['bike', 3, 2, 0.45, 0x1a1a1a],
+      ['taxi', 1, 2, 0.55, 0xf4f1e6],
+      ['van', 2, 1, 0.1, 0xfafafa],
+      ['tempo', 3, 3, 0.6, 0x1e88e5],
+      ['lorry', 2, 3, 0.85, 0xf57c00],
+      ['scooter', 3, 1, 0.3, 0x90caf9],
+      ['bike', 2, 3, 0.1, 0xb71c1c],
     ];
     for (const [kind, i, j, start, colour] of fleet) {
       const group = new THREE.Group();
@@ -182,7 +212,11 @@ export class Traffic {
         wheelMeshes = m.wheels;
         lights = [m.headlight, m.tail];
       } else {
-        const m = kind === 'car' ? carModel(group, colour ?? 0xcccccc) : busModel(group);
+        const c = colour ?? 0xcccccc;
+        const m = kind === 'car' ? carModel(group, c) : kind === 'bus' ? busModel(group)
+          : kind === 'scooter' ? scooterModel(group, c) : kind === 'bike' ? bikeModel(group, c)
+          : kind === 'taxi' ? taxiModel(group, c) : kind === 'van' ? vanModel(group, c)
+          : kind === 'tempo' ? tempoModel(group, c) : lorryModel(group, c);
         wheelMeshes = m.wheels;
         wheelR = m.wheelR;
         lights = m.lights;
@@ -430,7 +464,7 @@ export class Traffic {
     try {
       this.audio ??= new AudioContext();
       const ctx = this.audio;
-      const freq = kind === 'bus' ? 220 : kind === 'car' ? 400 : 520;
+      const freq = kind === 'bus' || kind === 'lorry' ? 220 : kind === 'scooter' || kind === 'bike' ? 650 : kind === 'auto' ? 520 : 400;
       for (const start of [0, 0.22]) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();

@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { HALF, POLICE_LOT, ROAD_HALF, ROAD_LINES, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE, X_ROADS, Z_ROADS, roadSpans } from '../world/layout';
+import { HALF, POLICE_LOT, SUPERMARKET_LOTS, ROAD_HALF, ROAD_LINES, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE, X_ROADS, Z_ROADS, roadSpans } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
 
@@ -118,6 +118,19 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(ps.x0 + 2), P(ps.z0 + 1), M(16), M(9));
   badge(g, P(ps.x0 + 10), P(ps.z0 + 5.5), '#1c3f8f', 'P');
   labels.push({ text: 'Police Station', x: (ps.x0 + ps.x1) / 2, z: ps.z1 - 3, kind: 'landmark' });
+
+  // Supermarkets.
+  for (const lot of SUPERMARKET_LOTS()) {
+    g.fillStyle = '#c8e6c9';
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    g.strokeStyle = '#2e7d32';
+    g.lineWidth = 2;
+    g.strokeRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const mx = (lot.x0 + lot.x1) / 2;
+    const mz = (lot.z0 + lot.z1) / 2;
+    badge(g, P(mx), P(mz), '#2e7d32', 'S');
+    labels.push({ text: 'Supermarket', x: mx, z: mz + 4, kind: 'landmark' });
+  }
 
   // Buildings, then trees, then shop dots on top.
   for (const f of data.footprints) {
