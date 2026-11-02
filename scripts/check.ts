@@ -111,4 +111,13 @@ assert(BASKET_MAX >= 1, 'basket holds something');
 const wp = new Wanted();
 assert(wp.report('assaultPolice') === 2 && wp.report('assaultPolice') === 3, 'hitting police: 2 stars, then 3');
 
+// --- Fines on the loan + save snapshot ---
+const ec = new Economy();
+ec.cash = 200;
+const fine = ec.charge(500);
+assert(fine.paid === 200 && fine.owed === 300 && ec.cash === 0 && ec.loan === LOAN_TOTAL + 300, 'fine short of cash: the rest goes on the kadan');
+const ec2 = new Economy();
+ec2.restore(ec.snapshot());
+assert(ec2.loan === ec.loan && ec2.cash === ec.cash, 'economy survives a save / load');
+
 console.log('check: all passed');

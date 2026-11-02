@@ -26,7 +26,8 @@ import { Minimap } from './ui/minimap';
 import { drawTownMap } from './ui/mapArt';
 import { Phone } from './ui/phone';
 import { Economy } from './missions/economy';
-import { LENDER, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, UNCLE } from './missions/data';
+import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
+import { clearSave, loadSave, writeSave } from './core/save';
 import { Weather } from './world/weather';
 import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
@@ -47,6 +48,7 @@ import { ROAD_LINES } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
+const AUTOSAVE_MS = 10_000;
 const MAX_STEPS = 4; // per frame; beyond this the game slows down instead of spiralling
 const HIT_STOP = { punch: 0.05, swing: 0.08, kick: 0.09 }; // seconds the world freezes when a blow lands
 const HIT_STOP_SCALE = 0.05; // how slow the world runs during it
@@ -81,14 +83,23 @@ async function main() {
 
   // Start outside the temple's main gopuram on East Mada Street; uncle's auto at the kerb,
   // facing north in the left lane.
-  const spawn = new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
-  const autoSpot = new THREE.Vector3(25 - 4.2, 0, -4); // tight to the kerb so traffic can pass
+  // A save game puts you (and the auto) back where you left them.
+  const saved = loadSave();
+  const spawn = saved ? new THREE.Vector3(saved.player.x, saved.player.y + 0.05, saved.player.z) : new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
+  const autoSpot = saved ? new THREE.Vector3(saved.auto.x, 0, saved.auto.z) : new THREE.Vector3(25 - 4.2, 0, -4); // tight to the kerb so traffic can pass
   const player = new PlayerController(world, scene, spawn, characters.hero);
-  const auto = new AutoRickshaw(scene, world, autoSpot, Math.PI);
+  if (saved) player.mesh.rotation.y = saved.player.yaw;
+  const auto = new AutoRickshaw(scene, world, autoSpot, saved ? saved.auto.heading : Math.PI);
   const ride = new Ride(player, auto);
   const melee = new Melee(player);
   const heroHips = player.model.getObjectByName('Hips')!;
   let health = 100;
+  if (saved) {
+    economy.restore(saved.economy);
+    energy.value = saved.energy;
+    health = saved.health;
+    dayNight.timeMs = saved.gameMs;
+  }
   /** A traffic vehicle the player took (null = on foot or in uncle's auto). */
   let stolen: Vehicle | null = null;
   let stolenFor = 0;
@@ -167,6 +178,7 @@ async function main() {
     player: () => ({ x: player.position.x, z: player.position.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }),
     auto: () => auto.group.position,
     guide: () => guide,
+    newGame: () => newGame(),
     pay: (amount) => {
       const paid = economy.pay(amount);
       if (!paid) return;
@@ -210,7 +222,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -250,10 +262,12 @@ async function main() {
   /** Arrested or shot down: fine, then released outside the station. */
   const knockOut = (cause: 'busted' | 'shot' | 'starved') => {
     const fine = cause === 'busted' ? 500 * Math.max(1, wanted.level) : 300;
-    economy.cash = Math.max(0, economy.cash - fine);
+    const { owed } = economy.charge(fine); // short of cash: Kandasamy pays the rest and adds it to the kadan
     showMoney();
     const [title, sub] = cause === 'busted' ? [BUSTED_TITLE, BUSTED_SUB] : cause === 'shot' ? [WASTED_TITLE, WASTED_SUB] : [STARVED_TITLE, STARVED_SUB];
-    hud.banner(title, sub.replace('{fine}', String(fine)));
+    const onLoan = owed > 0 ? ` Kaasu pathala: ₹${owed} kadan-la serthaachu.` : '';
+    hud.banner(title, sub.replace('{fine}', String(fine)) + onLoan);
+    if (owed > 0) phone.addMessage(LENDER, MSG_FINE_ON_LOAN.replace('{owed}', owed.toLocaleString('en-IN')).replace('{loan}', economy.loan.toLocaleString('en-IN')));
     meal.forceStop();
     closeMenu();
     basket = [];
@@ -271,7 +285,39 @@ async function main() {
   };
 
   showMoney();
-  phone.addMessage(UNCLE, MSG_WELCOME);
+  phone.addMessage(UNCLE, saved ? MSG_WELCOME_BACK : MSG_WELCOME);
+
+  // Autosave every few seconds and when the tab closes.
+  let resetting = false;
+  const saveNow = () => {
+    if (resetting || downFor > 0) return; // never save the "arrested" moment
+    const inVehicle = stolen ?? (ride.phase !== 'onFoot' ? auto : null);
+    let p = player.position;
+    let yaw = player.mesh.rotation.y;
+    if (inVehicle) {
+      // Load back up standing beside the vehicle you were in.
+      const side = new THREE.Vector3(1, 0, 0).applyQuaternion(inVehicle.group.quaternion);
+      p = inVehicle.group.position.clone().addScaledVector(side, 2.2);
+      p.y = CAPSULE_LIFT + 0.3;
+      yaw = Math.atan2(side.x, side.z);
+    }
+    const a = auto.group.position;
+    writeSave({
+      gameMs: dayNight.timeMs,
+      economy: economy.snapshot(),
+      energy: energy.value,
+      health: Math.max(1, health),
+      player: { x: p.x, y: p.y, z: p.z, yaw },
+      auto: { x: a.x, y: a.y, z: a.z, heading: auto.heading },
+    });
+  };
+  window.setInterval(saveNow, AUTOSAVE_MS);
+  window.addEventListener('pagehide', saveNow);
+  const newGame = () => {
+    resetting = true;
+    clearSave();
+    location.reload();
+  };
   hud.setMission("Find your uncle's auto");
   console.log(`[world] ${town.count} buildings, ${props.lampCount} lamps, ${props.treeCount} trees, ${crowd.npcs.length} NPCs`);
 
@@ -367,7 +413,8 @@ async function main() {
       else if (ride.canExit) ride.exit();
       else if (other) takeVehicle(other);
     }
-    if (onFootFree && !menuFor && !shelfOpen && input.wasPressed('Digit1')) melee.toggleStick();
+    // (meal.busy: the same key press may have just ordered food from a menu this frame)
+    if (onFootFree && !meal.busy && !menuFor && !shelfOpen && input.wasPressed('Digit1')) melee.toggleStick();
     if (onFootFree && input.wasPressed('Mouse0')) {
       melee.attack(meleeTargets);
       energy.spend(ATTACK_COST);

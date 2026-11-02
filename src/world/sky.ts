@@ -4,6 +4,8 @@ import { istClock, sunDirection } from './solar';
 
 /** Holding T: game hours that pass per real second. */
 const FAST_FORWARD_HOURS_PER_SEC = 1;
+/** Game time runs this much faster than real time: 3 real seconds = 1 game minute (a day in 72 min). */
+export const TIME_SCALE = 20;
 /** Half-size of the shadow camera box around the player, metres. Small = sharp + cheap. */
 const SHADOW_RANGE = 25;
 const LIGHT_DISTANCE = 60;
@@ -39,7 +41,8 @@ export class DayNight {
   /** Weather inputs (0..1), set by Weather each frame. */
   rain = 0;
   cloud = 0;
-  private offsetMs = 0;
+  /** In-game clock (ms timestamp). Starts at the real Chennai time; a save can set it. */
+  timeMs = Date.now();
   private effects = true;
 
   constructor(scene: THREE.Scene) {
@@ -62,17 +65,12 @@ export class DayNight {
     this.sun.shadow.normalBias = 0.03;
   }
 
-  /** In-game time: real time + debug fast-forward. */
-  get timeMs() {
-    return Date.now() + this.offsetMs;
-  }
-
   get clockLabel() {
     return `${istClock(this.timeMs)} IST`;
   }
 
   update(dt: number, fastForward: boolean, focus: THREE.Vector3) {
-    if (fastForward) this.offsetMs += dt * FAST_FORWARD_HOURS_PER_SEC * 3600_000;
+    this.timeMs += dt * 1000 * (fastForward ? FAST_FORWARD_HOURS_PER_SEC * 3600 : TIME_SCALE);
     const d = sunDirection(this.timeMs);
     this.sunDir.set(d.x, d.y, d.z);
     const e = d.y; // sin(elevation)

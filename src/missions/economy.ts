@@ -30,6 +30,28 @@ export class Economy {
     return paid;
   }
 
+  /**
+   * A fine or bill: paid from cash as far as it goes; whatever's left is added to the loan
+   * (Kandasamy covers it, at his price). Returns what was paid now and what went on the loan.
+   */
+  charge(amount: number) {
+    const paid = Math.max(0, Math.min(amount, this.cash));
+    this.cash -= paid;
+    const owed = amount - paid;
+    this.loan += owed;
+    return { paid, owed };
+  }
+
+  /** Plain data for the save file. */
+  snapshot() {
+    const { cash, loan, rides, earnedToday, paidToday, missedDays, day } = this;
+    return { cash, loan, rides, earnedToday, paidToday, missedDays, day };
+  }
+
+  restore(s: ReturnType<Economy['snapshot']>) {
+    Object.assign(this, s);
+  }
+
   /** Still owed for today. */
   get dueToday() {
     return this.loan > 0 ? Math.max(0, Math.min(DAILY_DUE, this.loan) - this.paidToday) : 0;

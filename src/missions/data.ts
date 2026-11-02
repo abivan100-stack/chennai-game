@@ -70,6 +70,8 @@ export function stopPoint(s: Stop, where: 'kerb' | 'sidewalk') {
 // ---- Phone messages ------------------------------------------------------------------------
 export const UNCLE = 'Chithappa';
 export const LENDER = 'Kandasamy (kadan)';
+export const MSG_WELCOME_BACK = 'Thirumba vandhutta thambi! Auto, kaasu, kadan ellam appadiye irukku.';
+export const MSG_FINE_ON_LOAN = 'Fine kattaradhukku un kitta kaasu illa. ₹{owed} naan kattitten, un kadan-la serthutten. Ippo total kadan ₹{loan}.';
 export const MSG_WELCOME =
   'Thambi, en auto ippo unnodadhu. Kandasamy kitta ₹15,000 kadan irukku. Daily ₹500 kattu, illana auto-va eduthuttu poiduvaan. Nalla ottu, nalla per vaangu!';
 export const MSG_LENDER_HELLO = 'Naan dhaan Kandasamy. Un chithappa auto-ku ₹15,000 baaki. Daily ₹500 — marakkaadha!';

@@ -22,6 +22,8 @@ export interface PhoneDeps {
   guide: () => { x: number; z: number }[] | null;
   /** Pay this much towards the loan (main posts the lender's reply). */
   pay: (amount: number) => void;
+  /** Wipe the save and start a new game. */
+  newGame: () => void;
 }
 
 interface Message {
@@ -255,7 +257,7 @@ export class Phone {
 
   private wallet() {
     const { economy } = this.deps;
-    const paidPct = Math.round(((LOAN_TOTAL - economy.loan) / LOAN_TOTAL) * 100);
+    const paidPct = Math.max(0, Math.round(((LOAN_TOTAL - economy.loan) / LOAN_TOTAL) * 100)); // fines can push the loan above the start
     const payBtn = (label: string, amount: number) => {
       const b = h('button', { class: 'phone-btn' }, label);
       if (economy.cash <= 0 || economy.loan <= 0) b.setAttribute('disabled', '');
@@ -280,7 +282,21 @@ export class Phone {
         h('div', { class: economy.dueToday > 0 ? 'due' : 'muted' }, economy.dueToday > 0 ? `Due today: ${rupees(economy.dueToday)}` : "Today's amount paid ✔"),
         h('div', { class: 'phone-row' }, payBtn(`Pay ${rupees(DAILY_DUE)}`, DAILY_DUE), payBtn('Pay all cash', Infinity)),
       ),
+      this.newGameButton(),
     );
+  }
+
+  /** Two taps: the first arms it, the second wipes the save. */
+  private newGameButton() {
+    const b = h('button', { class: 'phone-btn' }, 'New game (delete save)');
+    b.onclick = () => {
+      if (b.dataset.armed) this.deps.newGame();
+      else {
+        b.dataset.armed = '1';
+        b.textContent = 'Tap again to delete the save';
+      }
+    };
+    return h('div', { class: 'phone-row' }, b);
   }
 
   private messagesApp() {
