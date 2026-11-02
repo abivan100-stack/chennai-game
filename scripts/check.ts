@@ -1,0 +1,37 @@
+// Self-check for the pure logic modules. Run: npm run check (Node 22.18+ runs .ts directly).
+import { sunDirection, istClock } from '../src/world/solar.ts';
+import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/quality.ts';
+
+function assert(cond: boolean, msg: string) {
+  if (!cond) throw new Error(`FAIL: ${msg}`);
+}
+const ist = (iso: string) => Date.parse(`${iso}+05:30`);
+const elevDeg = (iso: string) => (Math.asin(sunDirection(ist(iso)).y) * 180) / Math.PI;
+
+// --- Sun ---
+assert(istClock(ist('2026-06-21T14:05:00')) === '14:05', 'istClock formats IST');
+assert(Math.abs(elevDeg('2026-06-21T12:09:00') - 79.6) < 2, 'June noon: sun ~80° high');
+assert(sunDirection(ist('2026-06-21T12:09:00')).z < 0, 'June noon: sun to the north (Chennai is south of the tropic)');
+assert(Math.abs(elevDeg('2026-12-21T12:09:00') - 53.5) < 2, 'December noon: sun ~53° high');
+assert(sunDirection(ist('2026-12-21T12:09:00')).z > 0, 'December noon: sun to the south');
+assert(elevDeg('2026-03-20T00:00:00') < -60, 'midnight: sun well below horizon');
+assert(sunDirection(ist('2026-03-20T08:00:00')).x > 0.5, 'morning: sun in the east');
+assert(sunDirection(ist('2026-03-20T17:00:00')).x < -0.5, 'evening: sun in the west');
+assert(elevDeg('2026-03-20T05:50:00') < 0 && elevDeg('2026-03-20T06:40:00') > 0, 'sunrise ~6:15 IST');
+
+// --- Quality ladder: resolution first, then shadows, then effects ---
+const order: string[] = [];
+let s: QualitySettings | null = { ...PRESETS.high };
+let prev = s;
+while ((s = stepDown(prev))) {
+  order.push(s.resScale !== prev.resScale ? 'res' : s.shadows !== prev.shadows ? 'shadows' : 'effects');
+  prev = s;
+}
+assert(order.join(',') === 'res,res,res,res,res,shadows,shadows,effects', `step-down order: ${order}`);
+assert(prev.resScale === 0.5 && prev.shadows === 0 && !prev.effects, 'bottom of ladder');
+let up: QualitySettings = prev;
+for (let i = 0; i < 8; i++) up = stepUp(up) ?? up;
+assert(JSON.stringify(up) === JSON.stringify(PRESETS.high), 'step-up climbs back to high');
+assert(stepUp(PRESETS.high) === null, 'high is the ceiling');
+
+console.log('check: all passed');
