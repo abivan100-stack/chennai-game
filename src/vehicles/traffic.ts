@@ -14,6 +14,9 @@ const CORNER_SPEED = 4;
 const LOOKAHEAD = 7; // m along the path to judge an upcoming turn
 const HONK_AFTER = 2.5; // s blocked before honking
 const HONK_EVERY = 4;
+const DRAW_DIST = 130; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
+const DETAIL_DIST = 55; // ...and beyond this they drop wheels and driver (5 draw calls each)
+const SIGNAL_LOOK = 25; // m: start slowing for a red this far before the stop line
 
 export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry';
 /** What the prompt calls each kind ("F - Steal the ..."). */
@@ -175,6 +178,10 @@ export class Traffic {
   private readonly aheadDir = new THREE.Vector3();
   private audio: AudioContext | null = null;
 
+  /** Signal ahead of a front bumper at (x, z) heading (dx, dz), if any (world/trafficLights). */
+  signals: ((x: number, z: number, dx: number, dz: number, look: number) => { light: 'green' | 'amber' | 'red'; distToStop: number } | null) | null = null;
+  /** Speed multiplier at a point (flood water); 1 = dry road. */
+  slowAt: (x: number, z: number) => number = () => 1;
   /** A driver was pulled out of their vehicle and says something. */
   onSay: (name: string, line: string) => void = () => {};
   private readonly scene: THREE.Scene;
@@ -201,6 +208,11 @@ export class Traffic {
       ['lorry', 2, 3, 0.85, 0xf57c00],
       ['scooter', 3, 1, 0.3, 0x90caf9],
       ['bike', 2, 3, 0.1, 0xb71c1c],
+      // Santhome
+      ['auto', 4, 1, 0.3],
+      ['car', 4, 3, 0.6, 0x37474f],
+      ['scooter', 4, 2, 0.2, 0xffeb3b],
+      ['bus', 4, 2, 0.7],
     ];
     for (const [kind, i, j, start, colour] of fleet) {
       const group = new THREE.Group();
@@ -279,7 +291,16 @@ export class Traffic {
       for (const o of obstacles) check(o.x, o.z, o.honk);
       for (const other of this.vehicles) if (other !== veh) check(other.currPos.x, other.currPos.z, false);
       if (blocked) target = 0;
-      veh.target = target;
+      // Traffic lights: stop at the line on red, and on amber unless too close to stop.
+      if (this.signals) {
+        const fx = p.x + this.dir.x * sp.length / 2;
+        const fz = p.z + this.dir.z * sp.length / 2;
+        const sig = this.signals(fx, fz, this.dir.x, this.dir.z, SIGNAL_LOOK);
+        if (sig && sig.light !== 'green' && !(sig.light === 'amber' && sig.distToStop < 3)) {
+          target = Math.min(target, Math.max(0, (sig.distToStop - 0.8) * 0.9));
+        }
+      }
+      veh.target = target * this.slowAt(p.x, p.z);
 
       // Chennai rules: if you're in the way, they let you know.
       veh.blockedFor = blocked && veh.v < 0.5 ? veh.blockedFor + dt : 0;
@@ -351,7 +372,8 @@ export class Traffic {
   }
 
   /** Once per frame: blend the last two physics poses into the models, spin the wheels. */
-  sync(dt: number, alpha: number, night = 0) {
+  /** eye: camera position, for distance detail (far vehicles drop wheels / driver, very far ones aren't drawn). */
+  sync(dt: number, alpha: number, night = 0, eye: THREE.Vector3 | null = null) {
     for (let i = this.fleeing.length - 1; i >= 0; i--) {
       const f = this.fleeing[i];
       f.t += dt;
@@ -366,6 +388,13 @@ export class Traffic {
     for (const veh of this.vehicles) {
       veh.group.position.lerpVectors(veh.prevPos, veh.currPos, alpha);
       veh.group.quaternion.slerpQuaternions(veh.prevRot, veh.currRot, alpha);
+      if (eye) {
+        const d = veh.group.position.distanceTo(eye);
+        veh.group.visible = d < DRAW_DIST || veh.mode === 'player';
+        const near = d < DETAIL_DIST || veh.mode === 'player';
+        for (const w of veh.wheels) w.visible = near;
+        if (veh.driver) veh.driver.visible = near;
+      }
       const lv = veh.body.linvel();
       const fwd = this.dir.set(0, 0, 1).applyQuaternion(veh.group.quaternion);
       const speed = lv.x * fwd.x + lv.z * fwd.z;
@@ -434,7 +463,7 @@ export class Traffic {
     let speed = lv.x * fx + lv.z * fz;
     const { throttle, steer, brake } = v.ctl;
     if (brake) speed *= 1 - Math.min(1, 4 * dt);
-    else if (throttle > 0) speed = speed < -0.3 ? speed + h.accel * 2 * dt : Math.min(h.top, speed + h.accel * dt);
+    else if (throttle > 0) speed = speed < -0.3 ? speed + h.accel * 2 * dt : Math.min(h.top * this.slowAt(v.currPos.x, v.currPos.z), speed + h.accel * dt);
     else if (throttle < 0) speed = speed > 0.3 ? speed - h.accel * 2 * dt : Math.max(-5, speed - h.accel * 0.7 * dt);
     else speed *= 1 - Math.min(1, 0.8 * dt);
     // Tyres kill most sideways slide each step.

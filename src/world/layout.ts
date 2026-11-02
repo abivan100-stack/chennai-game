@@ -7,19 +7,41 @@
  *   - Block west of it: the temple tank, with R.K. Mutt Road beyond.
  *   - The four Mada Streets ring the temple; Luz Church Road (north), Kutchery Road (south)
  *     and San Thome High Road (east) form the outer roads.
+ *   - East of San Thome High Road: Santhome. The San Thome Basilica block, then Kamarajar
+ *     Salai (Beach Road), then the beach and the sea (world/santhome.ts).
  * Directions: -z = north, +x = east.
  *
  * Cross-section from a road centre line outwards:
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
-export const WORLD_SIZE = 200; // metres, square, centred on the origin
-export const HALF = WORLD_SIZE / 2;
-export const ROAD_LINES = [-70, -25, 25, 70]; // centre lines, same on both axes
+/** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
+export const BOUNDS = { x0: -100, x1: 250, z0: -100, z1: 100 };
+/** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
+export const X_LINES = [-70, -25, 25, 70, 125];
+/** Roads running east-west (centre line z = c). They end at the Beach Road. */
+export const Z_LINES = [-70, -25, 25, 70];
+export const BEACH_ROAD = X_LINES[X_LINES.length - 1];
 export const ROAD_HALF = 5;
 export const SIDEWALK_WIDTH = 2.5;
 export const SIDEWALK_HEIGHT = 0.15;
 export const SETBACK = ROAD_HALF + SIDEWALK_WIDTH; // road centre -> building front
 export const WORLD_MARGIN = 2; // buildings stop this far from the world edge
+/** Sand starts at the Beach Road's east building line; the shoreline is at SEA_X. */
+export const BEACH_X = BEACH_ROAD + ROAD_HALF + 2.5;
+export const SEA_X = 205;
+/** Every road: which axis it runs along ('z' = north-south at x = c), its centre line and where it starts / ends. */
+export interface RoadLine {
+  axis: 'x' | 'z';
+  c: number;
+  from: number;
+  to: number;
+}
+export function roads(): RoadLine[] {
+  return [
+    ...X_LINES.map((c) => ({ axis: 'z' as const, c, from: BOUNDS.z0, to: BOUNDS.z1 })),
+    ...Z_LINES.map((c) => ({ axis: 'x' as const, c, from: BOUNDS.x0, to: BEACH_ROAD + ROAD_HALF })),
+  ];
+}
 
 /** Street names (English, Tamil). X_ROADS run north-south at x = line; Z_ROADS run east-west at z = line. */
 export const X_ROADS: Record<number, [string, string]> = {
@@ -27,6 +49,7 @@ export const X_ROADS: Record<number, [string, string]> = {
   [-25]: ['West Mada Street', 'மேற்கு மாட வீதி'],
   [25]: ['East Mada Street', 'கிழக்கு மாட வீதி'],
   [70]: ['San Thome High Road', 'சாந்தோம் நெடுஞ்சாலை'],
+  [125]: ['Kamarajar Salai (Beach Road)', 'காமராஜர் சாலை'],
 };
 export const Z_ROADS: Record<number, [string, string]> = {
   [-70]: ['Luz Church Road', 'லஸ் சர்ச் சாலை'],
@@ -36,21 +59,22 @@ export const Z_ROADS: Record<number, [string, string]> = {
 };
 
 /**
- * Stretches of road between crossings, along either axis: [start, end] pairs.
- * The outermost spans run to the world edge.
+ * Stretches of a road between crossings: [start, end] pairs along it. A north-south road is
+ * crossed by the east-west ones and vice versa; the outermost spans run to the road's ends.
  */
-export function roadSpans(): [number, number][] {
+export function roadSpans(r: RoadLine): [number, number][] {
+  const crossing = (r.axis === 'z' ? Z_LINES : X_LINES).filter((c) => c > r.from && c < r.to);
   const spans: [number, number][] = [];
-  const edges = [-HALF, ...ROAD_LINES, HALF];
+  const edges = [r.from, ...crossing, r.to];
   for (let i = 0; i < edges.length - 1; i++) {
-    const start = i === 0 ? -HALF : edges[i] + ROAD_HALF;
-    const end = i === edges.length - 2 ? HALF : edges[i + 1] - ROAD_HALF;
-    spans.push([start, end]);
+    const start = i === 0 ? r.from : edges[i] + ROAD_HALF;
+    const end = i === edges.length - 2 ? r.to : edges[i + 1] - ROAD_HALF;
+    if (end > start) spans.push([start, end]);
   }
   return spans;
 }
 
-export type BlockKind = 'shops' | 'temple' | 'tank';
+export type BlockKind = 'shops' | 'temple' | 'tank' | 'church' | 'beach';
 export interface Block {
   i: number; // column (west -> east)
   j: number; // row (north -> south)
@@ -63,20 +87,24 @@ export interface Block {
   road: { w: boolean; e: boolean; n: boolean; s: boolean };
 }
 
-const CENTRE = Math.floor(ROAD_LINES.length / 2); // block index of the temple (both axes)
+const CENTRE = 2; // block index of the temple (both axes)
+const SANTHOME = X_LINES.length - 1; // block column between San Thome High Road and the Beach Road
 
 /** City blocks between roads: lot rectangles (inside the sidewalks) + what goes there. */
 export function blocks(): Block[] {
-  const edges = [-HALF, ...ROAD_LINES, HALF];
+  const ex = [BOUNDS.x0, ...X_LINES, BOUNDS.x1];
+  const ez = [BOUNDS.z0, ...Z_LINES, BOUNDS.z1];
   const out: Block[] = [];
-  const lo = (i: number) => (i === 0 ? -HALF + WORLD_MARGIN : edges[i] + SETBACK);
-  const hi = (i: number) => (i === edges.length - 2 ? HALF - WORLD_MARGIN : edges[i + 1] - SETBACK);
-  for (let i = 0; i < edges.length - 1; i++) {
-    for (let j = 0; j < edges.length - 1; j++) {
-      const kind: BlockKind = j !== CENTRE ? 'shops' : i === CENTRE ? 'temple' : i === CENTRE - 1 ? 'tank' : 'shops';
+  const lo = (e: number[], i: number) => (i === 0 ? e[0] + WORLD_MARGIN : e[i] + SETBACK);
+  const hi = (e: number[], i: number) => (i === e.length - 2 ? e[e.length - 1] - WORLD_MARGIN : e[i + 1] - SETBACK);
+  for (let i = 0; i < ex.length - 1; i++) {
+    for (let j = 0; j < ez.length - 1; j++) {
+      const kind: BlockKind = i > SANTHOME ? 'beach'
+        : j !== CENTRE ? 'shops'
+        : i === CENTRE ? 'temple' : i === CENTRE - 1 ? 'tank' : i === SANTHOME ? 'church' : 'shops';
       out.push({
-        i, j, x0: lo(i), x1: hi(i), z0: lo(j), z1: hi(j), kind,
-        road: { w: i > 0, e: i < edges.length - 2, n: j > 0, s: j < edges.length - 2 },
+        i, j, x0: lo(ex, i), x1: hi(ex, i), z0: lo(ez, j), z1: hi(ez, j), kind,
+        road: { w: i > 0, e: i < ex.length - 2, n: j > 0, s: j < ez.length - 2 },
       });
     }
   }

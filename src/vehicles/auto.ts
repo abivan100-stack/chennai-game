@@ -116,15 +116,29 @@ export class AutoRickshaw {
   }
 
   /** Engine off, handbrake on (parked / driver getting out). */
+  /** Teleport (Kandasamy hands it back at the kerb). */
+  placeAt(p: THREE.Vector3, heading: number) {
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), heading);
+    this.body.setTranslation({ x: p.x, y: p.y + BODY_Y, z: p.z }, true);
+    this.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.captured = false; // next capture() snaps instead of interpolating from the old spot
+  }
+
   park() {
     this.control(0, 0, true);
   }
 
   private steerInput = 0;
 
+  /** Top-speed multiplier (flood water); set by the game each frame. */
+  speedLimit = 1;
+
   /** Call before each physics step. */
   update(dt: number) {
     const v = this.speed;
+    const top = MAX_SPEED * this.speedLimit;
     const t = Math.min(Math.abs(v) / MAX_SPEED, 1);
     const maxSteer = STEER_LOW_SPEED + (STEER_HIGH_SPEED - STEER_LOW_SPEED) * t;
     const target = this.steerInput * maxSteer;
@@ -134,7 +148,7 @@ export class AutoRickshaw {
     let brake = 0;
     if (this.throttle > 0) {
       if (v < -0.5) brake = BRAKE;
-      else engine = ENGINE_FORCE * this.throttle * (1 - Math.min(Math.max(v, 0) / MAX_SPEED, 1));
+      else engine = ENGINE_FORCE * this.throttle * (1 - Math.min(Math.max(v, 0) / top, 1));
     } else if (this.throttle < 0) {
       if (v > 0.5) brake = BRAKE;
       else engine = v > -MAX_REVERSE ? -ENGINE_FORCE * 0.6 : 0;

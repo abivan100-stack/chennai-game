@@ -43,6 +43,9 @@ export class Meal {
   phase: Phase = 'none';
   /** Called once the meal is over (finished or stopped). */
   onDone: (finished: boolean) => void = () => {};
+  /** Each time the hand reaches the mouth (for the munch sound). */
+  onBite: () => void = () => {};
+  private bitesTaken = 0;
 
   private readonly player: PlayerController;
   private readonly scene: THREE.Scene;
@@ -120,6 +123,7 @@ export class Meal {
     this.eatery = e;
     this.item = item;
     this.finished = true;
+    this.bitesTaken = 0;
     this.duration = item.seconds + 2 * ARM_BLEND;
     (this.plateFood.material as THREE.MeshStandardMaterial).color.set(item.color);
     (this.handFood.material as THREE.MeshStandardMaterial).color.set(item.color);
@@ -222,6 +226,10 @@ export class Meal {
         const bites = Math.ceil(this.item!.seconds / BITE_SECONDS);
         const done = Math.min(bites, Math.floor((this.eatT - ARM_BLEND) / BITE_SECONDS + 0.55));
         const left = Math.max(0.15, 1 - done / bites);
+        if (done > this.bitesTaken) {
+          this.bitesTaken = done;
+          this.onBite();
+        }
         if (this.phase === 'eat') this.plateFood.scale.setScalar(left);
         else this.handFood.scale.setScalar(left * this.handFoodScale);
         if (this.eatT < this.duration) return;

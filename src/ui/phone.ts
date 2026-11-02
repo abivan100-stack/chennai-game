@@ -5,7 +5,7 @@ import type { Weather } from '../world/weather';
 import { stopPoint } from '../missions/data';
 import { MAP_LAND, MAP_PPM, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
 import { routeLength } from '../missions/route';
-import { WORLD_SIZE } from '../world/layout';
+import { BOUNDS } from '../world/layout';
 
 type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather';
 
@@ -24,6 +24,8 @@ export interface PhoneDeps {
   pay: (amount: number) => void;
   /** Wipe the save and start a new game. */
   newGame: () => void;
+  /** Pay Kandasamy to get the seized auto back. */
+  redeem: () => void;
 }
 
 interface Message {
@@ -199,9 +201,9 @@ export class Phone {
     const g = c.getContext('2d')!;
     const me = this.deps.player();
     // Screen px per metre and the map window (centred on the player when zoomed).
-    const k = this.mapZoomed ? 2.6 : W / WORLD_SIZE;
-    const cx = this.mapZoomed ? me.x : 0;
-    const cz = this.mapZoomed ? me.z : 0;
+    const k = this.mapZoomed ? 2.6 : W / (BOUNDS.x1 - BOUNDS.x0);
+    const cx = this.mapZoomed ? me.x : (BOUNDS.x0 + BOUNDS.x1) / 2;
+    const cz = this.mapZoomed ? me.z : (BOUNDS.z0 + BOUNDS.z1) / 2;
     const sw = (W / k) * MAP_PPM;
     const sh = (H / k) * MAP_PPM;
     g.fillStyle = MAP_LAND;
@@ -273,6 +275,7 @@ export class Phone {
       h('div', { class: 'phone-title' }, 'Wallet'),
       h('div', { class: 'phone-card' }, h('div', { class: 'big' }, rupees(economy.cash)), h('div', { class: 'muted' }, 'cash in hand')),
       h('div', { class: 'phone-card' }, `Today: ${rupees(economy.earnedToday)} earned · ${economy.rides} rides total`),
+      ...(economy.seized ? [this.seizedCard()] : []),
       h(
         'div',
         { class: 'phone-card' },
@@ -284,6 +287,18 @@ export class Phone {
       ),
       this.newGameButton(),
     );
+  }
+
+  /** Kandasamy has the auto: pay the overdue + penalty to get it back. */
+  private seizedCard() {
+    const { economy } = this.deps;
+    const b = h('button', { class: 'phone-btn' }, `Pay ${rupees(economy.redeemCost)} — get the auto back`);
+    if (economy.cash < economy.redeemCost) b.setAttribute('disabled', '');
+    b.onclick = () => {
+      this.deps.redeem();
+      this.render();
+    };
+    return h('div', { class: 'phone-card' }, h('b', { class: 'due' }, '🚫 Auto seized by Kandasamy'), h('div', { class: 'muted' }, `${economy.missedDays} days unpaid + ₹500 penalty`), b);
   }
 
   /** Two taps: the first arms it, the second wipes the save. */

@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { HALF, POLICE_LOT, SUPERMARKET_LOTS, ROAD_HALF, ROAD_LINES, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, WORLD_SIZE, X_ROADS, Z_ROADS, roadSpans } from '../world/layout';
+import { BEACH_ROAD, BEACH_X, BOUNDS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
 
@@ -24,8 +24,10 @@ export interface TownMap {
   labels: MapLabel[];
 }
 
-/** Metres -> map pixels (x right = east, y down = south). */
-export const mapPx = (m: number) => (m + HALF) * MAP_PPM;
+/** Metres -> map pixels (x right = east, y down = south). The world's west and north edges are both at -100, so one function serves both axes. */
+export const mapPx = (m: number) => (m - BOUNDS.x0) * MAP_PPM;
+export const MAP_W = (BOUNDS.x1 - BOUNDS.x0) * MAP_PPM;
+export const MAP_H = (BOUNDS.z1 - BOUNDS.z0) * MAP_PPM;
 
 // Navigation-app palette.
 const C = {
@@ -42,10 +44,12 @@ const C = {
   templeWall: '#c0472f',
   water: '#a6d1ec',
   police: '#cfdcf3',
+  sand: '#f3e2b3',
+  sea: '#8cc4e8',
 };
 export const MAP_LAND = C.land;
-/** The outer roads are the big ones (yellow, like a main road on a nav app). */
-const MAIN = new Set([ROAD_LINES[0], ROAD_LINES[ROAD_LINES.length - 1]]);
+/** The outer roads and the Beach Road are the big ones (yellow, like a main road on a nav app). */
+const isMain = (r: RoadLine) => Math.abs(r.c) === 70 || r.c === BEACH_ROAD;
 
 /**
  * Draw the town once, without text (labels come back separately, so a rotating minimap can
@@ -53,35 +57,48 @@ const MAIN = new Set([ROAD_LINES[0], ROAD_LINES[ROAD_LINES.length - 1]]);
  * outlines, shop dots, trees, the temple, tank and police station, and bus-stop markers.
  */
 export function drawTownMap(data: MapData): TownMap {
-  const size = WORLD_SIZE * MAP_PPM;
   const c = document.createElement('canvas');
-  c.width = c.height = size;
+  c.width = MAP_W;
+  c.height = MAP_H;
   const g = c.getContext('2d')!;
   const P = mapPx;
   const M = (m: number) => m * MAP_PPM;
   const labels: MapLabel[] = [];
 
   g.fillStyle = C.land;
-  g.fillRect(0, 0, size, size);
+  g.fillRect(0, 0, MAP_W, MAP_H);
+  // Santhome beach and the sea.
+  g.fillStyle = C.sand;
+  g.fillRect(P(BEACH_X), 0, M(SEA_X - BEACH_X), MAP_H);
+  g.fillStyle = C.sea;
+  g.fillRect(P(SEA_X), 0, MAP_W - P(SEA_X), MAP_H);
+  labels.push({ text: 'Santhome Beach', x: (BEACH_X + SEA_X) / 2, z: 15, kind: 'landmark' });
+  labels.push({ text: 'Bay of Bengal', x: (SEA_X + BOUNDS.x1) / 2, z: -40, kind: 'landmark' });
 
+  /** A band `half` wide either side of each road's centre line, over the road's length. */
   const bands = (half: number, colour: string, only?: boolean) => {
     g.fillStyle = colour;
-    for (const l of ROAD_LINES) {
-      if (only !== undefined && MAIN.has(l) !== only) continue;
-      g.fillRect(P(l - half), 0, M(half * 2), size);
-      g.fillRect(0, P(l - half), size, M(half * 2));
+    for (const r of roads()) {
+      if (only !== undefined && isMain(r) !== only) continue;
+      if (r.axis === 'z') g.fillRect(P(r.c - half), P(r.from), M(half * 2), M(r.to - r.from));
+      else g.fillRect(P(r.from), P(r.c - half), M(r.to - r.from), M(half * 2));
     }
   };
   bands(SETBACK, C.sidewalk);
   bands(ROAD_HALF + 0.5, C.roadEdge);
   bands(ROAD_HALF, C.road, false);
   bands(ROAD_HALF, C.mainRoad, true);
-  // Side roads cross the main roads: keep the junction squares white-over-yellow consistent.
-  g.fillStyle = C.mainRoad;
-  for (const a of MAIN) for (const b of ROAD_LINES) {
-    g.fillRect(P(a - ROAD_HALF), P(b - ROAD_HALF), M(ROAD_HALF * 2), M(ROAD_HALF * 2));
-    g.fillRect(P(b - ROAD_HALF), P(a - ROAD_HALF), M(ROAD_HALF * 2), M(ROAD_HALF * 2));
-  }
+
+  // San Thome Basilica (built by world/santhome.ts on the church block) and the lighthouse.
+  const ch = block(4, 2);
+  g.fillStyle = '#f7f5ef';
+  g.fillRect(P(ch.x0), P(ch.z0), M(ch.x1 - ch.x0), M(ch.z1 - ch.z0));
+  g.fillStyle = '#e4e0d6';
+  g.fillRect(P(ch.x0 + 7), P(-7), M(28), M(14));
+  badge(g, P(ch.x0 + 21), P(0), '#5c6bc0', '✝');
+  labels.push({ text: 'San Thome Basilica', x: (ch.x0 + ch.x1) / 2, z: ch.z0 + 4, kind: 'landmark' });
+  badge(g, P(150), P(-80), '#c62828', 'L');
+  labels.push({ text: 'Lighthouse', x: 150, z: -73, kind: 'landmark' });
 
   // Temple: court, striped wall, gopurams, shrine.
   const t = TEMPLE_BLOCK();
@@ -170,12 +187,12 @@ export function drawTownMap(data: MapData): TownMap {
   }
 
   // Street names: one per stretch of road, at its middle.
-  for (const l of ROAD_LINES) {
-    for (const [a, b] of roadSpans()) {
+  for (const r of roads()) {
+    for (const [a, b] of roadSpans(r)) {
       if (b - a < 25) continue;
       const mid = (a + b) / 2;
-      labels.push({ text: X_ROADS[l][0], x: l, z: mid, kind: 'street' });
-      labels.push({ text: Z_ROADS[l][0], x: mid, z: l, kind: 'street' });
+      if (r.axis === 'z') labels.push({ text: X_ROADS[r.c][0], x: r.c, z: mid, kind: 'street' });
+      else labels.push({ text: Z_ROADS[r.c][0], x: mid, z: r.c, kind: 'street' });
     }
   }
   return { canvas: c, labels };

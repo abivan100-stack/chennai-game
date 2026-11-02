@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
-import { HALF, ROAD_HALF, ROAD_LINES, SIDEWALK_HEIGHT, X_ROADS, Z_ROADS, roadSpans } from './layout';
+import { ROAD_HALF, SIDEWALK_HEIGHT, X_LINES, X_ROADS, Z_LINES, Z_ROADS, roadSpans, roads } from './layout';
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
@@ -24,9 +24,11 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   const trees: THREE.Matrix4[] = [];
   const y0 = SIDEWALK_HEIGHT;
 
-  for (const c of ROAD_LINES) {
-    for (const axis of ['x', 'z'] as const) {
-      for (const [a, b] of roadSpans()) {
+  for (const r of roads()) {
+    const { c, axis } = r;
+    const offEnd = (s: number) => s < r.from + 3 || s > r.to - 3; // keep clear of the world edge
+    {
+      for (const [a, b] of roadSpans(r)) {
         for (const side of [-1, 1]) {
           const across = c + side * (ROAD_HALF + CURB_OFFSET);
           const place = (along: number) => (axis === 'z' ? new THREE.Vector3(across, y0, along) : new THREE.Vector3(along, y0, across));
@@ -35,12 +37,12 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
           const lampAlongs: number[] = [];
           const start = a + (side > 0 ? 6 : 6 + LAMP_SPACING / 2);
           for (let s = start; s < b - 4; s += LAMP_SPACING) {
-            if (Math.abs(s) > HALF - 3) continue;
+            if (offEnd(s)) continue;
             lampAlongs.push(s);
             lamps.push(new THREE.Matrix4().makeRotationY(toRoad).setPosition(place(s)));
           }
           for (let s = a + 4 + rand() * 4; s < b - 4; s += TREE_SPACING * (0.7 + rand() * 0.6)) {
-            if (lampAlongs.some((l) => Math.abs(l - s) < 3) || Math.abs(s) > HALF - 3) continue;
+            if (lampAlongs.some((l) => Math.abs(l - s) < 3) || offEnd(s)) continue;
             const scale = 0.8 + rand() * 0.5;
             trees.push(new THREE.Matrix4().makeRotationY(rand() * Math.PI * 2).scale(new THREE.Vector3(scale, scale, scale)).setPosition(place(s)));
           }
@@ -109,7 +111,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
  * street (each board runs parallel to the street it names). Two draw calls in total.
  */
 function streetSigns(world: RAPIER.World) {
-  const names = [...ROAD_LINES.map((c) => X_ROADS[c]), ...ROAD_LINES.map((c) => Z_ROADS[c])];
+  const names = [...X_LINES.map((c) => X_ROADS[c]), ...Z_LINES.map((c) => Z_ROADS[c])];
   const tex = streetSignTextures(names);
   const posts = new GeoBuilder();
   const boards = new GeoBuilder();
@@ -135,13 +137,13 @@ function streetSigns(world: RAPIER.World) {
   };
 
   const corner = ROAD_HALF + 0.55;
-  for (const [xi, x] of ROAD_LINES.entries()) {
-    for (const [zi, z] of ROAD_LINES.entries()) {
+  for (const [xi, x] of X_LINES.entries()) {
+    for (const [zi, z] of Z_LINES.entries()) {
       for (const [sx, sz] of [[1, -1], [-1, 1]]) {
         const p = new THREE.Vector3(x + sx * corner, SIDEWALK_HEIGHT, z + sz * corner);
         posts.add(pole, new THREE.Matrix4().setPosition(p), grey);
         board(new THREE.Vector3(p.x, p.y + POLE_H - 0.55, p.z), 'z', xi); // names the north-south street
-        board(new THREE.Vector3(p.x, p.y + POLE_H - 0.18, p.z), 'x', ROAD_LINES.length + zi); // the east-west one
+        board(new THREE.Vector3(p.x, p.y + POLE_H - 0.18, p.z), 'x', X_LINES.length + zi); // the east-west one
         world.createCollider(RAPIER.ColliderDesc.cylinder(POLE_H / 2, 0.06).setTranslation(p.x, p.y + POLE_H / 2, p.z));
       }
     }

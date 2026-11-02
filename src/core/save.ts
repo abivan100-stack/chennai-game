@@ -12,7 +12,7 @@ export interface SaveData {
   v: number;
   savedAt: number; // real time (ms)
   gameMs: number; // in-game clock (ms timestamp, IST shown)
-  economy: { cash: number; loan: number; rides: number; earnedToday: number; paidToday: number; missedDays: number; day: number | null };
+  economy: { cash: number; loan: number; rides: number; earnedToday: number; paidToday: number; missedDays: number; day: number | null; seized?: boolean };
   energy: number;
   health: number;
   player: { x: number; y: number; z: number; yaw: number };

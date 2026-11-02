@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { HALF, ROAD_HALF, ROAD_LINES, SETBACK, SIDEWALK_HEIGHT, roadSpans } from './layout';
+import { BEACH_ROAD, BEACH_X, BOUNDS, ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, roadSpans, roads, type RoadLine } from './layout';
 import { tankRect } from './temple';
 import { asphaltTexture, curbTexture, pavingTexture } from './textures';
 
@@ -11,7 +11,7 @@ const DASH = 3; // centre-line dash length (m); gaps are the same
 const ZEBRA_STRIPES = 8;
 
 /** A road runs along `axis` at centre-line `c`. Map (across, height, along) -> world. */
-type Road = { axis: 'x' | 'z'; c: number };
+type Road = RoadLine;
 const at = (r: Road, across: number, y: number, along: number) =>
   r.axis === 'z' ? new THREE.Vector3(across, y, along) : new THREE.Vector3(along, y, across);
 const dir = (r: Road, across: number, along: number) => at(r, across, 0, along).normalize();
@@ -28,35 +28,37 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
     const c = [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0, z0), new THREE.Vector3(x1, 0, z1), new THREE.Vector3(x0, 0, z1)];
     earth.quad(c[0], c[1], c[2], c[3], [[0, 0], [0, 0], [0, 0], [0, 0]], WHITE, UP);
   };
-  rect(-HALF, HALF, -HALF, t.z0);
-  rect(-HALF, HALF, t.z1, HALF);
-  rect(-HALF, t.x0, t.z0, t.z1);
-  rect(t.x1, HALF, t.z0, t.z1);
+  // Earth stops at the beach; the sand (with its own floor collider) and the sea are world/santhome.ts.
+  const { x0, z0, z1 } = BOUNDS;
+  rect(x0, BEACH_X, z0, t.z0);
+  rect(x0, BEACH_X, t.z1, z1);
+  rect(x0, t.x0, t.z0, t.z1);
+  rect(t.x1, BEACH_X, t.z0, t.z1);
   const ground = new THREE.Mesh(earth.build(), new THREE.MeshStandardMaterial({ color: 0x7d7262, roughness: 1 }));
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const roads = new GeoBuilder();
+  const asphaltB = new GeoBuilder();
   const marks = new GeoBuilder();
   const paving = new GeoBuilder();
   const curbs = new GeoBuilder();
-  const allRoads: Road[] = ROAD_LINES.flatMap((c) => [{ axis: 'z' as const, c }, { axis: 'x' as const, c }]);
-
-  for (const r of allRoads) {
+  for (const r of roads()) {
     // Asphalt strip, UVs in metres / 4.
     const a0 = r.c - ROAD_HALF;
     const a1 = r.c + ROAD_HALF;
-    const corners = [at(r, a0, 0.01, -HALF), at(r, a1, 0.01, -HALF), at(r, a1, 0.01, HALF), at(r, a0, 0.01, HALF)];
-    roads.quad(corners[0], corners[1], corners[2], corners[3], corners.map((p) => [p.x / 4, p.z / 4]), WHITE, UP);
+    const corners = [at(r, a0, 0.01, r.from), at(r, a1, 0.01, r.from), at(r, a1, 0.01, r.to), at(r, a0, 0.01, r.to)];
+    asphaltB.quad(corners[0], corners[1], corners[2], corners[3], corners.map((p) => [p.x / 4, p.z / 4]), WHITE, UP);
+    // The Beach Road's sea side has no side streets: one unbroken promenade.
+    if (r.axis === 'z' && r.c === BEACH_ROAD) sidewalk(paving, curbs, world, r, 1, r.from, r.to);
 
-    for (const [s0, s1] of roadSpans()) {
+    for (const [s0, s1] of roadSpans(r)) {
       // Dashed centre line, stopping short of the zebra crossings.
       for (let z = s0 + 5; z + DASH < s1 - 5; z += DASH * 2) {
         stripe(marks, r, r.c, z + DASH / 2, 0.15, DASH);
       }
       // Zebra crossings at each end that meets a junction.
       for (const [end, inward] of [[s0, 1], [s1, -1]] as const) {
-        if (Math.abs(end) >= HALF) continue;
+        if (end === r.from || end === r.to) continue; // road ends at the world edge, no crossing
         const centre = end + inward * 2;
         for (let i = 0; i < ZEBRA_STRIPES; i++) {
           const across = a0 + ((i + 0.5) * (ROAD_HALF * 2)) / ZEBRA_STRIPES;
@@ -64,7 +66,10 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
         }
       }
       // Sidewalks on both sides.
-      for (const side of [-1, 1]) sidewalk(paving, curbs, world, r, side, s0, s1);
+      for (const side of [-1, 1]) {
+        if (r.axis === 'z' && r.c === BEACH_ROAD && side === 1) continue; // done above
+        sidewalk(paving, curbs, world, r, side, s0, s1);
+      }
     }
   }
 
@@ -73,7 +78,7 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
   // Rain makes the asphalt darker and shinier (see setWet).
   const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95 });
   const meshes = [
-    new THREE.Mesh(roads.build(), roadMat),
+    new THREE.Mesh(asphaltB.build(), roadMat),
     new THREE.Mesh(
       marks.build(),
       new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }),
@@ -87,19 +92,25 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
   }
 
   // Physics: thick ground slab (thin colliders let fast things tunnel) + 4 edge walls.
-  world.createCollider(RAPIER.ColliderDesc.cuboid(HALF, 0.5, HALF).setTranslation(0, -0.5, 0));
+  const cx = (BOUNDS.x0 + BOUNDS.x1) / 2;
+  const cz = (BOUNDS.z0 + BOUNDS.z1) / 2;
+  const hx = (BOUNDS.x1 - BOUNDS.x0) / 2;
+  const hz = (BOUNDS.z1 - BOUNDS.z0) / 2;
+  const gx = (BOUNDS.x0 + BEACH_X) / 2; // the town's floor slab stops where the beach starts
+  world.createCollider(RAPIER.ColliderDesc.cuboid((BEACH_X - BOUNDS.x0) / 2, 0.5, hz).setTranslation(gx, -0.5, cz));
   const wet = { setWet(f: number) {
     roadMat.roughness = 0.95 - 0.6 * f;
     roadMat.metalness = 0.25 * f;
     roadMat.color.setScalar(1 - 0.35 * f);
   } };
-  for (const [x, z, hx, hz] of [
-    [HALF, 0, 0.5, HALF],
-    [-HALF, 0, 0.5, HALF],
-    [0, HALF, HALF, 0.5],
-    [0, -HALF, HALF, 0.5],
+  // Edge walls (the sea side is walled off in the water by world/santhome.ts).
+  for (const [x, z, wx, wz] of [
+    [BOUNDS.x1, cz, 0.5, hz],
+    [BOUNDS.x0, cz, 0.5, hz],
+    [cx, BOUNDS.z1, hx, 0.5],
+    [cx, BOUNDS.z0, hx, 0.5],
   ]) {
-    world.createCollider(RAPIER.ColliderDesc.cuboid(hx, 10, hz).setTranslation(x, 10, z));
+    world.createCollider(RAPIER.ColliderDesc.cuboid(wx, 10, wz).setTranslation(x, 10, z));
   }
   return wet;
 }
@@ -130,7 +141,7 @@ function sidewalk(paving: GeoBuilder, curbs: GeoBuilder, world: RAPIER.World, r:
   curbs.quad(curb[0], curb[1], curb[2], curb[3], [[a / 2, 0], [b / 2, 0], [b / 2, 1], [a / 2, 1]], WHITE, dir(r, -side, 0));
   // Ends at junctions.
   for (const [along, facing] of [[a, -1], [b, 1]] as const) {
-    if (Math.abs(along) >= HALF) continue;
+    if (along === r.from || along === r.to) continue;
     const e = [at(r, inner, 0, along), at(r, outer, 0, along), at(r, outer, h, along), at(r, inner, h, along)];
     curbs.quad(e[0], e[1], e[2], e[3], [[0, 0], [1.25, 0], [1.25, 1], [0, 1]], WHITE, dir(r, 0, facing));
   }

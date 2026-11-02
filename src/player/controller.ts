@@ -63,6 +63,8 @@ export class PlayerController {
   blocking = false;
   /** False when too hungry to run. */
   canRun = true;
+  /** Walking / running speed multiplier (wading through flood water). */
+  speedScale = 1;
   private away = false;
   private readonly prevPos = new THREE.Vector3();
   private readonly currPos = new THREE.Vector3();
@@ -176,7 +178,7 @@ export class PlayerController {
     this.wish.set(r * cos - f * sin, 0, -r * sin - f * cos);
     if (this.wish.lengthSq() > 1) this.wish.normalize();
     const running = this.canRun && (input.isDown('ShiftLeft') || input.isDown('ShiftRight'));
-    this.wish.multiplyScalar(running ? RUN_SPEED : WALK_SPEED);
+    this.wish.multiplyScalar((running ? RUN_SPEED : WALK_SPEED) * this.speedScale);
     if (input.wasPressed('Space')) this.jumpQueued = true;
     // Attacking or blocking: stand your ground (a kick lunges forward along the facing).
     if (this.actionT > 0 || this.blocking) {

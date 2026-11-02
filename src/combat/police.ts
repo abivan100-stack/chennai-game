@@ -4,7 +4,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Animator } from '../characters/animator';
 import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { route } from '../missions/route';
-import { ROAD_LINES } from '../world/layout';
+import { BEACH_ROAD, X_LINES, Z_LINES } from '../world/layout';
 import { policeModel } from '../vehicles/models';
 
 // ---- Tuning -------------------------------------------------------------------------------
@@ -278,7 +278,7 @@ export class Police {
         u.repath -= dt;
         if (u.repath <= 0) {
           u.repath = 0.5;
-          u.path = route({ x: u.currPos.x, z: u.currPos.z }, { x: ctx.player.x, z: ctx.player.z }, ROAD_LINES);
+          u.path = route({ x: u.currPos.x, z: u.currPos.z }, { x: ctx.player.x, z: ctx.player.z }, X_LINES, Z_LINES);
         }
         if (d < STOP_DIST) this.dismount(u);
         return;
@@ -396,9 +396,13 @@ export class Police {
   private dispatch(u: Unit, ctx: PoliceContext) {
     let best: { x: number; z: number } | null = null;
     let bestScore = -Infinity;
-    for (const c of ROAD_LINES) {
-      for (let a = ROAD_LINES[0]; a <= ROAD_LINES[ROAD_LINES.length - 1]; a += 5) { // inside the grid, not the dead ends at the edge
-        for (const p of [{ x: c, z: a }, { x: a, z: c }]) {
+    // Road points inside the grid (not the dead ends at the world edge).
+    const candidates: { x: number; z: number }[] = [];
+    for (const x of X_LINES) for (let z = Z_LINES[0]; z <= Z_LINES[Z_LINES.length - 1]; z += 5) candidates.push({ x, z });
+    for (const z of Z_LINES) for (let x = X_LINES[0]; x <= BEACH_ROAD; x += 5) candidates.push({ x, z });
+    {
+      {
+        for (const p of candidates) {
           const d = Math.hypot(p.x - ctx.player.x, p.z - ctx.player.z);
           if (d < SPAWN_DIST[0] || d > SPAWN_DIST[1]) continue;
           // Behind the camera = out of view.

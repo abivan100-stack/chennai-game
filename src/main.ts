@@ -28,6 +28,11 @@ import { Phone } from './ui/phone';
 import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
+import { Sound } from './audio/sound';
+import { createSanthome } from './world/santhome';
+import { createTrafficLights } from './world/trafficLights';
+import { createFlood } from './world/flood';
+import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHARGE, SIGNAL_FINE, TRAFFIC_POLICE } from './missions/data';
 import { Weather } from './world/weather';
 import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
@@ -44,7 +49,7 @@ import { Meal } from './player/meal';
 import { createEateries, type Eatery } from './world/eateries';
 import { BASKET_FULL, BASKET_MAX, CASHIER, CASHIER_HELLO, CASHIER_THANKS, MEAL_DONE, NO_MONEY, SHOPLIFT_LINE, type FoodItem, type Shelf } from './world/food';
 import { createSupermarkets, type Store } from './world/supermarket';
-import { ROAD_LINES } from './world/layout';
+import { SEA_X, X_LINES, Z_LINES } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
@@ -78,6 +83,12 @@ async function main() {
   const crowd = new Crowd(scene, world, characters.npcs);
   const eateries = createEateries(scene, world, town.footprints);
   const markets = createSupermarkets(scene, world, characters.npcs.get('woman-formal')!);
+  const santhome = createSanthome(scene, world);
+  const signals = createTrafficLights(scene, world);
+  traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
+  const flood = createFlood(scene);
+  traffic.slowAt = (x, z) => flood.slowAt(x, z);
+  const sound = new Sound();
   const energy = new Energy();
   crowd.onSay = (name, line) => hud.say(name, line);
 
@@ -95,7 +106,7 @@ async function main() {
   const heroHips = player.model.getObjectByName('Hips')!;
   let health = 100;
   if (saved) {
-    economy.restore(saved.economy);
+    economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false }); // older saves had no "seized"
     energy.value = saved.energy;
     health = saved.health;
     dayNight.timeMs = saved.gameMs;
@@ -106,7 +117,27 @@ async function main() {
   /** Seconds left on the ARRESTED / SUTTUTAANGA screen (controls frozen). */
   let downFor = 0;
   const NO_INPUT = { ...input, isDown: () => false, wasPressed: () => false };
+  let wasWet = false;
+  let redLatch = 0; // s since the vehicle was at a stop line on red
+  const finedAt = new Set<number>(); // junctions already fined for (until you leave them)
+  const soundKind = (k: Vehicle['kind']) =>
+    k === 'bus' ? 'bus' : k === 'lorry' || k === 'tempo' ? 'truck' : k === 'bike' ? 'bike' : k === 'scooter' ? 'scooter' : k === 'auto' ? 'auto' : 'car';
+  // Bike / scooter riders sit astride: knees swung out around the tank (world-space turn of each thigh).
+  const up = new THREE.Vector3(0, 1, 0);
+  const legQ = new THREE.Quaternion();
+  const parentQ = new THREE.Quaternion();
+  const parentInv = new THREE.Quaternion();
+  const thighs = [player.model.getObjectByName('LeftUpLeg')!, player.model.getObjectByName('RightUpLeg')!];
+  const straddle = (angle: number) => {
+    thighs.forEach((bone, i) => {
+      legQ.setFromAxisAngle(up, i === 0 ? angle : -angle); // left thigh to +x (its side), right to -x
+      bone.parent!.getWorldQuaternion(parentQ);
+      parentInv.copy(parentQ).invert();
+      bone.quaternion.premultiply(parentInv.multiply(legQ).multiply(parentQ));
+    });
+  };
   const meal = new Meal(player, scene);
+  meal.onBite = () => sound.eat();
   meal.onDone = (finished) => {
     if (finished) hud.say('Neenga', MEAL_DONE);
   };
@@ -162,7 +193,10 @@ async function main() {
   const cam = new FollowCamera(camera, world, player.collider);
   cam.yaw = 1.15; // from the east, looking back at the gopuram with the auto in view
   cam.pitch = 0.08;
-  enablePointerLock(renderer.domElement, (locked) => hud.showPlayHint(!locked));
+  enablePointerLock(renderer.domElement, (locked) => {
+    hud.showPlayHint(!locked);
+    if (locked) sound.unlock(); // browsers only allow audio after a click
+  });
 
   // Fares: start once the player has climbed into the auto for the first time.
   const jobs = new TaxiJobs(scene, characters.npcs, auto);
@@ -179,6 +213,7 @@ async function main() {
     auto: () => auto.group.position,
     guide: () => guide,
     newGame: () => newGame(),
+    redeem: () => redeemAuto(),
     pay: (amount) => {
       const paid = economy.pay(amount);
       if (!paid) return;
@@ -190,6 +225,7 @@ async function main() {
   jobs.onPaid = (fare, tip) => {
     economy.earn(fare + tip);
     showMoney();
+    sound.coin();
     console.log(`[fare] ₹${fare}${tip ? ` + ₹${tip} tip` : ''}`);
   };
   jobs.onNewOrder = (o) => {
@@ -200,6 +236,7 @@ async function main() {
   let guide: { x: number; z: number }[] | null = null;
   let guideAge = 0;
   ride.onDrivingChange = (driving) => {
+    sound.door();
     cam.mode = driving ? 'drive' : 'foot';
     cam.ignore = driving ? auto.collider : player.collider;
     hud.setSpeed(driving ? 0 : null);
@@ -222,11 +259,12 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
     const theft = traffic.take(v);
+    sound.door();
     stolen = v;
     stolenFor = 0;
     player.setAway(true);
@@ -246,6 +284,7 @@ async function main() {
   };
   const leaveVehicle = () => {
     if (!stolen) return;
+    sound.door();
     const side = new THREE.Vector3(1, 0, 0).applyQuaternion(stolen.group.quaternion);
     const out = stolen.group.position.clone().addScaledVector(side, SPEC[stolen.kind].width / 2 + 0.8);
     out.y += 0.2;
@@ -259,6 +298,24 @@ async function main() {
     cam.ignore = player.collider;
     hud.setSpeed(null);
   };
+  // ---- Kandasamy takes the auto after too many missed days ------------------------------
+  const AUTO_HOME = new THREE.Vector3(25 - 4.2, 0, -4);
+  const seizeAuto = () => {
+    if (ride.phase !== 'onFoot') ride.forceOut();
+    auto.group.visible = false;
+    auto.body.setEnabled(false);
+  };
+  const redeemAuto = () => {
+    if (!economy.redeem()) return;
+    showMoney();
+    auto.placeAt(AUTO_HOME, Math.PI);
+    auto.body.setEnabled(true);
+    auto.group.visible = true;
+    phone.addMessage(LENDER, MSG_REDEEMED);
+    hud.say(LENDER, MSG_REDEEMED);
+  };
+  let fallen = false; // shot / fainted: lying on the ground until released
+  if (economy.seized) seizeAuto(); // loaded a save where it had been taken
   /** Arrested or shot down: fine, then released outside the station. */
   const knockOut = (cause: 'busted' | 'shot' | 'starved') => {
     const fine = cause === 'busted' ? 500 * Math.max(1, wanted.level) : 300;
@@ -272,8 +329,11 @@ async function main() {
     closeMenu();
     basket = [];
     downFor = 3.5;
+    fallen = cause !== 'busted' && player.onFoot && !stolen;
   };
   const release = () => {
+    if (fallen) player.attachModel(); // stand back up
+    fallen = false;
     hud.banner(null);
     leaveVehicle();
     ride.forceOut();
@@ -338,7 +398,7 @@ async function main() {
     // --- Interactions (F: auto / any vehicle, E: talk, 1: stick, click: swing)
     const free = downFor <= 0;
     const onFootFree = free && player.onFoot && ride.phase === 'onFoot' && !stolen && !meal.busy;
-    const nearAuto = onFootFree && auto.isNear(player.position, ENTER_RADIUS);
+    const nearAuto = onFootFree && auto.group.visible && auto.isNear(player.position, ENTER_RADIUS);
     const other = onFootFree && !nearAuto ? traffic.enterable(player.position) : null;
     // Hotels / shops: E opens the menu (not while the police are after you).
     const eatery = onFootFree && !nearAuto && !other && wanted.level === 0 ? eateries.nearest(player.position) : null;
@@ -478,7 +538,7 @@ async function main() {
     const alpha = accumulator / PHYSICS_STEP; // how far we are into the next physics step
     player.sync(dt, alpha);
     auto.sync(dayNight.night, alpha);
-    traffic.sync(dt, alpha, dayNight.night);
+    traffic.sync(dt, alpha, dayNight.night, camera.position);
     police.sync(dt, alpha);
     // Melee: who the fist / foot / lathi tip touched this frame.
     const struck = melee.update(dt, meleeTargets);
@@ -498,9 +558,17 @@ async function main() {
       if (copHit) wanted.report('assaultPolice'); // one blow = one crime, however many it hit
       if (crime) wanted.report('assault');
       hitStop = HIT_STOP[struck.move];
+      sound.hit(struck.move);
       cam.shake(struck.move === 'punch' ? 0.05 : 0.09);
     }
     if (stolen) pinHips(stolen.group, DRIVER_SEAT[stolen.kind]);
+    if (stolen && (stolen.kind === 'bike' || stolen.kind === 'scooter')) straddle(stolen.kind === 'bike' ? 0.32 : 0.12);
+    if (fallen && downFor > 0) {
+      // Collapse backwards over half a second (pivot at the feet), then lie still.
+      const k = THREE.MathUtils.smoothstep(3.5 - downFor, 0, 0.5);
+      player.model.rotation.x = -Math.PI / 2 * k;
+      player.model.position.y = -CAPSULE_LIFT + 0.12 * k;
+    }
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     meal.lateUpdate(); // seated hips + hand-to-mouth
     jobs.update(dt, ride.driving);
@@ -525,6 +593,12 @@ async function main() {
     // New IST day: settle the moneylender's daily amount.
     const settled = economy.tickDay(Math.floor(istTime(dayNight.timeMs).day));
     if (settled === 'missed') phone.addMessage(LENDER, MSG_MISSED[Math.min(economy.missedDays, MSG_MISSED.length) - 1]);
+    if (economy.seized && auto.group.visible) {
+      seizeAuto();
+      const msg = MSG_SEIZED.replace('{cost}', economy.redeemCost.toLocaleString('en-IN'));
+      phone.addMessage(LENDER, msg);
+      hud.say(LENDER, msg);
+    }
     town.setNight(dayNight.night);
     props.setNight(dayNight.night);
     temple.setNight(dayNight.night);
@@ -567,6 +641,50 @@ async function main() {
     }
     hud.setStatus(health, wanted.level);
 
+    // ---- Santhome, signals, floods, sound --------------------------------------------------
+    santhome.update(dt);
+    santhome.setNight(dayNight.night);
+    signals.update(dt);
+    flood.update(dt, weather.rain);
+    jobs.fareBoost = weather.rain > 0.5 ? RAIN_SURCHARGE : 1;
+    const drivingAny = ride.driving || !!stolen;
+    const vPos = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
+    const vSpeed = stolen ? Math.abs(stolenSpeed) : ride.driving ? Math.abs(auto.speed) : player.speed;
+    auto.speedLimit = flood.slowAt(auto.group.position.x, auto.group.position.z);
+    player.speedScale = flood.slowAt(player.position.x, player.position.z);
+    const wet = flood.depthAt(vPos.x, vPos.z) > 0.05;
+    if (wet && !wasWet && vSpeed > 2) sound.splash();
+    wasWet = wet;
+    // Jumping a red: you were at the stop line on red, moving, and then entered the junction.
+    if (drivingAny && downFor <= 0) {
+      const yaw = stolen ? traffic.headingOf(stolen) : auto.heading;
+      const sig = signals.ahead(vPos.x, vPos.z, Math.sin(yaw), Math.cos(yaw), 6);
+      if (sig && sig.light === 'red' && sig.distToStop < 3 && vSpeed > 2) redLatch = 1.5;
+      redLatch -= dt;
+      const j = signals.inJunction(vPos.x, vPos.z);
+      if (j >= 0 && redLatch > 0 && !finedAt.has(j)) {
+        finedAt.add(j);
+        const { owed } = economy.charge(SIGNAL_FINE);
+        showMoney();
+        const msg = MSG_SIGNAL_JUMP.replace('{fine}', String(SIGNAL_FINE)) + (owed > 0 ? ` (₹${owed} kadan-la)` : '');
+        hud.say(TRAFFIC_POLICE, msg);
+        phone.addMessage(TRAFFIC_POLICE, msg);
+      }
+      if (j < 0 && redLatch <= 0) finedAt.clear();
+    }
+    sound.update(dt, {
+      inVehicle: drivingAny,
+      vehicleKind: stolen ? soundKind(stolen.kind) : ride.driving ? 'auto' : null,
+      speed: drivingAny ? vSpeed : 0,
+      throttle: drivingAny ? Number(input.isDown('KeyW')) - Number(input.isDown('KeyS')) : 0,
+      footSpeed: drivingAny || !player.onFoot ? 0 : player.speed,
+      nearTemple: Math.max(0, 1 - Math.hypot(player.position.x, player.position.z) / 45),
+      nearSea: THREE.MathUtils.clamp(1 - (SEA_X - vPos.x) / 70, 0, 1),
+      rain: weather.rain,
+      night: dayNight.night,
+    });
+    if (input.wasPressed('KeyM')) sound.setMuted(!sound.muted);
+
     // Energy: drains with activity, refills while eating; at zero, health goes.
     const activity: Activity = ride.driving || stolen ? 'drive' : player.speed > 4 ? 'run' : player.speed > 0.3 ? 'walk' : 'idle';
     const wasLow = energy.low;
@@ -578,7 +696,8 @@ async function main() {
     player.canRun = !energy.tired;
     hud.setEnergy(energy.value, energy.low);
     if (input.wasPressed('F3')) debug.toggle();
-    if (jobs.phase !== 'off') {
+    if (economy.seized) hud.setMission(MISSION_SEIZED.replace('{cost}', economy.redeemCost.toLocaleString('en-IN')));
+    else if (jobs.phase !== 'off') {
       hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);
     }
     const pp = player.position;
@@ -587,7 +706,7 @@ async function main() {
       guideAge = 0;
       const t = jobs.target;
       const from = player.onFoot ? player.position : auto.group.position;
-      guide = t ? route({ x: from.x, z: from.z }, t, ROAD_LINES) : null;
+      guide = t ? route({ x: from.x, z: from.z }, t, X_LINES, Z_LINES) : null;
     }
     phone.update(performance.now());
     minimap.update(performance.now(), {

@@ -21,7 +21,8 @@ Step 6b done: melee with Mixamo clips (punch / lathi swing / kick / block; NPCs 
 Step 7 done: energy (hunger) bar that drains with walking / running / driving / fighting; low = warning, very low = can't run, empty = no healing and health drains until you collapse (PASI-LA VIZHUNDHUTEENGA! -> hospital bill, respawn fed). 114 eateries from the shop boards (tiffin centres, mess, hotels with a steel table + red stool outside; tea stalls, stores, supermarkets for snacks): E opens the menu, 1-4 orders; hotels: walk to the stool, sit, eat off a banana leaf bite by bite (CCD IK hand-to-mouth over the seated pose, food shrinks, energy fills), stand up; shops: eat standing. WASD stops early.
 Step 7b done: fist fights with police (officers have health: punch 25 / lathi 40 / kick 35 + knockdown; out cold 25 s at 0; within 6 m they rush you with fists instead of shooting; hitting police = +1 star, min 2); stool pose fixed (sit facing the road, swivel to face the table, knees under it); faster vehicles (auto 65 km/h, traffic ~40% faster, police jeeps 80 km/h); new Indian-style traffic: scooter, motorbike, Ambassador-style taxi, Omni-style van, Ace-style mini truck, TN lorry (all stealable); two walk-in Kapali Supermarkets (shelves -> basket (E, 1-4) -> pay at the counter -> eat; walk out unpaid = theft star); street 'supermarket' boards became Kapali Bakery; police jeeps park inside the station forecourt.
 Step 7c done: game clock 20x real time; save game in localStorage (core/save.ts: cash, loan, day, energy, health, clock, player + auto position; autosave every 10 s + on pagehide; phone Wallet -> New game wipes it); fines / hospital bills you can't cover go on the kadan (Economy.charge); key 1 no longer takes the lathi out when it orders food.
-Next: losing the auto when payments are missed too often (game over / grace), more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
+Step 8 done: Santhome added east of San Thome High Road (map now x -100..250 x z -100..100; layout has separate X_LINES / Z_LINES and roads() with extents): San Thome Basilica block, Kamarajar Salai (Beach Road, x = 125), Santhome beach + sea + Marina lighthouse + boats / carts / palms (world/santhome.ts), Santhome traffic + pedestrians + 5 new stops; traffic lights at the 4 Mada Street junctions (AI stops on red; jumping a red while driving = ₹500 fine); procedural WebAudio sound (engines per vehicle, footsteps, city, temple bells, sea, rain, hits, coins, eating; M mutes); missions: urgent hospital trips (double fare on time), VIP rides (triple if no bumps), parcel deliveries from hotels (tip if hot); 3 missed days -> Kandasamy seizes the auto until you pay overdue + ₹500 (Phone > Wallet); flood water on low roads in heavy rain slows everything, rain fare surcharge 30%; hero falls flat when shot / fainting; bike / scooter riders straddle; distance detail for traffic and pedestrians.
+Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
 - Vite 8 + TypeScript 7 (strict, `erasableSyntaxOnly`), npm
@@ -82,6 +83,9 @@ src/
     food.ts            menus per shop board (hotel = sit, shop = standing snack); pure data, checked
     eateries.ts        eateries from the shop boards, instanced tables + stools, nearest()
     supermarket.ts     walk-in supermarkets on layout.SUPERMARKET_LOTS: shell, stocked shelves (instanced products), fridge, counter, cashier; storeAt / shelfAt / atCounter
+    santhome.ts        Santhome: basilica, beach (sand trimesh collider), animated sea, lighthouse + beam, boats, carts, palms, huts
+    trafficLights.ts   signals at the Mada St junctions: SignalCycle (pure, checked), posts + lamps, ahead() / inJunction()
+    flood.ts           low-road flood zones: level rises in heavy rain, slowAt() / depthAt()
     temple.ts          Kapaleeshwarar temple + tank (gopurams, walls, shrine, mandapams, steps, water)
     geo.ts             GeoBuilder: merge quads/boxes/geometry with vertex colours into one mesh
     textures.ts        canvas textures: facade/shop tiles (+ night emissive), signs, asphalt, curbs
@@ -92,6 +96,8 @@ src/
     sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog, `night` factor
     solar.ts           IST clock + sun direction over Chennai (pure math)
     weather.ts         Open-Meteo live weather (temp, rain, cloud) + rain streaks; R = test override
+  audio/
+    sound.ts           procedural WebAudio: engine per vehicle kind, footsteps, ambience, bells, sea, rain, one-shots; unlock() on click
   ui/
     hud.ts             wallet, mission, context prompt, "click to play"
     debug.ts           F3 panel: FPS, frame/CPU ms, draw calls, tris, quality, IST time, position, NPCs animated

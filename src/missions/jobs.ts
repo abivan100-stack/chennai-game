@@ -4,7 +4,11 @@ import { Animator } from '../characters/animator';
 import { CHARACTER_HEIGHT, NPC_MODELS, type CharacterAsset, type NpcModelId } from '../characters/catalog';
 import { AutoRickshaw, BENCH } from '../vehicles/auto';
 import { SIDEWALK_HEIGHT } from '../world/layout';
-import { PAID_LINES, PASSENGER_NAMES, PICKUP_LINES, RIDE_LINES, STOPS, fare, payment, stopPoint, type Stop } from './data';
+import {
+  HOSPITAL, ORDER_WEIGHTS, PAID_LINES, PARCEL_COLD, PARCEL_FROM, PARCEL_HOT, PASSENGER_NAMES, PAY, PICKUP_LINES, RIDE_LINES, STOPS,
+  URGENT_LATE, URGENT_ON_TIME, URGENT_PICKUP, VIP_BUMP, VIP_NAMES, VIP_PICKUP, VIP_ROUGH, VIP_SMOOTH,
+  fare, payment, stopPoint, timeLimit, type OrderKind, type Stop,
+} from './data';
 
 const NOTICE_RADIUS = 18; // passenger waves when the auto comes this close
 const PICKUP_RADIUS = 5.5; // stop this close to the passenger to pick them up
@@ -17,6 +21,7 @@ const SWIVEL_SECONDS = 0.5;
 const HOP_OUT_SECONDS = 0.6;
 const LEAVE_SECONDS = 3.5;
 const CHATTER_EVERY = 14; // s between passenger remarks while riding
+const BUMP_DECEL = 3.5; // m/s lost in one frame = a bump the passenger feels
 
 type Phase = 'off' | 'idle' | 'waiting' | 'boarding' | 'seating' | 'riding' | 'alighting';
 
@@ -26,8 +31,11 @@ export interface Order {
   name: string;
   from: Stop;
   to: Stop;
-  fare: number; // meter estimate
+  fare: number; // what it pays (best case)
   expires: number; // seconds left
+  kind: OrderKind;
+  /** Seconds allowed from pickup to drop (urgent / delivery), or null. */
+  limit: number | null;
 }
 
 const OPEN_ORDERS = 3;
@@ -80,6 +88,8 @@ export class TaxiJobs {
   rides = 0;
   onSay: (name: string, line: string) => void = () => {};
   onPaid: (fare: number, tip: number) => void = () => {};
+  /** Fare multiplier (rain surcharge), set by the game each frame. */
+  fareBoost = 1;
   /** A new ride request arrived on the phone. */
   onNewOrder: (order: Order) => void = () => {};
   /** Open ride requests (shown on the phone). */
@@ -102,6 +112,11 @@ export class TaxiJobs {
   private rideTime = 0;
   private chatter = 0;
   private waved = false;
+  private kind: OrderKind = 'ride';
+  private limit: number | null = null;
+  private bumps = 0;
+  private lastSpeed = 0;
+  private parcel: THREE.Mesh | null = null;
   private readonly hipStart = new THREE.Vector3();
   private readonly hipTarget = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
@@ -127,10 +142,13 @@ export class TaxiJobs {
     switch (this.phase) {
       case 'waiting':
       case 'boarding':
-        return `Pick up ${this.name} at ${this.from.name} (yellow marker)`;
+        return this.kind === 'delivery' ? `Collect the parcel at ${this.from.name} (yellow marker)` : `Pick up ${this.name} at ${this.from.name} (yellow marker)`;
       case 'seating':
-      case 'riding':
-        return `Drop ${this.name} at ${this.to.name} (green marker)`;
+      case 'riding': {
+        const clock = this.limit !== null && this.phase === 'riding' ? ` ⏱ ${Math.max(0, Math.ceil(this.limit - this.rideTime))}s` : '';
+        const what = this.kind === 'delivery' ? 'Deliver the parcel' : `Drop ${this.name}`;
+        return `${what} at ${this.to.name} (green marker)${clock}`;
+      }
       default:
         return 'Open your phone (P) and accept a ride order';
     }
@@ -156,6 +174,9 @@ export class TaxiJobs {
     this.from = o.from;
     this.to = o.to;
     this.name = o.name;
+    this.kind = o.kind;
+    this.limit = o.limit;
+    this.bumps = 0;
     this.spawnPassenger();
     this.addOrder(true);
     return true;
@@ -175,6 +196,12 @@ export class TaxiJobs {
     this.animator?.update(dt);
     const speed = Math.abs(this.auto.speed);
     const stopped = driving && speed < STOP_SPEED;
+    // A sudden loss of speed = the passenger got thrown about (VIPs mind).
+    if (this.phase === 'riding' && this.lastSpeed - speed > BUMP_DECEL) {
+      this.bumps++;
+      if (this.kind === 'vip') this.onSay(this.name, rand(VIP_BUMP));
+    }
+    this.lastSpeed = speed;
     const autoPos = this.auto.group.position;
 
     switch (this.phase) {
@@ -182,6 +209,19 @@ export class TaxiJobs {
         return;
 
       case 'waiting': {
+        if (this.kind === 'delivery') {
+          const pp = this.parcel!.position;
+          if (!stopped || Math.hypot(autoPos.x - pp.x, autoPos.z - pp.z) > PICKUP_RADIUS) return;
+          // Parcel goes on the back bench; straight off to the customer.
+          this.auto.group.attach(this.parcel!);
+          this.parcel!.position.set(0, BENCH.y - 0.25, BENCH.z);
+          this.pickupMarker.hide();
+          this.dropMarker.show(stopPoint(this.to, 'kerb'));
+          this.onSay(this.from.name, 'Parcel ready! Sooda irukkum bodhe kudunga.');
+          this.rideTime = 0;
+          this.go('riding');
+          return;
+        }
         const d = this.root!.position.distanceTo(this.tmp.set(autoPos.x, this.root!.position.y, autoPos.z));
         if (!this.waved && d < NOTICE_RADIUS) {
           this.waved = true;
@@ -190,7 +230,8 @@ export class TaxiJobs {
         this.faceTowards(autoPos, dt);
         if (stopped && d < PICKUP_RADIUS) {
           this.side = this.auto.group.worldToLocal(this.root!.position.clone()).x >= 0 ? 1 : -1;
-          this.onSay(this.name, rand(PICKUP_LINES).replace('{place}', this.to.name));
+          const line = this.kind === 'urgent' ? URGENT_PICKUP : this.kind === 'vip' ? VIP_PICKUP : rand(PICKUP_LINES);
+          this.onSay(this.name, line.replace('{place}', this.to.name));
           this.animator!.play('walk');
           this.go('boarding');
         }
@@ -241,22 +282,44 @@ export class TaxiJobs {
       }
 
       case 'riding': {
-        this.hipTarget.copy(BENCH);
-        this.pin(0);
         this.rideTime += dt;
+        if (this.kind !== 'delivery') {
+          this.hipTarget.copy(BENCH);
+          this.pin(0);
+        }
         this.chatter -= dt;
-        if (this.chatter <= 0) {
+        if (this.chatter <= 0 && this.kind !== 'delivery') {
           this.chatter = CHATTER_EVERY;
           this.onSay(this.name, rand(RIDE_LINES));
         }
         const drop = stopPoint(this.to, 'kerb');
         if (stopped && Math.hypot(autoPos.x - drop.x, autoPos.z - drop.z) < DROP_RADIUS) {
           const a = stopPoint(this.from, 'kerb');
-          const { base, tip } = payment(Math.hypot(drop.x - a.x, drop.z - a.z), this.rideTime);
+          const paid = payment(Math.hypot(drop.x - a.x, drop.z - a.z), this.rideTime);
+          const base = Math.round(paid.base * this.fareBoost);
+          let tip = paid.tip;
+          let line = rand(PAID_LINES);
+          const onTime = this.limit === null || this.rideTime <= this.limit;
+          if (this.kind === 'urgent') {
+            tip = onTime ? base * (PAY.urgentOnTime - 1) : 0;
+            line = onTime ? URGENT_ON_TIME : URGENT_LATE;
+          } else if (this.kind === 'vip') {
+            tip = this.bumps === 0 ? base * (PAY.vipSmooth - 1) : 0;
+            line = this.bumps === 0 ? VIP_SMOOTH : VIP_ROUGH;
+          } else if (this.kind === 'delivery') {
+            tip = onTime ? Math.round(base * PAY.deliveryHotTip) : 0;
+            line = onTime ? PARCEL_HOT : PARCEL_COLD;
+          }
           this.rides++;
           this.onPaid(base, tip);
-          this.onSay(this.name, rand(PAID_LINES).replace('{fare}', String(base + tip)));
+          this.onSay(this.kind === 'delivery' ? 'Customer' : this.name, line.replace('{fare}', String(base + tip)));
           this.dropMarker.hide();
+          if (this.kind === 'delivery') {
+            this.parcel?.removeFromParent();
+            this.parcel = null;
+            this.go('idle');
+            return;
+          }
           this.scene.attach(this.root!);
           this.root!.rotation.set(0, this.root!.rotation.y, 0);
           this.leaveFrom.copy(this.root!.position);
@@ -293,29 +356,54 @@ export class TaxiJobs {
     }
   }
 
-  /** New ride request between two stops at least MIN_TRIP apart. */
+  /** New order (ride / urgent / VIP / parcel) between two stops at least MIN_TRIP apart. */
   private addOrder(notify: boolean) {
-    const from = rand(STOPS);
+    let r = Math.random();
+    let kind: OrderKind = 'ride';
+    for (const [k, w] of Object.entries(ORDER_WEIGHTS) as [OrderKind, number][]) {
+      if ((r -= w) < 0) {
+        kind = k;
+        break;
+      }
+    }
+    const hospital = STOPS.find((s) => s.name === HOSPITAL)!;
+    const from = rand(STOPS.filter((s) => kind !== 'urgent' || s !== hospital));
     const fp = stopPoint(from, 'kerb');
-    const to = rand(STOPS.filter((s) => {
+    const to = kind === 'urgent' ? hospital : rand(STOPS.filter((s) => {
       const p = stopPoint(s, 'kerb');
       return s !== from && Math.hypot(p.x - fp.x, p.z - fp.z) > MIN_TRIP;
     }));
     const tp = stopPoint(to, 'kerb');
+    const metres = Math.hypot(tp.x - fp.x, tp.z - fp.z);
+    const base = fare(metres);
+    const name = kind === 'vip' ? `⭐ ${rand(VIP_NAMES)}` : kind === 'urgent' ? `🚑 ${rand(PASSENGER_NAMES)} (urgent)` : kind === 'delivery' ? `📦 Parcel: ${rand(PARCEL_FROM)}` : rand(PASSENGER_NAMES);
+    const best = kind === 'vip' ? base * PAY.vipSmooth : kind === 'urgent' ? base * PAY.urgentOnTime : kind === 'delivery' ? Math.round(base * (1 + PAY.deliveryHotTip)) : base;
     const order: Order = {
       id: this.nextId++,
-      name: rand(PASSENGER_NAMES),
+      name,
       from,
       to,
-      fare: fare(Math.hypot(tp.x - fp.x, tp.z - fp.z)),
+      fare: best,
       expires: ORDER_LIFETIME[0] + Math.random() * (ORDER_LIFETIME[1] - ORDER_LIFETIME[0]),
+      kind,
+      limit: kind === 'urgent' || kind === 'delivery' ? timeLimit(metres) : null,
     };
     this.orders.push(order);
     if (notify) this.onNewOrder(order);
   }
 
-  /** The accepted order's passenger appears at the pickup. */
+  /** The accepted order's passenger (or parcel) appears at the pickup. */
   private spawnPassenger() {
+    if (this.kind === 'delivery') {
+      const sp = stopPoint(this.from, 'sidewalk');
+      this.parcel = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.32), new THREE.MeshStandardMaterial({ color: 0xc8a165, roughness: 0.8 }));
+      this.parcel.position.set(sp.x, SIDEWALK_HEIGHT + 0.11, sp.z);
+      this.parcel.castShadow = true;
+      this.scene.add(this.parcel);
+      this.pickupMarker.show(sp);
+      this.go('waiting');
+      return;
+    }
 
     const id = rand(Object.keys(NPC_MODELS) as NpcModelId[]);
     const asset = this.assets.get(id)!;

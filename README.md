@@ -47,6 +47,7 @@ Deploy `dist/` to any static host. On Cloudflare Pages: build command `npm run b
 | Right mouse (hold) | Block (less damage) |
 | R | Cycle test weather: rain / clear / live (debug) |
 | T (hold) | Fast-forward time (debug) |
+| M | Mute / unmute sound |
 | F3 | Debug panel + quality setting |
 
 ## Other scripts

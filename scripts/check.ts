@@ -8,6 +8,7 @@ import { LOSE_SECONDS, Wanted } from '../src/combat/wanted.ts';
 import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts';
 import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
 import { SHOP_SIGNS } from '../src/world/textures.ts';
+import { SignalCycle } from '../src/world/trafficLights.ts';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -48,7 +49,7 @@ assert(payment(100, 10).tip === 32 && payment(100, 120).tip === 0, 'quick rides 
 for (const s of STOPS) {
   const k = stopPoint(s, 'kerb');
   const w = stopPoint(s, 'sidewalk');
-  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && Math.abs(k.x) < 100 && Math.abs(k.z) < 100, `stop ${s.name} inside the town`);
+  assert(Math.hypot(k.x - w.x, k.z - w.z) > 2 && k.x > -100 && k.x < 205 && Math.abs(k.z) < 100, `stop ${s.name} inside the town (not in the sea)`);
 }
 
 // --- Economy ---
@@ -67,13 +68,15 @@ assert(eco.paidOff && eco.loan === 0 && eco.dueToday === 0, 'loan can be paid of
 
 // --- Route guidance ---
 const LINES = [-70, -25, 25, 70];
-const r1 = route({ x: 21.6, z: -4 }, { x: -64, z: 0 }, LINES); // East Mada St -> tank bus stop
+const r1 = route({ x: 21.6, z: -4 }, { x: -64, z: 0 }, LINES, LINES); // East Mada St -> tank bus stop
 for (let i = 1; i < r1.length - 2; i++) {
   const a = r1[i], b = r1[i + 1];
   assert(a.x === b.x || a.z === b.z, `route leg ${i} follows a road`);
 }
 assert(Math.abs(routeLength(r1) - (3.4 + 21 + 50 + 45 + 25 + 6)) < 1, `shortest route via a Mada St junction: ${routeLength(r1).toFixed(1)}`);
-const r2 = route({ x: 23, z: -10 }, { x: 23, z: 10 }, LINES); // same street
+const r2 = route({ x: 23, z: -10 }, { x: 23, z: 10 }, LINES, LINES);
+const r3 = route({ x: 20, z: 0 }, { x: 128, z: -60 }, [-70, -25, 25, 70, 125], LINES); // temple -> Beach Road
+assert(r3[r3.length - 2].x === 125 && r3.every((p, i) => i === 0 || i === r3.length - 1 || p.x <= 125), 'beach route ends on the Beach Road, never past it'); // same street
 assert(r2.length === 4 && routeLength(r2) < 25, 'same street: straight along it');
 
 // --- Wanted level ---
@@ -119,5 +122,22 @@ assert(fine.paid === 200 && fine.owed === 300 && ec.cash === 0 && ec.loan === LO
 const ec2 = new Economy();
 ec2.restore(ec.snapshot());
 assert(ec2.loan === ec.loan && ec2.cash === ec.cash, 'economy survives a save / load');
+
+// --- Kadan: three missed days and the auto is taken; pay the overdue + penalty to get it back ---
+const ks = new Economy();
+ks.tickDay(1);
+for (let d = 2; d <= 4; d++) ks.tickDay(d);
+assert(ks.seized && ks.missedDays === 3, 'three missed days: auto seized');
+ks.cash = ks.redeemCost - 1;
+assert(!ks.redeem(), 'cannot redeem without enough cash');
+ks.cash = ks.redeemCost;
+const loanBefore = ks.loan;
+assert(ks.redeem() && !ks.seized && ks.cash === 0 && ks.loan === loanBefore - 3 * DAILY_DUE, 'redeem: overdue off the loan, penalty kept');
+
+// --- Traffic signals ---
+const sc = new SignalCycle();
+assert(sc.length === 37, 'signal cycle is 37 s');
+const at = (t: number) => { sc.t = t; return `${sc.state('ns')}/${sc.state('ew')}`; };
+assert(at(1) === 'green/red' && at(15) === 'amber/red' && at(18) === 'red/red' && at(20) === 'red/green' && at(33) === 'red/amber' && at(36) === 'red/red', 'signal phases: ns green, amber, all red, ew green, amber, all red');
 
 console.log('check: all passed');

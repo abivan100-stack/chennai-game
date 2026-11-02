@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Chennai RTO codes. */
 const RTO = ['01', '02', '03', '04', '05', '06', '07', '09', '10', '11', '12', '14', '22'];
@@ -38,11 +39,10 @@ export function plateTexture(text: string, kind: PlateKind = 'private') {
 /** Front + back plates on a vehicle (front faces +z). */
 export function addPlates(group: THREE.Group, text: string, kind: PlateKind, front: { y: number; z: number }, back: { y: number; z: number }, width = 0.42) {
   const mat = new THREE.MeshStandardMaterial({ map: plateTexture(text, kind), roughness: 0.5 });
-  const geo = new THREE.PlaneGeometry(width, width / 4);
-  const f = new THREE.Mesh(geo, mat);
-  f.position.set(0, front.y, front.z + 0.01);
-  const b = new THREE.Mesh(geo, mat);
-  b.position.set(0, back.y, back.z - 0.01);
-  b.rotation.y = Math.PI;
-  group.add(f, b);
+  // Both plates in one mesh: one draw call per vehicle instead of two.
+  const geo = mergeGeometries([
+    new THREE.PlaneGeometry(width, width / 4).translate(0, front.y, front.z + 0.01),
+    new THREE.PlaneGeometry(width, width / 4).rotateY(Math.PI).translate(0, back.y, back.z - 0.01),
+  ])!;
+  group.add(new THREE.Mesh(geo, mat));
 }

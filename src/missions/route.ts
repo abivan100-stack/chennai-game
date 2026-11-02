@@ -17,15 +17,19 @@ interface Snap {
   line: number;
 }
 
-function snap(p: Pt, lines: number[]): Snap {
-  let best: Snap = { p, axis: 'x', line: lines[0] };
+/** Nearest road to p. East-west roads end at the last north-south road (the Beach Road), so beyond it only north-south roads count. */
+function snap(p: Pt, xLines: number[], zLines: number[]): Snap {
+  let best: Snap = { p, axis: 'x', line: xLines[0] };
   let bestD = Infinity;
-  for (const c of lines) {
+  for (const c of xLines) {
     if (Math.abs(p.x - c) < bestD) {
       bestD = Math.abs(p.x - c);
       best = { p: { x: c, z: p.z }, axis: 'x', line: c };
     }
-    if (Math.abs(p.z - c) < bestD) {
+  }
+  const eastEnd = Math.max(...xLines);
+  for (const c of zLines) {
+    if (p.x <= eastEnd && Math.abs(p.z - c) < bestD) {
       bestD = Math.abs(p.z - c);
       best = { p: { x: p.x, z: c }, axis: 'z', line: c };
     }
@@ -37,25 +41,29 @@ const key = (p: Pt) => `${p.x},${p.z}`;
 const dist = (a: Pt, b: Pt) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
 
 /** Junctions on the same road just before and after a snapped point. */
-function neighbours(s: Snap, lines: number[]): Pt[] {
+function neighbours(s: Snap, xs: number[], zs: number[]): Pt[] {
   const along = s.axis === 'x' ? s.p.z : s.p.x;
-  const before = [...lines].reverse().find((c) => c <= along);
-  const after = lines.find((c) => c >= along);
+  const cross = s.axis === 'x' ? zs : xs;
+  const before = [...cross].reverse().find((c) => c <= along);
+  const after = cross.find((c) => c >= along);
   return [before, after]
     .filter((c): c is number => c !== undefined)
     .map((c) => (s.axis === 'x' ? { x: s.line, z: c } : { x: c, z: s.line }));
 }
 
-/** Route from `from` to `to` along the roads: [from, onto road, junctions..., off road, to]. */
-export function route(from: Pt, to: Pt, lines: number[]): Pt[] {
-  const a = snap(from, lines);
-  const b = snap(to, lines);
+/**
+ * Route from `from` to `to` along the roads: [from, onto road, junctions..., off road, to].
+ * xLines: north-south roads (x = c); zLines: east-west roads (z = c), which span the xLines.
+ */
+export function route(from: Pt, to: Pt, xLines: number[], zLines: number[]): Pt[] {
+  const xs = [...xLines].sort((m, n) => m - n);
+  const zs = [...zLines].sort((m, n) => m - n);
+  const a = snap(from, xs, zs);
+  const b = snap(to, xs, zs);
   // Same road: straight along it.
   if (a.axis === b.axis && a.line === b.line) return [from, a.p, b.p, to];
 
   // Graph: all junctions + the two snapped points.
-  const nodes: Pt[] = [];
-  for (const x of lines) for (const z of lines) nodes.push({ x, z });
   const edges = new Map<string, Pt[]>();
   const link = (p: Pt, q: Pt) => {
     if (!edges.has(key(p))) edges.set(key(p), []);
@@ -63,15 +71,10 @@ export function route(from: Pt, to: Pt, lines: number[]): Pt[] {
     edges.get(key(p))!.push(q);
     edges.get(key(q))!.push(p);
   };
-  const sorted = [...lines].sort((m, n) => m - n);
-  for (const c of sorted) {
-    for (let i = 0; i < sorted.length - 1; i++) {
-      link({ x: c, z: sorted[i] }, { x: c, z: sorted[i + 1] });
-      link({ x: sorted[i], z: c }, { x: sorted[i + 1], z: c });
-    }
-  }
-  for (const n of neighbours(a, sorted)) link(a.p, n);
-  for (const n of neighbours(b, sorted)) link(b.p, n);
+  for (const x of xs) for (let i = 0; i < zs.length - 1; i++) link({ x, z: zs[i] }, { x, z: zs[i + 1] });
+  for (const z of zs) for (let i = 0; i < xs.length - 1; i++) link({ x: xs[i], z }, { x: xs[i + 1], z });
+  for (const n of neighbours(a, xs, zs)) link(a.p, n);
+  for (const n of neighbours(b, xs, zs)) link(b.p, n);
 
   // Dijkstra (a few dozen nodes: a plain array scan is plenty).
   const best = new Map<string, number>([[key(a.p), 0]]);

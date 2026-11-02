@@ -4,6 +4,10 @@
  */
 export const LOAN_TOTAL = 15000;
 export const DAILY_DUE = 500;
+/** Missed days in a row before Kandasamy takes the auto. */
+export const SEIZE_AFTER = 3;
+/** His fee for the trouble, on top of the overdue amount, to get the auto back. */
+export const SEIZE_PENALTY = 500;
 
 export class Economy {
   cash = 0;
@@ -13,6 +17,8 @@ export class Economy {
   paidToday = 0;
   /** Days in a row the daily amount wasn't paid. */
   missedDays = 0;
+  /** Kandasamy has taken the auto (too many missed days). */
+  seized = false;
   private day: number | null = null;
 
   earn(amount: number) {
@@ -42,10 +48,27 @@ export class Economy {
     return { paid, owed };
   }
 
+  /** To get a seized auto back: the overdue days plus his penalty. */
+  get redeemCost() {
+    return this.missedDays * DAILY_DUE + SEIZE_PENALTY;
+  }
+
+  /** Pay to get the auto back. The overdue part goes off the loan; the penalty doesn't. */
+  redeem() {
+    if (!this.seized || this.cash < this.redeemCost) return false;
+    const overdue = Math.min(this.missedDays * DAILY_DUE, this.loan);
+    this.cash -= this.redeemCost;
+    this.loan -= overdue;
+    this.paidToday = DAILY_DUE; // today's counts as settled
+    this.missedDays = 0;
+    this.seized = false;
+    return true;
+  }
+
   /** Plain data for the save file. */
   snapshot() {
-    const { cash, loan, rides, earnedToday, paidToday, missedDays, day } = this;
-    return { cash, loan, rides, earnedToday, paidToday, missedDays, day };
+    const { cash, loan, rides, earnedToday, paidToday, missedDays, day, seized } = this;
+    return { cash, loan, rides, earnedToday, paidToday, missedDays, day, seized };
   }
 
   restore(s: ReturnType<Economy['snapshot']>) {
@@ -70,6 +93,7 @@ export class Economy {
     if (day === this.day) return null;
     const missed = this.dueToday > 0;
     this.missedDays = missed ? this.missedDays + 1 : 0;
+    if (this.missedDays >= SEIZE_AFTER && this.loan > 0) this.seized = true;
     this.day = day;
     this.earnedToday = 0;
     this.paidToday = 0;

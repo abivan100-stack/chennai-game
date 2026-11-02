@@ -32,16 +32,23 @@ const glass = () => new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness:
 const headlight = () => new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0.2 });
 const taillight = () => new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
 
+/** Tyre + hub as one vertex-coloured mesh: 1 draw call per wheel, not 2 (traffic has ~80 wheels). */
+const WHEEL_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.3 });
+function coloured(g: THREE.BufferGeometry, hex: number) {
+  const c = new THREE.Color(hex);
+  const n = g.attributes.position.count;
+  g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(n * 3).fill(0).map((_, i) => [c.r, c.g, c.b][i % 3]), 3));
+  return g;
+}
 function wheels(group: THREE.Group, r: number, at: number[][], width = 0.24) {
   const geo = mergeGeometries([
-    new THREE.CylinderGeometry(r, r, width, 14).rotateZ(Math.PI / 2).toNonIndexed(),
-    new THREE.CylinderGeometry(r * 0.55, r * 0.55, width + 0.02, 10).rotateZ(Math.PI / 2).toNonIndexed(),
-  ], true);
-  const mats = [new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.85 }), new THREE.MeshStandardMaterial({ color: 0xa8acb0, metalness: 0.7, roughness: 0.35 })];
+    coloured(new THREE.CylinderGeometry(r, r, width, 14).rotateZ(Math.PI / 2).toNonIndexed(), 0x141414),
+    coloured(new THREE.CylinderGeometry(r * 0.55, r * 0.55, width + 0.02, 10).rotateZ(Math.PI / 2).toNonIndexed(), 0xa8acb0),
+  ]);
   return at.map(([x, z]) => {
-    const w = new THREE.Mesh(geo, mats);
+    const w = new THREE.Mesh(geo, WHEEL_MAT);
     w.position.set(x, r, z);
-    w.castShadow = true;
+    w.castShadow = false; // the body's shadow covers them; saves a shadow draw call each
     group.add(w);
     return w;
   });

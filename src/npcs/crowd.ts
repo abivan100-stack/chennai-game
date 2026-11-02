@@ -7,6 +7,8 @@ import { Npc, type NpcOptions } from './npc';
 
 /** NPCs farther than this from the player are frozen (no animation, no movement). */
 const ACTIVE_RADIUS = 40;
+/** ...and beyond this they aren't drawn at all. */
+const DRAW_RADIUS = 90;
 /** How close (m) the player must be to talk (E). */
 const TALK_RADIUS = 2.2;
 /** Bumping: centre distance (m) and minimum speed (m/s), on foot and in the auto. */
@@ -46,6 +48,11 @@ const SPAWNS: Spawn[] = [
   { name: 'Kumar', model: 'man-worker', block: [2, 3], lane: LANE_B, reverse: true, start: 0.6, height: 1.68, tint: 0xb8c8e0 },
   { name: 'Priya', model: 'woman-casual', block: [3, 3], lane: LANE_A, start: 0.55, height: 1.6, tint: 0xffd0d0 },
   { name: 'Babu', model: 'man-worker', block: [3, 1], lane: LANE_B, reverse: true, start: 0.85, height: 1.7, tint: 0xf0d0a0 },
+  // Santhome: pilgrims round the basilica block, shoppers either side of it.
+  { name: 'Mary aunty', model: 'woman-formal', block: [4, 2], lane: LANE_B, start: 0.15, height: 1.58, tint: 0xf5f5f5 },
+  { name: 'Joseph', model: 'man-casual', block: [4, 2], lane: LANE_A, reverse: true, start: 0.6, height: 1.72 },
+  { name: 'Fathima', model: 'woman-casual', block: [4, 1], lane: LANE_A, start: 0.4, height: 1.6, tint: 0xd1c4e9 },
+  { name: 'Dhanush', model: 'man-worker', block: [4, 3], lane: LANE_B, start: 0.7, height: 1.68 },
 ];
 
 /** Point a fraction `t` of the way round a closed loop. */
@@ -88,6 +95,7 @@ export class Crowd {
       const p = npc.root.position;
       const dist = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
       const active = dist < ACTIVE_RADIUS;
+      npc.root.visible = dist < DRAW_RADIUS; // far ones aren't drawn (a draw call + a shadow each)
       if (active) this.activeCount++;
       this.damageToPlayer += npc.update(dt, active, playerPos);
 
