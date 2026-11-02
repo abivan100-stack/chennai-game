@@ -34,6 +34,14 @@ const HERO = {
     { name: 'walk', inPlace: true },
     { name: 'run', inPlace: true },
     { name: 'jump', inPlace: true, capLift: true },
+    { name: 'talk', inPlace: true },
+    { name: 'yell', inPlace: true },
+    // Keep root motion: these move the body onto / off the auto seat.
+    { name: 'sit_down', inPlace: false },
+    { name: 'stand_up', inPlace: false },
+    { name: 'drive', inPlace: false },
+    // exit_car.fbx (Mixamo "Exiting Car") is in assets-source but unused: it's a 5.8 s car-door
+    // swing; getting out of the auto mirrors getting in with stand_up instead.
   ],
 };
 

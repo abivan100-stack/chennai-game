@@ -16,6 +16,12 @@ export const hud = {
     if (el.textContent !== text) el.textContent = text;
     el.style.display = text ? 'block' : 'none';
   },
+  /** Speedometer while driving; null hides it. */
+  setSpeed(kmh: number | null) {
+    const el = $('speed');
+    el.style.display = kmh === null ? 'none' : 'block';
+    if (kmh !== null) el.textContent = `${Math.round(kmh)} km/h`;
+  },
   /** Speech line at the bottom of the screen: "Name: text". Hides itself after a few seconds. */
   say(name: string, text: string) {
     const el = $('dialogue');

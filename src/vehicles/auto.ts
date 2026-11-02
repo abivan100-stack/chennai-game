@@ -1,54 +1,155 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GeoBuilder } from '../world/geo';
 
-const HALF_EXTENTS = { x: 0.7, y: 0.95, z: 1.4 }; // collider box, metres
+// ---- Driving feel ---------------------------------------------------------------------------
+const MAX_SPEED = 14; // m/s (~50 km/h, a loaded auto on a city road)
+const MAX_REVERSE = 4;
+const ENGINE_FORCE = 900; // N per rear wheel
+const BRAKE = 12;
+const HANDBRAKE = 30;
+const ROLLING_BRAKE = 0.6; // engine braking when off the throttle
+const STEER_LOW_SPEED = 0.6; // rad, full lock at walking pace
+const STEER_HIGH_SPEED = 0.18; // rad, at top speed (keeps it from flipping)
+const STEER_RATE = 3; // how fast the handlebar turns, rad/s
 
-/** Box at a local offset (front of the auto = +z). */
-const box = (w: number, h: number, d: number, x: number, y: number, z: number) =>
-  new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-const wheel = (x: number, z: number) =>
-  new THREE.CylinderGeometry(0.25, 0.25, 0.15, 12).rotateZ(Math.PI / 2).translate(x, 0.25, z);
+// ---- Geometry / physics layout (model space: ground at y = 0, front = +z) -------------------
+const MASS = 380;
+const BODY_Y = 0.6; // physics body origin height above the model origin
+const WHEEL_RADIUS = 0.21;
+const SUSPENSION_REST = 0.3;
+const STIFFNESS = 40;
+/** Expected static compression, so wheels sit where the model draws them. */
+const SAG = 9.81 / (3 * STIFFNESS);
+const WHEELS = [
+  { x: 0, z: 0.98, steer: true, drive: false },
+  { x: 0.6, z: -0.8, steer: false, drive: true },
+  { x: -0.6, z: -0.8, steer: false, drive: true },
+];
+/** Driver seat (model space): hero's feet go here, facing +z. */
+export const SEAT = new THREE.Vector3(0, 0.62, 0.22);
+/** Where you stand to climb in, per side (+1 = model +x side). */
+export const ENTRY_OFFSET = { x: 1.05, z: 0.2 };
 
 /**
- * Placeholder auto rickshaw: yellow-and-black boxes merged into 2 draw calls,
- * on a fixed collider. Becomes a dynamic vehicle body in the driving step.
+ * Chennai auto rickshaw: detailed procedural model + Rapier raycast-vehicle physics
+ * (1 steered front wheel, 2 driven rear wheels). Drive with `control()`, then `update()`
+ * before each physics step and `sync()` once per frame.
  */
 export class AutoRickshaw {
   readonly group = new THREE.Group();
   readonly body: RAPIER.RigidBody;
+  readonly collider: RAPIER.Collider;
+  private readonly vehicle: RAPIER.DynamicRayCastVehicleController;
+  private readonly wheelMeshes: THREE.Object3D[] = [];
+  private readonly headlight: THREE.MeshStandardMaterial;
+  private readonly tail: THREE.MeshStandardMaterial;
+  private steer = 0;
+  private throttle = 0;
+  private handbrake = true;
 
   constructor(scene: THREE.Scene, world: RAPIER.World, position: THREE.Vector3, heading = 0) {
-    const yellow = mergeGeometries([
-      box(1.3, 1.0, 1.0, 0, 1.35, -0.8), // rear passenger shell
-      box(1.36, 0.08, 2.1, 0, 1.9, -0.1), // roof canopy
-      box(0.9, 0.85, 0.35, 0, 0.95, 1.15), // front cowl
-    ]);
-    const black = mergeGeometries([
-      box(1.3, 0.45, 2.6, 0, 0.6, 0), // chassis / floor
-      box(0.06, 1.0, 0.06, 0.6, 1.4, 0.75), // front pillars
-      box(0.06, 1.0, 0.06, -0.6, 1.4, 0.75),
-      box(1.2, 0.08, 0.06, 0, 1.85, 1.0), // windscreen top bar
-      wheel(0, 1.1),
-      wheel(0.62, -0.85),
-      wheel(-0.62, -0.85),
-    ]);
-    for (const [geo, color] of [[yellow, 0xf2c200], [black, 0x1a1a1a]] as const) {
-      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.6 }));
-      mesh.castShadow = mesh.receiveShadow = true;
-      this.group.add(mesh);
-    }
+    const { headlight, tail } = this.buildModel();
+    this.headlight = headlight;
+    this.tail = tail;
     this.group.position.copy(position);
     this.group.rotation.y = heading;
     scene.add(this.group);
 
     const q = this.group.quaternion;
     this.body = world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(position.x, position.y + HALF_EXTENTS.y, position.z)
-        .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(position.x, position.y + BODY_Y, position.z)
+        .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
+        // Mass set by hand with a low centre of mass so the three-wheeler doesn't tip.
+        .setAdditionalMassProperties(MASS, { x: 0, y: -0.25, z: -0.1 }, { x: 230, y: 250, z: 80 }, { x: 0, y: 0, z: 0, w: 1 })
+        .setLinearDamping(0.1)
+        .setAngularDamping(0.8)
+        .setCanSleep(false),
     );
-    world.createCollider(RAPIER.ColliderDesc.cuboid(HALF_EXTENTS.x, HALF_EXTENTS.y, HALF_EXTENTS.z), this.body);
+    this.collider = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(0.64, 0.72, 1.3).setTranslation(0, 1.17 - BODY_Y, -0.05).setDensity(0).setFriction(0.3),
+      this.body,
+    );
+
+    this.vehicle = world.createVehicleController(this.body);
+    this.vehicle.indexUpAxis = 1;
+    this.vehicle.setIndexForwardAxis = 2;
+    WHEELS.forEach((w, i) => {
+      const hardpointY = WHEEL_RADIUS + SUSPENSION_REST - SAG - BODY_Y;
+      this.vehicle.addWheel({ x: w.x, y: hardpointY, z: w.z }, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, SUSPENSION_REST, WHEEL_RADIUS);
+      this.vehicle.setWheelSuspensionStiffness(i, STIFFNESS);
+      this.vehicle.setWheelSuspensionCompression(i, 4);
+      this.vehicle.setWheelSuspensionRelaxation(i, 5);
+      this.vehicle.setWheelMaxSuspensionTravel(i, 0.2);
+      this.vehicle.setWheelMaxSuspensionForce(i, 20000);
+      this.vehicle.setWheelFrictionSlip(i, 3);
+      this.vehicle.setWheelSideFrictionStiffness(i, 1.2);
+    });
+  }
+
+  /** Signed forward speed, m/s. */
+  get speed() {
+    return this.vehicle.currentVehicleSpeed();
+  }
+
+  /** throttle: -1 (brake / reverse) .. 1; steer: -1 (right) .. 1 (left). */
+  control(throttle: number, steer: number, handbrake: boolean) {
+    this.throttle = throttle;
+    this.handbrake = handbrake;
+    this.steerInput = steer;
+  }
+
+  /** Engine off, handbrake on (parked / driver getting out). */
+  park() {
+    this.control(0, 0, true);
+  }
+
+  private steerInput = 0;
+
+  /** Call before each physics step. */
+  update(dt: number) {
+    const v = this.speed;
+    const t = Math.min(Math.abs(v) / MAX_SPEED, 1);
+    const maxSteer = STEER_LOW_SPEED + (STEER_HIGH_SPEED - STEER_LOW_SPEED) * t;
+    const target = this.steerInput * maxSteer;
+    this.steer += THREE.MathUtils.clamp(target - this.steer, -STEER_RATE * dt, STEER_RATE * dt);
+
+    let engine = 0;
+    let brake = 0;
+    if (this.throttle > 0) {
+      if (v < -0.5) brake = BRAKE;
+      else engine = ENGINE_FORCE * this.throttle * (1 - Math.min(Math.max(v, 0) / MAX_SPEED, 1));
+    } else if (this.throttle < 0) {
+      if (v > 0.5) brake = BRAKE;
+      else engine = v > -MAX_REVERSE ? -ENGINE_FORCE * 0.6 : 0;
+    } else {
+      brake = ROLLING_BRAKE;
+    }
+    WHEELS.forEach((w, i) => {
+      if (w.steer) this.vehicle.setWheelSteering(i, this.steer);
+      this.vehicle.setWheelEngineForce(i, w.drive ? engine : 0);
+      this.vehicle.setWheelBrake(i, this.handbrake ? HANDBRAKE : brake);
+    });
+    this.vehicle.updateVehicle(dt);
+  }
+
+  /** Copy physics to the model, spin/steer wheels. Call once per frame after stepping. */
+  sync(night: number) {
+    const p = this.body.translation();
+    const r = this.body.rotation();
+    this.group.quaternion.set(r.x, r.y, r.z, r.w);
+    this.group.position.set(p.x, p.y, p.z).sub(new THREE.Vector3(0, BODY_Y, 0).applyQuaternion(this.group.quaternion));
+    WHEELS.forEach((w, i) => {
+      const mesh = this.wheelMeshes[i];
+      const len = this.vehicle.wheelSuspensionLength(i) ?? SUSPENSION_REST;
+      mesh.position.set(w.x, WHEEL_RADIUS + SUSPENSION_REST - SAG - len, w.z);
+      mesh.rotation.set(this.vehicle.wheelRotation(i) ?? 0, w.steer ? (this.vehicle.wheelSteering(i) ?? 0) : 0, 0, 'YXZ');
+    });
+    this.headlight.emissiveIntensity = this.handbrake ? night * 0.3 : 0.5 + night * 2.5;
+    this.tail.emissiveIntensity = this.throttle < 0 ? 3 : 0.4 + night;
   }
 
   /** Horizontal distance check from a world point (e.g. the player). */
@@ -56,4 +157,121 @@ export class AutoRickshaw {
     const a = this.group.position;
     return Math.hypot(p.x - a.x, p.z - a.z) < radius;
   }
+
+  /** Heading (yaw) of the auto in world space. */
+  get heading() {
+    const f = new THREE.Vector3(0, 0, 1).applyQuaternion(this.group.quaternion);
+    return Math.atan2(f.x, f.z);
+  }
+
+  // ---------------------------------------------------------------------------------------
+  private buildModel() {
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xf5c400, roughness: 0.38, metalness: 0.15 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.85 });
+    const chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, roughness: 0.25, metalness: 0.9 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0x9fc4d6, roughness: 0.05, transparent: true, opacity: 0.28, depthWrite: false });
+    const seat = new THREE.MeshStandardMaterial({ color: 0x4a1418, roughness: 0.7 });
+    const headlight = new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0 });
+    const tail = new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
+    const amber = new THREE.MeshStandardMaterial({ color: 0xff9800, emissive: 0x803000, emissiveIntensity: 0.3 });
+    const plate = new THREE.MeshStandardMaterial({ map: plateTexture(), roughness: 0.5 });
+
+    const rb = (w: number, h: number, d: number, r: number, x: number, y: number, z: number, rx = 0) =>
+      new RoundedBoxGeometry(w, h, d, 3, r).rotateX(rx).translate(x, y, z);
+    const bx = (w: number, h: number, d: number, x: number, y: number, z: number, rx = 0) =>
+      new THREE.BoxGeometry(w, h, d).rotateX(rx).translate(x, y, z);
+    const rod = (from: THREE.Vector3, to: THREE.Vector3, r: number) => {
+      const len = from.distanceTo(to);
+      const g = new THREE.CylinderGeometry(r, r, len, 6);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+      return g.applyQuaternion(q).translate((from.x + to.x) / 2, (from.y + to.y) / 2, (from.z + to.z) / 2);
+    };
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+    const parts: [THREE.BufferGeometry[], THREE.Material][] = [
+      [[
+        rb(1.32, 0.52, 1.15, 0.1, 0, 0.72, -0.7), // rear passenger tub
+        rb(0.8, 1.0, 0.32, 0.1, 0, 0.86, 1.08, -0.12), // front cowl
+        rb(0.22, 0.12, 0.6, 0.05, 0, 0.5, 0.98), // front mudguard
+        bx(0.04, 0.26, 0.85, 0.61, 0.56, 0.28), // side skirts
+        bx(0.04, 0.26, 0.85, -0.61, 0.56, 0.28),
+        rb(1.4, 0.05, 0.12, 0.02, 0, 1.79, 0.9), // yellow canopy lip at the front
+      ], yellow],
+      [[
+        bx(1.2, 0.1, 2.3, 0, 0.42, -0.05), // floor pan
+        rb(1.42, 0.09, 2.1, 0.04, 0, 1.84, -0.15), // canvas roof
+        rb(1.36, 0.78, 0.06, 0.03, 0, 1.43, -1.24), // rear canvas wall
+        bx(0.04, 0.5, 0.62, 0.69, 1.55, -0.92), // rear side flaps
+        bx(0.04, 0.5, 0.62, -0.69, 1.55, -0.92),
+        rb(0.74, 0.1, 0.26, 0.03, 0, 1.33, 0.98), // dashboard
+        bx(1.1, 0.06, 0.06, 0, 1.79, 0.98), // windscreen top bar
+        rod(V(0.55, 1.3, 1.05), V(0.62, 1.8, 0.95), 0.025), // front pillars
+        rod(V(-0.55, 1.3, 1.05), V(-0.62, 1.8, 0.95), 0.025),
+        rod(V(0.66, 0.95, -0.22), V(0.68, 1.82, -0.22), 0.025), // middle pillars
+        rod(V(-0.66, 0.95, -0.22), V(-0.68, 1.82, -0.22), 0.025),
+        rod(V(0, 0.95, 0.95), V(0, 1.2, 0.72), 0.03), // steering column
+        rod(V(0.33, 1.22, 0.7), V(0.4, 1.24, 0.68), 0.03), // grips
+        rod(V(-0.33, 1.22, 0.7), V(-0.4, 1.24, 0.68), 0.03),
+      ], black],
+      [[
+        rod(V(-0.33, 1.22, 0.7), V(0.33, 1.22, 0.7), 0.018), // handlebar
+        rb(0.62, 0.05, 0.05, 0.02, 0, 0.62, 1.29), // front bumper
+        rb(1.3, 0.05, 0.05, 0.02, 0, 0.5, -1.33), // rear bumper
+      ], chrome],
+      [[bx(1.08, 0.5, 0.015, 0, 1.55, 1.0, -0.2)], glass],
+      [[
+        rb(0.5, 0.12, 0.42, 0.05, 0, 0.82, 0.22), // driver seat
+        rb(0.5, 0.3, 0.08, 0.04, 0, 1.02, 0.0, -0.15), // driver backrest
+        rb(1.18, 0.14, 0.46, 0.06, 0, 1.04, -0.78), // passenger bench
+        rb(1.18, 0.46, 0.1, 0.05, 0, 1.33, -1.13, -0.1), // bench backrest
+      ], seat],
+      [[new THREE.CylinderGeometry(0.09, 0.09, 0.08, 16).rotateX(Math.PI / 2).translate(0, 1.08, 1.26)], headlight],
+      [[bx(0.12, 0.08, 0.03, 0.55, 0.75, -1.29), bx(0.12, 0.08, 0.03, -0.55, 0.75, -1.29)], tail],
+      [[bx(0.07, 0.05, 0.03, 0.3, 1.22, 1.24), bx(0.07, 0.05, 0.03, -0.3, 1.22, 1.24)], amber],
+      [[bx(0.34, 0.11, 0.01, 0, 0.66, 1.27, -0.12), bx(0.34, 0.11, 0.01, 0, 0.66, -1.3).rotateY(Math.PI).translate(0, 0, -2.6)], plate],
+    ];
+    for (const [geos, mat] of parts) {
+      const mesh = new THREE.Mesh(mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g))), mat);
+      mesh.castShadow = mat !== glass;
+      mesh.receiveShadow = true;
+      this.group.add(mesh);
+    }
+
+    // Wheels: tyre + hub in one vertex-coloured mesh each (spun/steered every frame).
+    const wb = new GeoBuilder();
+    const spin = new THREE.Matrix4().makeRotationZ(Math.PI / 2);
+    wb.add(new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.13, 16), spin, new THREE.Color(0x111111));
+    wb.add(new THREE.CylinderGeometry(0.11, 0.11, 0.14, 8), spin, new THREE.Color(0x9aa0a6));
+    const wheelGeo = wb.build();
+    const wheelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
+    for (const w of WHEELS) {
+      const mesh = new THREE.Mesh(wheelGeo, wheelMat);
+      mesh.position.set(w.x, WHEEL_RADIUS, w.z);
+      mesh.castShadow = true;
+      this.wheelMeshes.push(mesh);
+      this.group.add(mesh);
+    }
+    return { headlight, tail };
+  }
+}
+
+/** Tamil Nadu commercial plate: black text on yellow. */
+function plateTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 80;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#ffd400';
+  g.fillRect(0, 0, 256, 80);
+  g.strokeStyle = '#111';
+  g.lineWidth = 6;
+  g.strokeRect(3, 3, 250, 74);
+  g.fillStyle = '#111';
+  g.font = '700 44px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('TN 09 AK 4521', 128, 42);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }

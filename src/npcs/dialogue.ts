@@ -13,6 +13,8 @@ export const GREETINGS = [
   'Ennapa, pudhu auto driver-aa? All the best!',
   'Over-aa charge pannadha thambi, naanga ellam regular customer.',
   'Mylapore-la ellarukkum un uncle-a theriyum. Nalla manushan.',
+  'Shop-ku late aayiduchu, aprom pesalaam pa!',
+  'Inniku kovil-la koottam jaasthi, auto-ku nalla business!',
 ];
 
 /** Running into someone. */
@@ -21,6 +23,14 @@ export const BUMPED = [
   'Aiyo! Paathu po pa!',
   'Odaadha da, slow-aa po!',
   'Enna avasaram? Train-aa pidikka pora?',
+];
+
+/** Hit by the player's auto. */
+export const DRIVE_BUMPED = [
+  'Dei! Footpath-la auto ottuviya?!',
+  'Aiyo amma! License irukka illaya?',
+  'Paathu ottu da! Naan enna speed breaker-aa?',
+  'Ithu road illa, footpath! Kannu theriyala?',
 ];
 
 /** Pick the next line from a pool, cycling with a per-NPC counter. */

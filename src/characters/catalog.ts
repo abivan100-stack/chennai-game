@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { loadModel } from '../core/assets';
+import { QUATERNIUS_FROM_MIXAMO, retargetClip } from './retarget';
 
 /** Every character model is scaled to this height (metres) when loaded. */
 export const CHARACTER_HEIGHT = 1.7;
@@ -10,8 +11,13 @@ export interface CharacterAsset {
   clips: THREE.AnimationClip[];
 }
 
-/** Hero (Mixamo): one model file + one file per clip. Clip names: idle, walk, run, jump. */
-const HERO = { model: 'hero.glb', clips: ['idle.glb', 'walk.glb', 'run.glb', 'jump.glb'] };
+/** Hero (Mixamo): one model file + one file per clip (clip name = file name). */
+const HERO = {
+  model: 'hero.glb',
+  clips: ['idle', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive'].map((c) => `${c}.glb`),
+};
+/** Hero clips baked onto every NPC rig at load (Quaternius has no talking clips). */
+const SHARED_WITH_NPCS = ['talk', 'yell'];
 
 /**
  * Background NPCs (Quaternius, CC0). `rig` = skeleton family: models of the same rig share
@@ -54,13 +60,19 @@ export async function loadCharacters() {
 
   const hero: CharacterAsset = { scene: fit(heroModel.scene), clips: heroClips.flatMap((g) => g.animations) };
 
+  const npcs = new Map<NpcModelId, CharacterAsset>();
+  npcIds.forEach((id, i) => npcs.set(id, { scene: fit(npcGltfs[i].scene), clips: [] }));
+
+  // Clips per rig: the rig's own (from the one file that ships them) + hero clips retargeted once per rig.
   const rigClips = new Map<string, THREE.AnimationClip[]>();
   npcIds.forEach((id, i) => {
-    if (npcGltfs[i].animations.length) rigClips.set(NPC_MODELS[id].rig, npcGltfs[i].animations);
+    const rig = NPC_MODELS[id].rig;
+    if (!npcGltfs[i].animations.length) return;
+    const extra = hero.clips
+      .filter((c) => SHARED_WITH_NPCS.includes(c.name))
+      .map((c) => retargetClip(hero.scene, npcs.get(id)!.scene, c, QUATERNIUS_FROM_MIXAMO));
+    rigClips.set(rig, [...npcGltfs[i].animations, ...extra]);
   });
-  const npcs = new Map<NpcModelId, CharacterAsset>();
-  npcIds.forEach((id, i) => {
-    npcs.set(id, { scene: fit(npcGltfs[i].scene), clips: rigClips.get(NPC_MODELS[id].rig) ?? [] });
-  });
+  for (const id of npcIds) npcs.get(id)!.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
   return { hero, npcs };
 }

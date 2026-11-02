@@ -11,8 +11,9 @@
 ## Status
 Step 1 done: test town (flat 200 m ground, 19 box buildings, road grid), follow camera, parked placeholder auto ("F - Get in" just logs), IST day/night, adaptive quality, debug panel, HUD placeholders.
 Step 2 done: animated Mixamo hero (idle/walk/run/jump, 0.2 s crossfades) on the invisible capsule; 10 Quaternius NPCs (5 idle, 5 walking block loops), frozen beyond 40 m; loading screen.
-Step 2b done: NPC behaviours and interactions: E to talk (NPC faces you, waves, Tanglish line), running into NPCs makes them flinch and complain, NPCs block the player (kinematic capsules, ignored by the camera), walkers pause and wait, a jogger, standers fidget/watch/wave.
-Next: driving the auto (dynamic body / Rapier vehicle controller), then passengers, missions, minimap.
+Step 2b done: NPC interactions: E to talk (both play a talking clip, Tanglish line), running/driving into NPCs makes them flinch and yell, NPCs block the player (kinematic capsules, ignored by the camera).
+Step 3 done: proper street (asphalt, lane markings, zebra crossings, raised sidewalks with black-yellow curbs, lamps with night light pools, trees), ~150 attached 1-4 storey shop-houses (shops + Tamil/English signboards, windows that light up at night, balconies, parapets, water tanks); detailed auto with Rapier raycast-vehicle driving; enter/exit animation sequence; 12 NPCs always walking/jogging, stepping around the player.
+Next: passengers + fares, missions, minimap, traffic.
 
 ## Tech stack
 - Vite 8 + TypeScript 7 (strict, `erasableSyntaxOnly`), npm
@@ -23,7 +24,8 @@ Next: driving the auto (dynamic body / Rapier vehicle controller), then passenge
 ## Folder structure
 ```
 src/
-  main.ts              loading, wiring + per-frame order (input → player → physics → camera → sky → NPCs → UI → render)
+  main.ts              loading, wiring + per-frame order: interactions → input → ride → fixed 60 Hz physics
+                       steps (player.step, auto.update, world.step) → syncs → camera → sky/night → NPCs → render
   core/
     renderer.ts        WebGLRenderer, scene, camera, resize, render scale (pixel ratio cap 1.5)
     loop.ts            rAF loop, clamped dt
@@ -32,23 +34,30 @@ src/
     assets.ts          GLTFLoader (+ Meshopt decoder) on a shared LoadingManager
   characters/
     catalog.ts         which model files exist, rig groups, load + fit to 1.7 m (feet at y=0)
-    animator.ts        AnimationMixer wrapper: named clips, crossfade, speed
+    animator.ts        AnimationMixer wrapper: named clips, crossfade, speed, once-then chains
+    retarget.ts        bake a clip from one rig onto another (Mixamo talk/yell -> Quaternius NPCs)
   player/
-    controller.ts      kinematic capsule + KinematicCharacterController; drives hero animation state
-    camera.ts          orbit follow camera, sphere-cast so it never clips walls
+    controller.ts      kinematic capsule + KinematicCharacterController; hero animation state;
+                       modes: input / walkTo (scripted) / away (in the auto)
+    camera.ts          orbit follow camera (foot / drive framing), sphere-cast so it never clips walls
+    ride.ts            get in → drive → get out sequence (sit_down, drive, stand_up clips)
   npcs/
     npc.ts             one pedestrian: SkeletonUtils clone, tint/texture variant, kinematic capsule;
-                       behaviour (walk/jog loops, corner pauses, wait for player, fidget, watch, wave)
-                       + talk() / bump() reactions
-    crowd.ts           spawn list (names, models, paths), nearest-talkable + bump detection,
+                       always walking/jogging a loop, sidesteps the player; talk() / scold()
+    crowd.ts           spawn list (names, models, block loops), nearest-talkable + bump detection,
                        freezes NPCs > 40 m from the player
     dialogue.ts        Tanglish line pools (pure data)
   vehicles/
-    auto.ts            placeholder auto rickshaw (2 merged meshes, fixed collider)
+    auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
+                       (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET anchors
   world/
-    ground.ts          ground, merged road grid, boundary walls; road layout constants
-    buildings.ts       instanced box buildings + colliders (seeded layout)
-    sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog
+    layout.ts          street grid numbers (road/sidewalk/setback), roadSpans(), blocks()
+    geo.ts             GeoBuilder: merge quads/boxes/geometry with vertex colours into one mesh
+    textures.ts        canvas textures: facade/shop tiles (+ night emissive), signs, asphalt, curbs
+    ground.ts          ground, roads, markings, raised sidewalks + curbs (+ colliders), edge walls
+    buildings.ts       rows of attached shop-houses: 4 merged draw calls, cuboid colliders, setNight()
+    props.ts           instanced street lamps (+ light pools) and trees, with colliders, setNight()
+    sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog, `night` factor
     solar.ts           IST clock + sun direction over Chennai (pure math)
   ui/
     hud.ts             wallet, mission, context prompt, "click to play"
@@ -84,14 +93,17 @@ KTX2 textures are not used yet: `toktx` (KTX-Software) isn't installed. To switc
 
 ### Add a new character
 - **Another Mixamo character**: export FBX Binary *With Skin*, convert like `hero.fbx`. Hero clips work on it unchanged (same bone names after the prefix strip).
-- NPC clip names used in code: `idle`, `idle2`, `walk`, `run`, `wave`, `hit` (mapped from the Quaternius names in `NPC_CLIPS`). A new rig must provide all of them.
+- NPC clip names used in code: `walk`, `run`, `hit` (+ `idle`, `idle2`, `wave` available), mapped from the Quaternius names in `NPC_CLIPS`; `talk` and `yell` come from the hero's Mixamo clips, retargeted per rig at load (`SHARED_WITH_NPCS` in catalog.ts, bone map in retarget.ts). A new rig needs its own walk/run/hit and a bone map for the retarget.
+- Hero clip names: `idle walk run jump talk yell sit_down stand_up drive`. sit_down / stand_up / drive keep their root motion (the Ride choreography relies on it).
 - **New NPC model**: drop the glTF/GLB in `assets-source/<pack>/`, add `{ src, out, rig }` to `NPCS` in `build-models.mjs` and the same id/file/rig to `NPC_MODELS` in `src/characters/catalog.ts`, then use it in `src/npcs/crowd.ts` (`SPAWNS`). Models sharing a `rig` (identical skeleton) share clips; only the first file of each rig keeps them. A model on a **new** skeleton must bring its own `Idle`/`Walk`/`Run` clips (map names in `NPC_CLIPS`) or be retargeted (`SkeletonUtils.retargetClip`).
 - Always add a row to `CREDITS.md`. Only CC0, or CC-BY with credit. No NC / no-redistribution / unclear licenses.
 
 Current sources: Mixamo files from mixamo.com (login required). Quaternius packs: https://quaternius.com/packs/ultimatemodularcharacters.html (men) and https://quaternius.com/packs/ultimatemodularwomen.html (women): Google Drive → Individual Characters → glTF.
 
 ## Performance rules
-- **Draw calls under ~300** per frame (check F3). Currently ~27 (13 world + hero 2 + NPCs 1 each, plus shadow passes).
+- **Draw calls under ~300** per frame (check F3). Currently ~60 with ~180k triangles (incl. shadow pass) at the start spot.
+- The town is built from code into a handful of merged/instanced meshes; keep it that way (add to a GeoBuilder or an InstancedMesh, never one Mesh per object).
+- Physics runs at a fixed 60 Hz (`PHYSICS_STEP` in main.ts); per-frame input is read once, movement happens per step.
 - Characters: hero < 15k tris, NPC < 8k tris, 1 draw call per material. Animate only within `ACTIVE_RADIUS` (40 m).
 - **Instancing** (`InstancedMesh`) for anything repeated: buildings, trees, lamp posts, NPCs, vehicles of the same model.
 - Merge static geometry that shares a material (`mergeGeometries`), like the roads and the auto.

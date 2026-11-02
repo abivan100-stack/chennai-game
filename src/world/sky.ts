@@ -33,6 +33,8 @@ export class DayNight {
   private readonly sky = new Sky();
   private readonly fog = new THREE.Fog(0xffffff, 50, 170);
   private readonly sunDir = new THREE.Vector3();
+  /** 0 = daylight, 1 = full night (drives windows, street lamps, headlights). */
+  night = 0;
   private offsetMs = 0;
   private effects = true;
 
@@ -72,6 +74,7 @@ export class DayNight {
     const e = d.y; // sin(elevation)
 
     const day = smooth(-0.1, 0.3, e);
+    this.night = 1 - smooth(-0.06, 0.1, e); // street lights come on around sunset
     const dusk = 1 - smooth(0, 0.25, Math.abs(e + 0.02)); // peaks around sunrise/sunset
 
     // Sun by day, a dim bluish "moon" from the opposite side by night.
