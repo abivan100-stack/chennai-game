@@ -35,6 +35,7 @@ import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
 import { createMandaveli } from './world/mandaveli';
 import { createPosters } from './world/posters';
+import { createHospital } from './world/hospital';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
 import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHARGE, SIGNAL_FINE, TRAFFIC_POLICE } from './missions/data';
@@ -101,6 +102,7 @@ async function main() {
   const santhome = createSanthome(scene, world);
   const mandaveli = createMandaveli(scene, world);
   const posters = createPosters(scene, town.footprints);
+  const hospital = createHospital(scene, world);
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
   const flood = createFlood(scene);
@@ -341,6 +343,7 @@ async function main() {
     hud.say(LENDER, MSG_REDEEMED);
   };
   let fallen = false; // knocked out on foot: kneeling / lying until released
+  let toHospital = false; // where the next release puts you
   let hitReactCooldown = 0;
   if (economy.seized) seizeAuto(); // loaded a save where it had been taken
   /** Arrested or shot down: fine, then released outside the station. */
@@ -357,6 +360,8 @@ async function main() {
     basket = [];
     downFor = 3.5;
     // On foot: kneel for the arrest, or fall flat when shot / fainting (Mixamo clips).
+    // Arrested: out of the police station. Shot or fainted from hunger: you come round at the hospital.
+    toHospital = cause !== 'busted';
     fallen = player.onFoot && !stolen && ride.phase === 'onFoot';
     if (fallen) player.forceAction(cause === 'busted' ? 'kneel' : 'death', 3.6, cause === 'busted' ? 'kneel_idle' : undefined);
   };
@@ -366,7 +371,8 @@ async function main() {
     hud.banner(null);
     leaveVehicle();
     ride.forceOut();
-    player.placeAt(station.releaseSpot, 0);
+    if (toHospital) player.placeAt(hospital.releaseSpot, hospital.releaseYaw);
+    else player.placeAt(station.releaseSpot, 0);
     wanted.clear();
     police.reset();
     health = 100;
@@ -693,6 +699,7 @@ async function main() {
     mandaveli.update(dt);
     mandaveli.setNight(dayNight.night);
     posters.setNight(dayNight.night);
+    hospital.setNight(dayNight.night);
     signals.update(dt);
     flood.update(dt, weather.rain);
     jobs.fareBoost = weather.rain > 0.5 ? RAIN_SURCHARGE : 1;

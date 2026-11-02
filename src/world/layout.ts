@@ -147,6 +147,12 @@ export const DEPOT_LOT = () => {
   return { x0: b.x0 + 2, x1: b.x1 - 2, z0: b.z0, z1: b.z0 + 30 };
 };
 
+/** Isabel Hospital: on the south side of Luz Church Road (block [3, 1]), front facing north. */
+export const HOSPITAL_LOT = () => {
+  const b = block(CENTRE + 1, CENTRE - 1);
+  return { x0: b.x0 + 1, x1: b.x1 - 1, z0: b.z0, z1: b.z0 + 22 };
+};
+
 export const POLICE_LOT = () => {
   const b = block(CENTRE, CENTRE + 1);
   const mid = (b.x0 + b.x1) / 2;

@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { DEPOT_LOT, POLICE_LOT, SUPERMARKET_LOTS, blocks } from './layout';
+import { DEPOT_LOT, HOSPITAL_LOT, POLICE_LOT, SUPERMARKET_LOTS, blocks } from './layout';
 import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
@@ -65,7 +65,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
-  const reserved = [POLICE_LOT(), DEPOT_LOT(), ...SUPERMARKET_LOTS()];
+  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), ...SUPERMARKET_LOTS()];
   function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean) {
     // Leave the police station's and supermarkets' lots empty (rotated footprint: swap w/d for east/west facing).
     const hw0 = (facing === 'e' || facing === 'w' ? d : w) / 2;

@@ -12,6 +12,7 @@ const LEGEND: [string, string, string][] = [
   ['#1565c0', 'B', 'Ride stop'],
   ['#2e7d32', 'S', 'Supermarket'],
   ['#1c3f8f', 'P', 'Police station'],
+  ['#d32f2f', 'H', 'Isabel Hospital'],
   ['#1d4fa8', 'D', 'MTC bus depot'],
   ['#f4a000', 'M', 'MRTS station'],
   ['#c62828', 'L', 'Lighthouse'],

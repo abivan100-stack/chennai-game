@@ -27,6 +27,7 @@ Step 8c done: image-based light (RoomEnvironment PMREM as scene.environment, int
 Step 8d done: hero outfit: maroon/navy checked full-sleeve shirt, blue jeans, leather belt, brown shoes (thundu and lungi removed; original Mixamo body kept).
 Step 9 done: Mandaveli added south of Kutchery Road (map z now -100..220; Venkatakrishna Road z = 125, St. Mary's Road z = 180): MTC Mandaveli bus depot (layout.DEPOT_LOT, parked buses), and past the south wall the Buckingham Canal with the elevated MRTS line, Mandaveli station and a train that stops there (world/mandaveli.ts); 3 new stops, traffic and pedestrians there. Lighthouse is enterable (E at the door -> gallery at the top, E -> back down; walkable gallery colliders). H = horn per vehicle kind (pedestrians may shout back), L = headlights (one non-shadow SpotLight, on at dusk automatically). Water is off-limits: sea wall at the waterline, invisible walls at the temple tank's waterline, canal beyond the town wall. Hero clothes no longer glare (roughness / metalness maps dropped).
 Step 9b done: canal + MRTS moved to run north-south past the WEST wall (like the real Buckingham Canal / MRTS), with Thirumayilai and Mandaveli stations and the train stopping at both (built in the line's own frame in mandaveli.ts); plain land past the north and south edges, beach and sea run the whole coast. Brighter nights (lamps every 14 m with bigger pools, stronger moon + street-light bounce, higher night exposure). Full-screen map on Tab (ui/bigMap.ts: zoom wheel / + - / Q E, pan WASD, C centre, legend, scale bar). Five street-tree kinds in props.ts (neem, rain tree, gulmohar, ashoka, banyan) + backdrop groves past the edges. Rooftop hoardings (world/posters.ts): original code-drawn JAILER 2 / SCENE film posters and a TVK thank-you banner (no photos or real faces), lit at night.
+Step 9c done: Isabel Hospital on Luz Church Road (world/hospital.ts, layout.HOSPITAL_LOT): white 3-storey block, lit red-cross board, canopy, compound wall, ambulance; you wake up outside its gate after fainting from hunger or being shot (arrests still release at the police station); H badge on the maps.
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -101,6 +102,7 @@ src/
     ground.ts          ground, roads, markings, raised sidewalks + curbs (+ colliders), edge walls
     buildings.ts       rows of attached shop-houses: 4 merged draw calls, cuboid colliders, setNight()
     policeStation.ts   Mylapore Police Station (lot reserved in layout.POLICE_LOT)
+    hospital.ts        Isabel Hospital (layout.HOSPITAL_LOT): respawn spot after fainting / being shot
     props.ts           instanced street lamps (+ light pools), trees, street-name sign posts; colliders
     sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog, `night` factor
     solar.ts           IST clock + sun direction over Chennai (pure math)

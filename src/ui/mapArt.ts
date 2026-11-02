@@ -1,5 +1,5 @@
 import type { Footprint } from '../world/buildings';
-import { BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
+import { BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, HOSPITAL_LOT, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
 
@@ -154,6 +154,13 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'MANDAVELI', x: -48, z: 150, kind: 'landmark' });
   labels.push({ text: 'SANTHOME', x: 100, z: -90, kind: 'landmark' });
   labels.push({ text: 'MYLAPORE', x: -48, z: -90, kind: 'landmark' });
+
+  // Isabel Hospital.
+  const hos = HOSPITAL_LOT();
+  g.fillStyle = '#fde0e0';
+  g.fillRect(P(hos.x0), P(hos.z0), M(hos.x1 - hos.x0), M(hos.z1 - hos.z0));
+  badge(g, P((hos.x0 + hos.x1) / 2), P(hos.z0 + 11), '#d32f2f', 'H');
+  labels.push({ text: 'Isabel Hospital', x: (hos.x0 + hos.x1) / 2, z: hos.z0 + 19, kind: 'landmark' });
 
   // Supermarkets.
   for (const lot of SUPERMARKET_LOTS()) {
