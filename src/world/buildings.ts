@@ -181,7 +181,8 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
 
     // Balconies on upper floors, in front of a window bay.
     const windowBays = Math.max(1, Math.round(w / 3));
-    for (let f = 1; f < floors; f++) {
+    // A first-floor balcony would sit right in front of the shop signboards, so shops start one floor up.
+    for (let f = fp.shops.length ? 2 : 1; f < floors; f++) {
       if (rand() > BALCONY_CHANCE) continue;
       const bayW = w / windowBays;
       const x = -hw + bayW * (Math.floor(rand() * windowBays) + 0.5);
