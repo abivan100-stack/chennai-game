@@ -1,6 +1,6 @@
 import type { Footprint } from '../world/buildings';
 import { CAFE_SPOTS } from '../world/cafeSpots';
-import { CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
+import { BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { SHOP_SIGNS } from '../world/textures';
@@ -109,7 +109,9 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'R.A. PURAM', x: -48, z: 270, kind: 'landmark' });
   labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'landmark' });
   labels.push({ text: 'TARAMANI', x: -48, z: 440, kind: 'landmark' });
-  labels.push({ text: 'PERUNGUDI', x: 50, z: 545, kind: 'landmark' });
+  labels.push({ text: 'PERUNGUDI', x: 0, z: 630, kind: 'landmark' });
+  labels.push({ text: 'BESANT NAGAR', x: 97, z: 470, kind: 'landmark' });
+  labels.push({ text: "Elliot's Beach", x: 165, z: 540, kind: 'landmark' });
   labels.push({ text: 'VELACHERY', x: -205, z: 610, kind: 'landmark' });
 
   /** A band `half` wide either side of each road's centre line, over the road's length. */
@@ -224,6 +226,8 @@ export function drawTownMap(data: MapData): TownMap {
     [lm.ambedkarManimandapam, '#c5cae9', '#1a3c8f', 'A', 'Ambedkar Manimandapam'],
     [lm.tholkappiaPoonga, '#a5d6a7', '#33691e', '🌿', 'Tholkappia Poonga'],
     [TIDEL_LOT(), '#cfe3ee', '#0d3b66', '💻', 'Tidel Park'],
+    [BESANT.church(), '#eef2f7', '#1d3557', '✝', 'Velankanni Church'],
+    [BESANT.temple, '#f6dfb0', '#8a2b1f', 'ॐ', 'Ashtalakshmi Temple'],
     [COMPLEX_LOTS()[0], '#e8e0cc', '#1b2a41', '🏢', 'Grand Lake Residences'],
     [COMPLEX_LOTS()[1], '#e8e0cc', '#1b2a41', '🏢', 'Grand Lake Ph. 2'],
     ...CAFE_LOTS().map((lot, i): [typeof lot, string, string, string, string] => [lot, '#f3e3d3', '#7a4a2a', CAFE_NAMES[i].cafe ? '☕' : '🛍', CAFE_NAMES[i].name]),

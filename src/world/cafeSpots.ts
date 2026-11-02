@@ -15,4 +15,7 @@ export const CAFE_SPOTS: Spot[] = [
   { name: 'Madras Roast Co.', ta: 'மெட்ராஸ் ரோஸ்ட்', look: 'minimal', cafe: 'cafe', bg: '#2b2118', fg: '#e8c99b' },
   { name: 'Kolam Concept Store', ta: 'கோலம் கான்செப்ட் ஸ்டோர்', look: 'garden', cafe: null, bg: '#ffffff', fg: '#2d6a4f' },
   { name: 'Lighthouse Cafe', ta: 'லைட்ஹவுஸ் கஃபே', look: 'garden', cafe: 'cafe', bg: '#0d3b66', fg: '#ffffff' },
+  { name: 'Second Avenue Coffee', ta: 'செகண்ட் அவென்யூ காபி', look: 'garden', cafe: 'cafe', bg: '#264653', fg: '#e9c46a' },
+  { name: 'Waffle Waves', ta: 'வாஃபிள் வேவ்ஸ்', look: 'pastel', cafe: 'bakery', bg: '#fff1e6', fg: '#d1495b' },
+  { name: 'Bessie Kaapi Club', ta: 'பெஸ்ஸி காப்பி கிளப்', look: 'heritage', cafe: 'cafe', bg: '#3a2416', fg: '#f4d6a0' },
 ];

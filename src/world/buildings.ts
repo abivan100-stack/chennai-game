@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
+import { BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
 import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
@@ -96,7 +96,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
   const footprints: Footprint[] = [];
 
   /** One building: frontage w, depth d, centre (cx, cz), facing the road. */
-  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS()), ...Object.values(LANDMARK_LOTS()), TIDEL_LOT(), ...COMPLEX_LOTS(), ...CAFE_LOTS()];
+  const reserved = [POLICE_LOT(), DEPOT_LOT(), HOSPITAL_LOT(), COLLEGE_LOT(), BOAT_CLUB_LOT(), CAMPUS_LOT(), ...WATER_LOTS(), ...SUPERMARKET_LOTS(), ...Object.values(PLACE_LOTS()), ...Object.values(LANDMARK_LOTS()), TIDEL_LOT(), ...COMPLEX_LOTS(), ...CAFE_LOTS(), BESANT.church()];
   function building(w: number, d: number, cx: number, cz: number, facing: Facing, showroom: boolean, kind: Kind = 'old', yard = false, lowRise = false) {
     const house = kind === 'house';
     const office = kind === 'commercial'; // Anna Salai-style commercial block

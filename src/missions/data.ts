@@ -80,6 +80,11 @@ export const STOPS: Stop[] = [
   { name: 'Kaapi Kottai, TTK Road', axis: 'x', line: -145, along: -50, side: -1 },
   { name: 'Kadal Cafe, Beach Road', axis: 'x', line: 125, along: 42, side: -1 },
   { name: 'Byte & Brew, Taramani', axis: 'z', line: 480, along: 48, side: -1 },
+  // Besant Nagar
+  { name: "Elliot's Beach", axis: 'x', line: 125, along: 478, side: 1 },
+  { name: 'Ashtalakshmi Temple', axis: 'x', line: 125, along: 443, side: 1 },
+  { name: 'Velankanni Church', axis: 'x', line: 125, along: 515, side: -1 },
+  { name: 'Besant Nagar food street', axis: 'x', line: 125, along: 420, side: -1 },
 ];
 export const HOSPITAL = 'Isabel Hospital';
 

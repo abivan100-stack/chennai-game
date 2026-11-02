@@ -41,6 +41,7 @@ import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
 import { createCafes } from './world/cafes';
+import { createBesantNagar } from './world/besant';
 import { TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
 import { createTrafficLights } from './world/trafficLights';
@@ -115,8 +116,10 @@ async function main() {
   const tidel = createTidelPark(scene, world);
   const gated = createComplex(scene, world);
   const cafes = createCafes(scene, world);
+  const besant = createBesantNagar(scene, world);
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
+  eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
   const upkeep = new Upkeep();
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
@@ -810,7 +813,7 @@ async function main() {
     temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
     markets.update(dt, player.position);
-    crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto);
+    crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto, istTime(dayNight.timeMs).hours);
 
     // Police: chase, arrest, shoot. Wanted level fades when they lose you.
     const vehicleCollider = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;
@@ -879,6 +882,7 @@ async function main() {
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
     cafes.setNight(dayNight.night);
+    besant.setNight(dayNight.night);
     // A show lets out at the cinema: a couple of ride orders from there.
     const hour = Math.floor(istTime(dayNight.timeMs).hours);
     if (hour !== lastShowHour) {

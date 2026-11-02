@@ -349,7 +349,25 @@ export const CAFE_LOTS = () => {
     at(-2, 3, 'w', 4), // Anna Salai
     at(-2, 1, 'w', 6),
     at(SANTHOME, 1, 'e', 4), // Beach Road, by the lighthouse
+    at(SANTHOME, 9, 'e', 4), // Besant Nagar food street
+    at(SANTHOME, 9, 'e', 22),
+    at(SANTHOME, 9, 'e', 40),
   ];
+};
+
+/**
+ * Besant Nagar (south-east, by the sea): Annai Velankanni church on the Beach Road, and on
+ * Elliot's Beach the Ashtalakshmi temple by the shore, the Karl Schmidt memorial and snack carts.
+ */
+export const BESANT = {
+  church: (): Lot => {
+    const b = block(SANTHOME, 10);
+    return { x0: b.x1 - 30, x1: b.x1, z0: b.z0 + 6, z1: b.z0 + 52, front: 'e' };
+  },
+  temple: { x0: 158, x1: 182, z0: 430, z1: 456, front: 'w' } as Lot,
+  memorial: { x: 174, z: 505 },
+  /** Elliot's Beach runs along the sand east of the Beach Road, from the river mouth south. */
+  beach: { x0: 138, x1: 190, z0: 360, z1: 600 },
 };
 
 export const POLICE_LOT = () => {

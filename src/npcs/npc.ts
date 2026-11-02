@@ -108,6 +108,11 @@ export class Npc {
     this.animator.randomizePhase();
   }
 
+  /** Off-schedule NPCs leave the world: no collider (they're also hidden and not updated). */
+  setPresent(on: boolean) {
+    this.body.setEnabled(on);
+  }
+
   /** Free to start a conversation (not mid-reaction). */
   get canTalk() {
     return this.busy <= 0;

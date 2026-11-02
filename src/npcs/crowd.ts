@@ -28,7 +28,17 @@ function blockLoop(i: number, j: number, lane: number, reverse = false) {
   return reverse ? loop.reverse() : loop;
 }
 
-type Spawn = Omit<NpcOptions, 'path' | 'position'> & { model: NpcModelId; block: [number, number]; lane: number; reverse?: boolean; start: number };
+/**
+ * A pedestrian: walks round block (i, j) at a lane offset, or round its own `loop` of [x, z]
+ * points (beaches, temple courts). `hours`: when they're out ([from, to] in IST hours, may wrap
+ * past midnight); by default the streets empty out late at night.
+ */
+type Spawn = Omit<NpcOptions, 'path' | 'position'> & {
+  model: NpcModelId; block?: [number, number]; lane?: number; reverse?: boolean; start: number;
+  loop?: [number, number][]; y?: number; hours?: [number, number][];
+};
+const DAYTIME: [number, number][] = [[5.5, 23.5]];
+const inHours = (h: number, ranges: [number, number][]) => ranges.some(([a, b]) => (a <= b ? h >= a && h < b : h >= a || h < b));
 
 // Blocks: temple = [2, 2], tank = [1, 2]; [3, 2] is across East Mada Street, etc.
 /**
@@ -65,7 +75,44 @@ const SPAWNS: Spawn[] = [
   { name: 'Padma maami', model: 'woman-formal', block: [1, 6], lane: LANE_B, start: 0.35, height: 1.56, tint: 0xf8bbd0 },
   { name: 'Venkat', model: 'man-casual', block: [2, 7], lane: LANE_A, start: 0.6, pace: 'run', height: 1.74 },
   { name: 'Shalini', model: 'woman-casual', block: [3, 8], lane: LANE_A, reverse: true, start: 0.15, height: 1.6 },
+
+  // ---- Crowds that come out at the right time of day ----
+  // Kapaleeshwarar temple: morning and evening pooja.
+  ...crowdOf(['Kamala paati', 'Seshadri', 'Gowri', 'Balu', 'Revathi', 'Ganapathy'], { block: [2, 2], lane: LANE_B, hours: [[6, 9.5], [17, 20.5]] }),
+  // Vegetable market by the tank: early morning shoppers.
+  ...crowdOf(['Saroja', 'Muthu', 'Valli', 'Anand'], { block: [1, 3], lane: LANE_A, hours: [[6, 11]] }),
+  // Santhome beach: evening walkers on the sand (Marina-style crowd).
+  ...crowdOf(['Ravi & family', 'Priya', 'Karthik', 'Nisha', 'Selvi akka'], { loop: [[146, -40], [178, -40], [178, 40], [146, 40]], y: 0.1, hours: [[16.5, 21]] }),
+  // Elliot's Beach, Besant Nagar: the big evening crowd.
+  ...crowdOf(['Arjun', 'Meera', 'Sanjay', 'Divya', 'Rohit', 'Lavanya', 'Hari', 'Ananya', 'Vikram', 'Sneha'], { loop: [[141, 395], [178, 395], [178, 585], [141, 585]], y: 0.1, hours: [[16.5, 21.5]] }),
+  // Morning joggers on Elliot's Beach.
+  ...crowdOf(['Jogger Ramesh', 'Jogger Kavya'], { loop: [[142, 380], [150, 380], [150, 595], [142, 595]], y: 0.11, hours: [[5.5, 8]], pace: 'run' }),
+  // Besant Nagar food street: late evening.
+  ...crowdOf(['Nikhil', 'Aishwarya', 'Farhan', 'Pooja'], { block: [4, 9], lane: LANE_B, hours: [[18, 23]] }),
+  // Tidel Park: office-goers at shift change.
+  ...crowdOf(['Techie Arun', 'Techie Swathi', 'Techie Manoj', 'Techie Deepa', 'Techie Kiran'], { block: [2, 9], lane: LANE_A, hours: [[8.5, 10], [17.5, 19.5]] }),
+  // Vivekananda College: students before and after class.
+  ...crowdOf(['Student Gokul', 'Student Janani', 'Student Ashwin', 'Student Fathima'], { block: [2, 0], lane: LANE_B, hours: [[8.5, 9.5], [15.5, 16.5]] }),
+  // Kamadhenu Cinemas: crowds round the show times.
+  ...crowdOf(['Rajini fan Senthil', 'Vijay fan Prakash', 'Moviegoer Latha'], { block: [3, 4], lane: LANE_A, hours: [[11.5, 12.5], [14.5, 15.5], [17.5, 18.5], [20.5, 21.5]] }),
+  // Ashtalakshmi temple: evening devotees on the sand.
+  ...crowdOf(['Bhavani', 'Krishnan'], { loop: [[154, 428], [184, 428], [184, 460], [154, 460]], y: 0.1, hours: [[17, 20.5]] }),
 ];
+
+/** A group of people sharing a route and hours, spread out along it, with varied looks. */
+function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y' | 'hours' | 'pace'>): Spawn[] {
+  const models: NpcModelId[] = ['woman-casual', 'man-casual', 'woman-formal', 'man-worker', 'woman-suit', 'man-farmer'];
+  const tints = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0];
+  return names.map((name, i) => ({
+    ...o,
+    name,
+    model: models[(name.length + i) % models.length],
+    start: (i + 0.5) / names.length,
+    reverse: i % 2 === 1,
+    height: 1.55 + ((name.length * 7 + i * 3) % 20) / 100,
+    tint: tints[(i + name.length) % tints.length],
+  }));
+}
 
 /** Point a fraction `t` of the way round a closed loop. */
 function along(loop: THREE.Vector3[], t: number) {
@@ -91,19 +138,36 @@ export class Crowd {
 
   constructor(scene: THREE.Scene, world: RAPIER.World, assets: Map<NpcModelId, CharacterAsset>) {
     this.npcs = SPAWNS.map((s) => {
-      const path = blockLoop(s.block[0], s.block[1], s.lane, s.reverse);
+      const yy = s.y ?? y;
+      const custom = s.loop?.map(([x, z]) => new THREE.Vector3(x, yy, z));
+      const path = custom ? (s.reverse ? custom.reverse() : custom) : blockLoop(s.block![0], s.block![1], s.lane ?? LANE_A, s.reverse);
       return new Npc(scene, world, assets.get(s.model)!, { ...s, path, position: along(path, s.start) });
     });
+    this.hours = SPAWNS.map((s) => s.hours ?? DAYTIME);
+    this.present = SPAWNS.map(() => true);
   }
 
+  private readonly hours: [number, number][][];
+  private readonly present: boolean[];
+
   /** inAuto: the player is driving (bigger bump radius, different complaints, no chatting). */
-  update(dt: number, playerPos: THREE.Vector3, playerSpeed: number, inAuto: boolean) {
+  /** hour: IST game hour (0-24); NPCs only come out during their hours. */
+  update(dt: number, playerPos: THREE.Vector3, playerSpeed: number, inAuto: boolean, hour = 12) {
     this.activeCount = 0;
     this.damageToPlayer = 0;
     this.nearest = null;
     let nearestDist = TALK_RADIUS;
     const bump = inAuto ? BUMP.auto : BUMP.foot;
-    for (const npc of this.npcs) {
+    for (const [i, npc] of this.npcs.entries()) {
+      const out = inHours(hour, this.hours[i]);
+      if (out !== this.present[i]) {
+        this.present[i] = out;
+        npc.setPresent(out);
+      }
+      if (!out) {
+        npc.root.visible = false;
+        continue;
+      }
       const p = npc.root.position;
       const dist = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
       const active = dist < ACTIVE_RADIUS;
