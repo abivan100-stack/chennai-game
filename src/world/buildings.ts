@@ -40,6 +40,8 @@ export interface Footprint {
   /** Every signed shop: board index + the middle of its shopfront (world x/z) and facing. */
   shops: { sign: number; x: number; z: number; yaw: number }[];
   oldHouse: boolean;
+  /** Height of the roof (top of the walls), metres. */
+  h: number;
 }
 /** Yaw that turns a building's local +z (its front) to face the road. */
 const YAW: Record<Facing, number> = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
@@ -77,7 +79,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     const floorH = range(3.0, 3.5);
     const h = groundH + (floors - 1) * floorH;
     const wall = new THREE.Color(pick(PALETTE));
-    const fp: Footprint = { cx, cz, w, d, yaw: YAW[facing], color: `#${wall.getHexString()}`, shop: null, shops: [], oldHouse };
+    const fp: Footprint = { cx, cz, w, d, yaw: YAW[facing], color: `#${wall.getHexString()}`, shop: null, shops: [], oldHouse, h };
     footprints.push(fp);
     const m = new THREE.Matrix4().makeRotationY(YAW[facing]).setPosition(cx, 0, cz);
     const P = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(m);

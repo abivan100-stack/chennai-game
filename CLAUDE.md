@@ -26,6 +26,7 @@ Step 8b done: hero clips death (shot / fainted), kneel + kneel_idle (arrested), 
 Step 8c done: image-based light (RoomEnvironment PMREM as scene.environment, intensity follows day/night: ENV_DAY / ENV_NIGHT in main.ts); hero walk/run blended by speed with phase-locked cycles (Animator.locomotion), lean into turns, head turns toward the camera's look direction; restyle refined (dark madras lungi, draped thundu ribbon, matte skin/cloth).
 Step 8d done: hero outfit: maroon/navy checked full-sleeve shirt, blue jeans, leather belt, brown shoes (thundu and lungi removed; original Mixamo body kept).
 Step 9 done: Mandaveli added south of Kutchery Road (map z now -100..220; Venkatakrishna Road z = 125, St. Mary's Road z = 180): MTC Mandaveli bus depot (layout.DEPOT_LOT, parked buses), and past the south wall the Buckingham Canal with the elevated MRTS line, Mandaveli station and a train that stops there (world/mandaveli.ts); 3 new stops, traffic and pedestrians there. Lighthouse is enterable (E at the door -> gallery at the top, E -> back down; walkable gallery colliders). H = horn per vehicle kind (pedestrians may shout back), L = headlights (one non-shadow SpotLight, on at dusk automatically). Water is off-limits: sea wall at the waterline, invisible walls at the temple tank's waterline, canal beyond the town wall. Hero clothes no longer glare (roughness / metalness maps dropped).
+Step 9b done: canal + MRTS moved to run north-south past the WEST wall (like the real Buckingham Canal / MRTS), with Thirumayilai and Mandaveli stations and the train stopping at both (built in the line's own frame in mandaveli.ts); plain land past the north and south edges, beach and sea run the whole coast. Brighter nights (lamps every 14 m with bigger pools, stronger moon + street-light bounce, higher night exposure). Full-screen map on Tab (ui/bigMap.ts: zoom wheel / + - / Q E, pan WASD, C centre, legend, scale bar). Five street-tree kinds in props.ts (neem, rain tree, gulmohar, ashoka, banyan) + backdrop groves past the edges. Rooftop hoardings (world/posters.ts): original code-drawn JAILER 2 / SCENE film posters and a TVK thank-you banner (no photos or real faces), lit at night.
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -90,6 +91,7 @@ src/
     eateries.ts        eateries from the shop boards, instanced tables + stools, nearest()
     supermarket.ts     walk-in supermarkets on layout.SUPERMARKET_LOTS: shell, stocked shelves (instanced products), fridge, counter, cashier; storeAt / shelfAt / atCounter
     mandaveli.ts       Mandaveli: MTC depot (walls, shed, parked buses), canal + MRTS viaduct + station + moving train
+    posters.ts         rooftop hoardings: three code-drawn poster designs, instanced, lit at night
     santhome.ts        Santhome: basilica, beach (sand trimesh collider), animated sea, lighthouse + beam, boats, carts, palms, huts
     trafficLights.ts   signals at the Mada St junctions: SignalCycle (pure, checked), posts + lamps, ahead() / inJunction()
     flood.ts           low-road flood zones: level rises in heavy rain, slowAt() / depthAt()
@@ -110,6 +112,7 @@ src/
     debug.ts           F3 panel: FPS, frame/CPU ms, draw calls, tris, quality, IST time, position, NPCs animated
     loading.ts         loading overlay + progress bar
     mapArt.ts          draws the town map once (4 px/m, nav-app style, no text) + label list drawn upright on top
+    bigMap.ts          full-screen map (Tab): zoom / pan / centre, labels, markers, legend
     minimap.ts         round heading-up minimap (turns with the camera) cropped from the town map; upright labels, markers, police blips
     phone.ts           phone UI (P): Orders, Map, Wallet, Messages, Weather apps; toasts
 scripts/

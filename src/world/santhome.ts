@@ -16,11 +16,11 @@ const PROM_X0 = 132.5; // east sidewalk edge of Kamarajar Salai
 const PROM_X1 = 136.5; // promenade -> sand
 const PROM_Y = 0.15; // same as the sidewalks, so walking off the pavement is flush
 const SHORE_X = 205;
-const BEACH_Z = 220; // sand runs the whole length of the coast (Mandaveli extends the map south)
+const BEACH_Z = 820; // sand runs the whole length of the coast, past both ends of town
 const SAND_END_X = 215; // the sand floor runs on under the water so waders have something to stand on
 const SEA_X0 = 198; // sea starts under the wet sand; the sand slope decides where the shoreline shows
 const SEA_X1 = 700;
-const SEA_Z = 400;
+const SEA_Z = 1000;
 const SEA_Y = -0.05;
 const SEA_WALL_X = 204; // no wading: the beach ends at the waterline (the foam band)
 const LOT = { x0: 77.5, x1: 117.5, z0: -17.5, z1: 17.5 };
@@ -34,7 +34,7 @@ const FOAM_SWASH = 2.2; // metres the foam band washes up and back
 const FOAM_PERIOD = 0.45; // rad/s of the swash
 const CART_ZS = [-50, -22, 4, 28, 52];
 const CART_X = 140;
-const PALM_COUNT = 26;
+const PALM_COUNT = 40;
 const BOAT_COUNT = 10;
 const HUTS: [number, number][] = [[168, 66], [177, 72], [166, 81], [179, 89]];
 const SEED = 23; // prop scatter; change for a different beach layout
@@ -526,7 +526,7 @@ function buildPalms(b: GeoBuilder, cols: RAPIER.ColliderDesc[], obstacles: { x: 
   let placed = 0;
   for (let tries = 0; placed < PALM_COUNT && tries < 500; tries++) {
     const x = 143 + rand() * 41;
-    const z = -96 + rand() * 192;
+    const z = -96 + rand() * 312; // Santhome and on down the Mandaveli coast
     if (obstacles.some((o) => Math.hypot(o.x - x, o.z - z) < o.r)) continue;
     obstacles.push({ x, z, r: 3.5 });
     placed++;

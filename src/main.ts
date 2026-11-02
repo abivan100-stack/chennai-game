@@ -24,6 +24,7 @@ import { DayNight } from './world/sky';
 import { createTemple } from './world/temple';
 import { TaxiJobs } from './missions/jobs';
 import { Minimap } from './ui/minimap';
+import { BigMap } from './ui/bigMap';
 import { drawTownMap } from './ui/mapArt';
 import { Phone } from './ui/phone';
 import { Economy } from './missions/economy';
@@ -33,6 +34,7 @@ import { Sound } from './audio/sound';
 import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
 import { createMandaveli } from './world/mandaveli';
+import { createPosters } from './world/posters';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
 import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHARGE, SIGNAL_FINE, TRAFFIC_POLICE } from './missions/data';
@@ -61,6 +63,8 @@ const HEADLIGHT = { intensity: 40, distance: 38, angle: 0.48, penumbra: 0.55 }; 
 const HORN_HEARD = 12; // m: pedestrians this close may shout back
 const ENV_DAY = 0.35; // environment (reflection) light by day...
 const ENV_NIGHT = 0.06; // ...and at night
+const EXPOSURE_DAY = 0.6;
+const EXPOSURE_NIGHT = 0.85;
 const HIT_REACT_COOLDOWN = 1.5; // s between hit flinches
 const MAX_STEPS = 4; // per frame; beyond this the game slows down instead of spiralling
 const HIT_STOP = { punch: 0.05, swing: 0.08, kick: 0.09 }; // seconds the world freezes when a blow lands
@@ -96,6 +100,7 @@ async function main() {
   const markets = createSupermarkets(scene, world, characters.npcs.get('woman-formal')!);
   const santhome = createSanthome(scene, world);
   const mandaveli = createMandaveli(scene, world);
+  const posters = createPosters(scene, town.footprints);
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
   const flood = createFlood(scene);
@@ -221,6 +226,7 @@ async function main() {
   // Fares: start once the player has climbed into the auto for the first time.
   const jobs = new TaxiJobs(scene, characters.npcs, auto);
   const minimap = new Minimap(townMap);
+  const bigMap = new BigMap(townMap);
   const showMoney = () => hud.setWallet(economy.cash, economy.loan);
   const phone = new Phone({
     jobs,
@@ -419,7 +425,8 @@ async function main() {
     cam.rotate(mouse.x, mouse.y);
 
     // --- Interactions (F: auto / any vehicle, E: talk, 1: stick, click: swing)
-    const free = downFor <= 0;
+    if (input.wasPressed('Tab')) bigMap.toggle(player.position);
+    const free = downFor <= 0 && !bigMap.isOpen; // the full map takes the keys while it's open
     const onFootFree = free && player.onFoot && ride.phase === 'onFoot' && !stolen && !meal.busy;
     const nearAuto = onFootFree && auto.group.visible && auto.isNear(player.position, ENTER_RADIUS);
     const other = onFootFree && !nearAuto ? traffic.enterable(player.position) : null;
@@ -622,6 +629,7 @@ async function main() {
     ground.setWet(weather.rain);
     dayNight.update(dt, input.isDown('KeyT'), player.position);
     scene.environmentIntensity = ENV_NIGHT + (ENV_DAY - ENV_NIGHT) * (1 - dayNight.night);
+    renderer.toneMappingExposure = EXPOSURE_DAY + (EXPOSURE_NIGHT - EXPOSURE_DAY) * dayNight.night; // eyes adjust at night
     // New IST day: settle the moneylender's daily amount.
     const settled = economy.tickDay(Math.floor(istTime(dayNight.timeMs).day));
     if (settled === 'missed') phone.addMessage(LENDER, MSG_MISSED[Math.min(economy.missedDays, MSG_MISSED.length) - 1]);
@@ -684,6 +692,7 @@ async function main() {
     santhome.setNight(dayNight.night);
     mandaveli.update(dt);
     mandaveli.setNight(dayNight.night);
+    posters.setNight(dayNight.night);
     signals.update(dt);
     flood.update(dt, weather.rain);
     jobs.fareBoost = weather.rain > 0.5 ? RAIN_SURCHARGE : 1;
@@ -781,6 +790,13 @@ async function main() {
       player: { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
       view: cam.yaw,
       auto: auto.group.position,
+      marker: jobs.target,
+      guide,
+      police: police.blips(),
+    });
+    bigMap.update(dt, input, {
+      player: { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
+      auto: auto.group.visible ? auto.group.position : null,
       marker: jobs.target,
       guide,
       police: police.blips(),

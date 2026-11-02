@@ -6,17 +6,85 @@ import { ROAD_HALF, SIDEWALK_HEIGHT, X_LINES, X_ROADS, Z_LINES, Z_ROADS, roadSpa
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
-const LAMP_SPACING = 25;
+const LAMP_SPACING = 14; // close enough that the light pools join up along the street at night
 const TREE_SPACING = 13;
 const LAMP_HEIGHT = 6.5;
+/** Backdrop groves past the edges: [x0, x1, z0, z1, count] (north, south, and beyond the canal). */
+const OUTSKIRT_GROVES: [number, number, number, number, number][] = [
+  [-100, 130, -260, -110, 70],
+  [-100, 130, 230, 380, 70],
+  [-400, -130, -300, 400, 90],
+];
+
+interface TreeKind {
+  weight: number;
+  trunk: THREE.BufferGeometry;
+  canopy: THREE.BufferGeometry;
+  trunkR: number;
+  colour: (out: THREE.Color, r: number) => THREE.Color;
+}
+
+/** Low-poly Chennai street trees, all standing at the origin (y = 0 at the root). */
+function treeKinds(): TreeKind[] {
+  const merge = (gs: THREE.BufferGeometry[]) => mergeGeometries(gs.map((g) => (g.index ? g.toNonIndexed() : g)))!;
+  const ico = (r: number, sx: number, sy: number, sz: number, x: number, y: number, z: number) => new THREE.IcosahedronGeometry(r, 1).scale(sx, sy, sz).translate(x, y, z);
+  const cyl = (r0: number, r1: number, h: number, x = 0, z = 0, tilt = 0) => {
+    const g = new THREE.CylinderGeometry(r0, r1, h, 6).translate(0, h / 2, 0);
+    if (tilt) g.rotateZ(tilt);
+    return g.translate(x, 0, z);
+  };
+  return [
+    { // neem: round canopy
+      weight: 0.38, trunkR: 0.22,
+      trunk: merge([cyl(0.14, 0.22, 3.2)]),
+      canopy: merge([ico(2, 1, 0.75, 1, 0, 4, 0)]),
+      colour: (c, r) => c.setHSL(0.25 + r * 0.07, 0.45, 0.28 + r * 0.1),
+    },
+    { // rain tree: wide flat umbrella on a forked trunk
+      weight: 0.2, trunkR: 0.3,
+      trunk: merge([cyl(0.2, 0.3, 3.6), cyl(0.1, 0.16, 2.2, 0.5, 0, -0.5).translate(0, 3.0, 0), cyl(0.1, 0.16, 2.2, -0.5, 0, 0.5).translate(0, 3.0, 0)]),
+      canopy: merge([ico(2, 2.1, 0.5, 2.1, 0, 5.4, 0), ico(1.6, 1.2, 0.55, 1.2, 1.6, 5.8, 0.8)]),
+      colour: (c, r) => c.setHSL(0.22 + r * 0.05, 0.5, 0.25 + r * 0.08),
+    },
+    { // gulmohar: umbrella crown in flame red-orange
+      weight: 0.17, trunkR: 0.2,
+      trunk: merge([cyl(0.12, 0.2, 3.4), cyl(0.08, 0.12, 1.8, 0.4, 0, -0.6).translate(0, 2.8, 0)]),
+      canopy: merge([ico(2, 1.6, 0.55, 1.6, 0, 4.6, 0)]),
+      colour: (c, r) => c.setHSL(0.02 + r * 0.04, 0.8, 0.45 + r * 0.08),
+    },
+    { // ashoka (polyalthia): tall narrow column of drooping leaves
+      weight: 0.18, trunkR: 0.12,
+      trunk: merge([cyl(0.08, 0.12, 1.2)]),
+      canopy: merge([new THREE.ConeGeometry(0.95, 7.5, 7).translate(0, 1 + 3.75, 0), new THREE.ConeGeometry(0.75, 3, 7).translate(0, 7.5, 0)]),
+      colour: (c, r) => c.setHSL(0.3 + r * 0.04, 0.55, 0.18 + r * 0.06),
+    },
+    { // banyan: huge, with aerial roots hanging from the branches
+      weight: 0.07, trunkR: 0.6,
+      trunk: merge([
+        cyl(0.45, 0.65, 4.5),
+        ...[[2.2, 0.8], [-1.8, 1.6], [1.2, -2.2], [-1.6, -1.4], [2.6, -1.0]].map(([x, z]) => cyl(0.06, 0.08, 5, x, z)),
+      ]),
+      canopy: merge([ico(2.4, 1.7, 0.6, 1.7, 0, 6.2, 0), ico(2, 1.2, 0.55, 1.2, 2.4, 6.0, 1.2), ico(2, 1.2, 0.55, 1.2, -2.2, 6.1, -1.4)]),
+      colour: (c, r) => c.setHSL(0.27 + r * 0.04, 0.45, 0.22 + r * 0.06),
+    },
+  ];
+}
+
+function pickKind(kinds: TreeKind[], r: number) {
+  for (let i = 0; i < kinds.length; i++) {
+    if ((r -= kinds[i].weight) < 0) return i;
+  }
+  return 0;
+}
 
 function seeded(seed: number) {
   return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 }
 
 /**
- * Street lamps (glow + light pool at night) and neem-style trees along every sidewalk.
- * Instanced: 5 draw calls for all of them. Each gets a thin collider.
+ * Street lamps (glow + light pool at night) and a mix of street trees along every sidewalk
+ * (neem, rain tree, gulmohar, ashoka, banyan), plus groves past the town's edges.
+ * Instanced: 3 draw calls for the lamps, 2 per tree kind. Lamps and street trees get colliders.
  */
 export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   const rand = seeded(11);
@@ -57,7 +125,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     new THREE.BoxGeometry(1.3, 0.06, 0.06).translate(0.6, LAMP_HEIGHT - 0.1, 0),
   ]);
   const headGeo = new THREE.BoxGeometry(0.5, 0.1, 0.22).translate(1.2, LAMP_HEIGHT - 0.18, 0);
-  const poolGeo = new THREE.PlaneGeometry(7, 7).rotateX(-Math.PI / 2).translate(1.2, 0.03, 0);
+  const poolGeo = new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2).translate(1.2, 0.03, 0);
   const headMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffd28a, emissiveIntensity: 0 });
   const poolMat = new THREE.MeshBasicMaterial({
     map: glowTexture(), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffc070,
@@ -68,19 +136,31 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   poles.castShadow = true;
   pools.renderOrder = 1;
 
-  // --- Trees: trunk + low-poly canopy with colour variation.
-  const trunks = instanced(
-    new THREE.CylinderGeometry(0.14, 0.22, 3.2, 6).translate(0, 1.6, 0),
-    new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 }),
-    trees,
-  );
-  const canopyGeo = new THREE.IcosahedronGeometry(2, 1).scale(1, 0.75, 1).translate(0, 4, 0);
-  const canopies = instanced(canopyGeo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), trees);
+  // --- Trees: several Chennai street trees, each kind a trunk + canopy instanced pair.
+  // Street trees on the sidewalks, plus a backdrop of trees past the town's edges.
+  const kinds = treeKinds();
+  const placed: { kind: number; m: THREE.Matrix4 }[] = trees.map((m) => ({ kind: pickKind(kinds, rand()), m }));
+  for (const [x0, x1, z0, z1, n] of OUTSKIRT_GROVES) {
+    for (let i = 0; i < n; i++) {
+      const s = 0.9 + rand() * 0.6;
+      const m = new THREE.Matrix4().makeRotationY(rand() * Math.PI * 2).scale(new THREE.Vector3(s, s, s)).setPosition(x0 + rand() * (x1 - x0), 0, z0 + rand() * (z1 - z0));
+      placed.push({ kind: pickKind(kinds, rand()), m });
+    }
+  }
+  const treeMeshes: THREE.Object3D[] = [];
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
   const leaf = new THREE.Color();
-  trees.forEach((_, i) => canopies.setColorAt(i, leaf.setHSL(0.25 + rand() * 0.07, 0.45, 0.28 + rand() * 0.1)));
-  trunks.castShadow = canopies.castShadow = true;
+  kinds.forEach((k, ki) => {
+    const mine = placed.filter((t) => t.kind === ki).map((t) => t.m);
+    if (!mine.length) return;
+    const trunk = instanced(k.trunk, trunkMat, mine);
+    const canopy = instanced(k.canopy, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), mine);
+    mine.forEach((_, i) => canopy.setColorAt(i, k.colour(leaf, rand())));
+    trunk.castShadow = canopy.castShadow = true;
+    treeMeshes.push(trunk, canopy);
+  });
 
-  scene.add(poles, heads, pools, trunks, canopies, streetSigns(world));
+  scene.add(poles, heads, pools, ...treeMeshes, streetSigns(world));
 
   // --- Colliders: lamp poles and tree trunks.
   const p = new THREE.Vector3();
@@ -88,9 +168,9 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     p.setFromMatrixPosition(m);
     world.createCollider(RAPIER.ColliderDesc.cylinder(LAMP_HEIGHT / 2, 0.1).setTranslation(p.x, p.y + LAMP_HEIGHT / 2, p.z));
   }
-  for (const m of trees) {
-    p.setFromMatrixPosition(m);
-    world.createCollider(RAPIER.ColliderDesc.cylinder(1.5, 0.22).setTranslation(p.x, p.y + 1.5, p.z));
+  for (const t of placed.slice(0, trees.length)) { // street trees only: the backdrop is out of reach
+    p.setFromMatrixPosition(t.m);
+    world.createCollider(RAPIER.ColliderDesc.cylinder(1.5, kinds[t.kind].trunkR).setTranslation(p.x, p.y + 1.5, p.z));
   }
 
   return {
@@ -100,7 +180,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     treePoints: trees.map((m) => ({ x: m.elements[12], z: m.elements[14] })),
     setNight(f: number) {
       headMat.emissiveIntensity = f * 4;
-      poolMat.opacity = f * 0.55;
+      poolMat.opacity = f * 0.85;
       pools.visible = f > 0.01;
     },
   };

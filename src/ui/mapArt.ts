@@ -142,10 +142,15 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(dep.x0), P(dep.z0), M(dep.x1 - dep.x0), M(dep.z1 - dep.z0));
   badge(g, P((dep.x0 + dep.x1) / 2), P((dep.z0 + dep.z1) / 2), '#1d4fa8', 'D');
   labels.push({ text: 'MTC Bus Depot', x: (dep.x0 + dep.x1) / 2, z: dep.z0 + 22, kind: 'landmark' });
+  // The MRTS runs north-south just past the west edge, along the Buckingham Canal.
+  g.fillStyle = '#7fb3c8';
+  g.fillRect(0, 0, M(2.5), MAP_H);
   g.fillStyle = '#9a9488';
-  g.fillRect(0, P(BOUNDS.z1 - 1.5), MAP_W, M(1.5));
-  badge(g, P(2), P(BOUNDS.z1 - 4), '#f4a000', 'M');
-  labels.push({ text: 'Mandaveli MRTS', x: 2, z: BOUNDS.z1 - 9, kind: 'landmark' });
+  g.fillRect(M(2.5), 0, M(1.5), MAP_H);
+  for (const [z, name] of [[-26, 'Thirumayilai MRTS'], [160, 'Mandaveli MRTS']] as const) {
+    badge(g, P(BOUNDS.x0 + 6), P(z), '#f4a000', 'M');
+    labels.push({ text: name, x: BOUNDS.x0 + 16, z: z + 7, kind: 'landmark' });
+  }
   labels.push({ text: 'MANDAVELI', x: -48, z: 150, kind: 'landmark' });
   labels.push({ text: 'SANTHOME', x: 100, z: -90, kind: 'landmark' });
   labels.push({ text: 'MYLAPORE', x: -48, z: -90, kind: 'landmark' });

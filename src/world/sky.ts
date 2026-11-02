@@ -14,7 +14,8 @@ const RAIN_FOG = new THREE.Color(0x9aa3ab);
 const NIGHT_FOG = new THREE.Color(0x1c2644);
 const DAY_FOG = new THREE.Color(0xbfd0da);
 const DUSK_FOG = new THREE.Color(0xd08a62);
-const NIGHT_SKY = new THREE.Color(0x7084c8);
+const NIGHT_SKY = new THREE.Color(0x8496d8);
+const STREETLIGHT_BOUNCE = new THREE.Color(0x6a5238);
 const DAY_SKY = new THREE.Color(0xcfe3ff);
 const SUN_LOW = new THREE.Color(0xff9a55);
 const SUN_HIGH = new THREE.Color(0xfff2e0);
@@ -81,7 +82,7 @@ export class DayNight {
 
     // Sun by day, a dim bluish "moon" from the opposite side by night.
     const sunI = 3 * smooth(-0.02, 0.12, e);
-    const moonI = 0.7 * smooth(0, -0.12, e);
+    const moonI = 1.0 * smooth(0, -0.12, e);
     if (sunI > 0) {
       this.sun.intensity = sunI * (1 - 0.65 * this.cloud); // overcast dims the sun
       this.sun.color.lerpColors(SUN_LOW, SUN_HIGH, smooth(0, 0.4, e));
@@ -96,9 +97,10 @@ export class DayNight {
     // ponytail: no texel snapping, so shadow edges may shimmer slightly while moving. Snap if it bothers.
 
     // Night stays readable: moonlit blue ambient, not black. Streetlights come later.
-    this.hemi.intensity = 1.6 - 0.35 * day;
+    // Night: brighter moonlit sky fill plus a warm bounce from the street lights off the ground.
+    this.hemi.intensity = 2.3 - 1.05 * day;
     this.hemi.color.lerpColors(NIGHT_SKY, DAY_SKY, day);
-    this.hemi.groundColor.setHex(0x3a3328).multiplyScalar(0.3 + 0.7 * day);
+    this.hemi.groundColor.setHex(0x3a3328).multiplyScalar(0.3 + 0.7 * day).lerp(STREETLIGHT_BOUNCE, 1 - day);
 
     this.fog.color.lerpColors(NIGHT_FOG, DAY_FOG, day).lerp(DUSK_FOG, dusk * 0.6);
     // Rain: grey, closer fog.
