@@ -1,7 +1,7 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
-import { ROAD_HALF, SETBACK, SIDEWALK_HEIGHT } from '../world/layout';
+import { ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, block } from '../world/layout';
 import { BUMPED, DRIVE_BUMPED } from './dialogue';
 import { Npc, type NpcOptions } from './npc';
 
@@ -12,38 +12,40 @@ const TALK_RADIUS = 2.2;
 /** Bumping: centre distance (m) and minimum speed (m/s), on foot and in the auto. */
 const BUMP = { foot: { dist: 0.9, speed: 3 }, auto: { dist: 1.9, speed: 1.5 } };
 
-// Two lanes on each 2.5 m sidewalk: clockwise walkers nearer the road, the rest nearer the shops.
-const LANE_A = ROAD_HALF + 0.9;
-const LANE_B = SETBACK - 0.65;
+// Two lanes on each 2.5 m sidewalk, measured out from the building line:
+// one nearer the road (A), one nearer the shops (B, clear of verandahs and the gopuram steps).
+const LANE_A = SETBACK - (ROAD_HALF + 0.7);
+const LANE_B = 1.1;
 const y = SIDEWALK_HEIGHT;
 const v = (x: number, z: number) => new THREE.Vector3(x, y, z);
 
-/** Loop round the sidewalks of the block between the roads at 0 and 50*sx / 50*sz. */
-function blockLoop(sx: number, sz: number, lane: number, reverse = false) {
-  const far = 50 - lane;
-  const loop = [v(lane * sx, lane * sz), v(far * sx, lane * sz), v(far * sx, far * sz), v(lane * sx, far * sz)];
+/** Loop round the sidewalks of block (i, j) (grid indices from layout.blocks()). */
+function blockLoop(i: number, j: number, lane: number, reverse = false) {
+  const b = block(i, j);
+  const loop = [v(b.x0 - lane, b.z0 - lane), v(b.x1 + lane, b.z0 - lane), v(b.x1 + lane, b.z1 + lane), v(b.x0 - lane, b.z1 + lane)];
   return reverse ? loop.reverse() : loop;
 }
 
 type Spawn = Omit<NpcOptions, 'path' | 'position'> & { model: NpcModelId; block: [number, number]; lane: number; reverse?: boolean; start: number };
 
+// Blocks: temple = [2, 2], tank = [1, 2]; [3, 2] is across East Mada Street, etc.
 /**
- * Test-town crowd: everyone is going somewhere, round the four blocks next to the start.
- * `start` = how far along the loop (0..1) they begin.
+ * The crowd: devotees circling the temple (pradakshinam), walkers round the tank and the
+ * shopping blocks. `start` = how far along the loop (0..1) they begin.
  */
 const SPAWNS: Spawn[] = [
-  { name: 'Murugan anna', model: 'man-farmer', block: [1, 1], lane: LANE_B, reverse: true, start: 0.05, height: 1.66 },
-  { name: 'Lakshmi akka', model: 'woman-formal', block: [-1, 1], lane: LANE_A, start: 0.95, height: 1.6 },
-  { name: 'Selvam', model: 'man-worker', block: [1, 1], lane: LANE_A, start: 0.3, height: 1.72 },
-  { name: 'Kavitha', model: 'woman-casual', block: [-1, -1], lane: LANE_B, reverse: true, start: 0.1, height: 1.58 },
-  { name: 'Ravi', model: 'man-casual', block: [1, -1], lane: LANE_A, start: 0.9, height: 1.75, tint: 0xd8c8b0 },
-  { name: 'Arun', model: 'man-casual', block: [1, 1], lane: LANE_A, start: 0.75, pace: 'run', height: 1.7 },
-  { name: 'Meena madam', model: 'woman-suit', block: [-1, 1], lane: LANE_B, reverse: true, start: 0.4, height: 1.62 },
-  { name: 'Kumar', model: 'man-worker', block: [1, -1], lane: LANE_B, reverse: true, start: 0.6, height: 1.68, tint: 0xb8c8e0 },
-  { name: 'Priya', model: 'woman-casual', block: [-1, -1], lane: LANE_A, start: 0.55, height: 1.6, tint: 0xffd0d0 },
-  { name: 'Raman', model: 'man-farmer', block: [-1, 1], lane: LANE_A, start: 0.2, height: 1.64, tint: 0xe0d8c0 },
-  { name: 'Divya', model: 'woman-formal', block: [1, -1], lane: LANE_A, start: 0.15, height: 1.6, tint: 0xd0e8ff },
-  { name: 'Babu', model: 'man-worker', block: [-1, -1], lane: LANE_B, reverse: true, start: 0.85, height: 1.7, tint: 0xf0d0a0 },
+  { name: 'Murugan anna', model: 'man-farmer', block: [2, 2], lane: LANE_B, start: 0.05, height: 1.66 },
+  { name: 'Lakshmi akka', model: 'woman-formal', block: [2, 2], lane: LANE_A, start: 0.3, height: 1.6 },
+  { name: 'Meena madam', model: 'woman-suit', block: [2, 2], lane: LANE_B, start: 0.55, height: 1.62 },
+  { name: 'Raman', model: 'man-farmer', block: [2, 2], lane: LANE_A, start: 0.8, height: 1.64, tint: 0xe0d8c0 },
+  { name: 'Kavitha', model: 'woman-casual', block: [1, 2], lane: LANE_B, reverse: true, start: 0.1, height: 1.58 },
+  { name: 'Arun', model: 'man-casual', block: [1, 2], lane: LANE_A, start: 0.6, pace: 'run', height: 1.7 },
+  { name: 'Selvam', model: 'man-worker', block: [3, 2], lane: LANE_A, start: 0.75, height: 1.72 },
+  { name: 'Divya', model: 'woman-formal', block: [3, 2], lane: LANE_B, reverse: true, start: 0.2, height: 1.6, tint: 0xd0e8ff },
+  { name: 'Ravi', model: 'man-casual', block: [2, 1], lane: LANE_A, start: 0.4, height: 1.75, tint: 0xd8c8b0 },
+  { name: 'Kumar', model: 'man-worker', block: [2, 3], lane: LANE_B, reverse: true, start: 0.6, height: 1.68, tint: 0xb8c8e0 },
+  { name: 'Priya', model: 'woman-casual', block: [3, 3], lane: LANE_A, start: 0.55, height: 1.6, tint: 0xffd0d0 },
+  { name: 'Babu', model: 'man-worker', block: [3, 1], lane: LANE_B, reverse: true, start: 0.85, height: 1.7, tint: 0xf0d0a0 },
 ];
 
 /** Point a fraction `t` of the way round a closed loop. */

@@ -1,7 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { HALF, ROAD_HALF, ROAD_LINES, SETBACK, SIDEWALK_HEIGHT, WORLD_SIZE, roadSpans } from './layout';
+import { HALF, ROAD_HALF, ROAD_LINES, SETBACK, SIDEWALK_HEIGHT, roadSpans } from './layout';
+import { tankRect } from './temple';
 import { asphaltTexture, curbTexture, pavingTexture } from './textures';
 
 const WHITE = new THREE.Color(0xffffff);
@@ -20,10 +21,18 @@ const dir = (r: Road, across: number, along: number) => at(r, across, 0, along).
  * invisible edge walls. 4 draw calls total; sidewalks get colliders (the 0.15 m kerb is climbable).
  */
 export function createGround(scene: THREE.Scene, world: RAPIER.World) {
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: 0x7d7262, roughness: 1 }),
-  );
+  // Ground: four rectangles around the temple tank's pit.
+  const t = tankRect();
+  const earth = new GeoBuilder();
+  const rect = (x0: number, x1: number, z0: number, z1: number) => {
+    const c = [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0, z0), new THREE.Vector3(x1, 0, z1), new THREE.Vector3(x0, 0, z1)];
+    earth.quad(c[0], c[1], c[2], c[3], [[0, 0], [0, 0], [0, 0], [0, 0]], WHITE, UP);
+  };
+  rect(-HALF, HALF, -HALF, t.z0);
+  rect(-HALF, HALF, t.z1, HALF);
+  rect(-HALF, t.x0, t.z0, t.z1);
+  rect(t.x1, HALF, t.z0, t.z1);
+  const ground = new THREE.Mesh(earth.build(), new THREE.MeshStandardMaterial({ color: 0x7d7262, roughness: 1 }));
   ground.receiveShadow = true;
   scene.add(ground);
 

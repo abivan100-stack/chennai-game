@@ -28,10 +28,13 @@ const WHEELS = [
   { x: 0.6, z: -0.8, steer: false, drive: true },
   { x: -0.6, z: -0.8, steer: false, drive: true },
 ];
-/** Driver seat (model space): hero's feet go here, facing +z. */
-export const SEAT = new THREE.Vector3(0, 0.62, 0.22);
-/** Where you stand to climb in, per side (+1 = model +x side). */
-export const ENTRY_OFFSET = { x: 1.05, z: 0.2 };
+/**
+ * Driver's hip position (model space) while seated. Measured against the Mixamo "Driving" pose:
+ * hands land 0.23 m above / 0.27 m ahead of the hips (on the handlebar), feet 0.5 m below (on the floor).
+ */
+export const SEAT = new THREE.Vector3(0, 0.97, 0.33);
+/** Where you stand to climb in, per side (+1 = model +x side), level with the seat. */
+export const ENTRY_OFFSET = { x: 1.0, z: SEAT.z };
 
 /**
  * Chennai auto rickshaw: detailed procedural model + Rapier raycast-vehicle physics
@@ -209,19 +212,19 @@ export class AutoRickshaw {
         rod(V(-0.55, 1.3, 1.05), V(-0.62, 1.8, 0.95), 0.025),
         rod(V(0.66, 0.95, -0.22), V(0.68, 1.82, -0.22), 0.025), // middle pillars
         rod(V(-0.66, 0.95, -0.22), V(-0.68, 1.82, -0.22), 0.025),
-        rod(V(0, 0.95, 0.95), V(0, 1.2, 0.72), 0.03), // steering column
-        rod(V(0.33, 1.22, 0.7), V(0.4, 1.24, 0.68), 0.03), // grips
-        rod(V(-0.33, 1.22, 0.7), V(-0.4, 1.24, 0.68), 0.03),
+        rod(V(0, 0.95, 0.95), V(0, 1.23, 0.6), 0.03), // steering column
+        rod(V(0.17, 1.25, 0.6), V(0.3, 1.26, 0.59), 0.032), // grips (where the Driving pose's hands are)
+        rod(V(-0.17, 1.25, 0.6), V(-0.3, 1.26, 0.59), 0.032),
       ], black],
       [[
-        rod(V(-0.33, 1.22, 0.7), V(0.33, 1.22, 0.7), 0.018), // handlebar
+        rod(V(-0.31, 1.25, 0.6), V(0.31, 1.25, 0.6), 0.018), // handlebar
         rb(0.62, 0.05, 0.05, 0.02, 0, 0.62, 1.29), // front bumper
         rb(1.3, 0.05, 0.05, 0.02, 0, 0.5, -1.33), // rear bumper
       ], chrome],
       [[bx(1.08, 0.5, 0.015, 0, 1.55, 1.0, -0.2)], glass],
       [[
-        rb(0.5, 0.12, 0.42, 0.05, 0, 0.82, 0.22), // driver seat
-        rb(0.5, 0.3, 0.08, 0.04, 0, 1.02, 0.0, -0.15), // driver backrest
+        rb(0.5, 0.12, 0.42, 0.05, 0, 0.82, 0.36), // driver seat
+        rb(0.5, 0.3, 0.08, 0.04, 0, 1.02, 0.12, -0.15), // driver backrest
         rb(1.18, 0.14, 0.46, 0.06, 0, 1.04, -0.78), // passenger bench
         rb(1.18, 0.46, 0.1, 0.05, 0, 1.33, -1.13, -0.1), // bench backrest
       ], seat],

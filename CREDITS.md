@@ -18,7 +18,7 @@ Note: the Mixamo-derived GLBs are fine inside the game, but keep them out of any
 
 ## Everything else
 
-The town (roads, buildings, signboards, lamps, trees) and the auto rickshaw are generated in code; their textures are drawn on canvases at load. Shop names on the signboards are made up.
+The town (roads, buildings, temple, tank, signboards, lamps, trees) and the auto rickshaw are generated in code; their textures are drawn on canvases at load. Shop names on the signboards are made up. The layout is a stylised take on Mylapore (temple facing east, tank to the west, the four Mada Streets, R.K. Mutt Road), from public descriptions such as Wikipedia's Kapaleeshwarar Temple article; no map data or images are copied.
 
 ## Code libraries
 

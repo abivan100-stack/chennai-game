@@ -196,6 +196,92 @@ export function signTextures() {
   return { map, rowV: (i: number) => [1 - (i + 1) / SIGNS.length, 1 - i / SIGNS.length] as const };
 }
 
+/**
+ * One gopuram tier, 4 m wide x 2.6 m high: niches with brightly painted deity figures between
+ * pilasters, a cornice band on top. White base, tinted per tier with vertex colours.
+ */
+export const GOPURAM_TILE = { w: 4, h: 2.6 };
+export function gopuramTexture() {
+  const W = 256;
+  const H = 168;
+  const [c, g] = canvas(W, H);
+  const rand = seeded(19);
+  const colours = ['#1e63c4', '#d6302b', '#f3c623', '#2f9e4f', '#e66fb0', '#f08a24', '#7a4cc2', '#22a6b3'];
+  g.fillStyle = '#f4efe2';
+  g.fillRect(0, 0, W, H);
+  // cornice band
+  g.fillStyle = '#c9b48a';
+  g.fillRect(0, 0, W, 22);
+  for (let x = 6; x < W; x += 16) {
+    g.fillStyle = colours[Math.floor(rand() * colours.length)];
+    g.beginPath();
+    g.arc(x, 14, 6, Math.PI, 0);
+    g.fill();
+  }
+  // four niches per tile
+  for (let n = 0; n < 4; n++) {
+    const x = n * 64;
+    g.fillStyle = '#d8ccb0'; // pilaster
+    g.fillRect(x, 22, 8, H - 22);
+    g.fillStyle = '#8a6e4b'; // niche shadow
+    g.fillRect(x + 14, 36, 44, H - 44);
+    g.beginPath();
+    g.arc(x + 36, 36, 22, Math.PI, 0);
+    g.fill();
+    // deity: body, arms, head, crown
+    const body = colours[Math.floor(rand() * colours.length)];
+    g.fillStyle = body;
+    g.fillRect(x + 26, 70, 20, 60);
+    g.fillRect(x + 18, 76, 36, 8);
+    g.fillStyle = colours[Math.floor(rand() * colours.length)];
+    g.fillRect(x + 24, 118, 24, 34); // dhoti
+    g.fillStyle = body;
+    g.beginPath();
+    g.arc(x + 36, 60, 10, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#e8b931';
+    g.beginPath();
+    g.moveTo(x + 27, 52);
+    g.lineTo(x + 36, 34);
+    g.lineTo(x + 45, 52);
+    g.fill();
+  }
+  return texture(c);
+}
+
+/** Red-and-white vertical stripes painted on temple walls and tank steps (kavi). 1 m per pair. */
+export function templeStripeTexture() {
+  const [c, g] = canvas(32, 8);
+  g.fillStyle = '#f6f1e6';
+  g.fillRect(0, 0, 32, 8);
+  g.fillStyle = '#b8352a';
+  g.fillRect(0, 0, 16, 8);
+  return texture(c);
+}
+
+/** Chennai Corporation street-name boards: white on blue, Tamil above English. One row per name. */
+export function streetSignTextures(names: [string, string][]) {
+  const W = 256;
+  const ROW = 64;
+  const [c, g] = canvas(W, ROW * names.length);
+  names.forEach(([en, ta], i) => {
+    const y = i * ROW;
+    g.fillStyle = '#0b4ea2';
+    g.fillRect(0, y, W, ROW);
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 3;
+    g.strokeRect(4, y + 4, W - 8, ROW - 8);
+    g.fillStyle = '#ffffff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '600 17px "Nirmala UI", "Latha", "Tamil Sangam MN", "Noto Sans Tamil", sans-serif';
+    g.fillText(ta, W / 2, y + 22);
+    g.font = '700 16px system-ui, sans-serif';
+    g.fillText(en.toUpperCase(), W / 2, y + 45);
+  });
+  return { map: texture(c, false), rowV: (i: number) => [1 - (i + 1) / names.length, 1 - i / names.length] as const };
+}
+
 /** Soft round glow for lamp light pools on the ground. */
 export function glowTexture() {
   const [c, g] = canvas(64, 64);

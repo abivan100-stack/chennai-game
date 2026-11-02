@@ -19,6 +19,7 @@ import { createGround } from './world/ground';
 import { SIDEWALK_HEIGHT } from './world/layout';
 import { createProps } from './world/props';
 import { DayNight } from './world/sky';
+import { createTemple } from './world/temple';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
@@ -35,18 +36,21 @@ async function main() {
   createGround(scene, world);
   const town = createBuildings(scene, world);
   const props = createProps(scene, world);
+  const temple = createTemple(scene, world);
   const dayNight = new DayNight(scene);
   const crowd = new Crowd(scene, world, characters.npcs);
   crowd.onSay = (name, line) => hud.say(name, line);
 
-  // Player on the east sidewalk of the main road; uncle's auto parked at the kerb beside it.
-  const spawn = new THREE.Vector3(6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 22);
-  const autoSpot = new THREE.Vector3(3.4, 0, 15);
+  // Start outside the temple's main gopuram on East Mada Street; uncle's auto at the kerb,
+  // facing north in the left lane.
+  const spawn = new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
+  const autoSpot = new THREE.Vector3(25 - 3.4, 0, -4);
   const player = new PlayerController(world, scene, spawn, characters.hero);
-  const auto = new AutoRickshaw(scene, world, autoSpot, 0);
+  const auto = new AutoRickshaw(scene, world, autoSpot, Math.PI);
   const ride = new Ride(player, auto);
   const cam = new FollowCamera(camera, world, player.collider);
-  cam.yaw = Math.atan2(spawn.x - autoSpot.x, spawn.z - autoSpot.z) + 0.35; // over the shoulder, auto in view
+  cam.yaw = 1.15; // from the east, looking back at the gopuram with the auto in view
+  cam.pitch = 0.08;
   enablePointerLock(renderer.domElement, (locked) => hud.showPlayHint(!locked));
 
   let hasDriven = false;
@@ -112,6 +116,7 @@ async function main() {
     }
     player.sync(dt);
     auto.sync(dayNight.night);
+    ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     ride.syncPosition();
     if (ride.driving) {
       cam.update(dt, auto.group.position, auto.heading);
@@ -123,6 +128,7 @@ async function main() {
     dayNight.update(dt, input.isDown('KeyT'), player.position);
     town.setNight(dayNight.night);
     props.setNight(dayNight.night);
+    temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
     crowd.update(dt, player.position, inAuto ? Math.abs(auto.speed) : player.speed, inAuto);
     if (input.wasPressed('F3')) debug.toggle();

@@ -13,6 +13,7 @@ Step 1 done: test town (flat 200 m ground, 19 box buildings, road grid), follow 
 Step 2 done: animated Mixamo hero (idle/walk/run/jump, 0.2 s crossfades) on the invisible capsule; 10 Quaternius NPCs (5 idle, 5 walking block loops), frozen beyond 40 m; loading screen.
 Step 2b done: NPC interactions: E to talk (both play a talking clip, Tanglish line), running/driving into NPCs makes them flinch and yell, NPCs block the player (kinematic capsules, ignored by the camera).
 Step 3 done: proper street (asphalt, lane markings, zebra crossings, raised sidewalks with black-yellow curbs, lamps with night light pools, trees), ~150 attached 1-4 storey shop-houses (shops + Tamil/English signboards, windows that light up at night, balconies, parapets, water tanks); detailed auto with Rapier raycast-vehicle driving; enter/exit animation sequence; 12 NPCs always walking/jogging, stepping around the player.
+Step 3b done: Mylapore layout (stylised from the real one): Kapaleeshwarar temple in the centre block (east gopuram on East Mada Street, smaller west gopuram, kavi-striped compound wall, shrine + vimana, pillared mandapam, golden flag post), temple tank west of it (striped steps, water, 16-pillar mandapam), the four Mada Streets + R.K. Mutt Rd / Luz Church Rd / Kutchery Rd / San Thome High Rd with Tamil/English street-name boards; buildings vary in width, depth, floor heights, shop count, sign size and roofline (incl. old tiled-roof houses with a thinnai). Driver's hips are pinned to the seat (Ride.lateUpdate) so entering is one straight move.
 Next: passengers + fares, missions, minimap, traffic.
 
 ## Tech stack
@@ -51,12 +52,13 @@ src/
     auto.ts            procedural Chennai auto model + Rapier DynamicRayCastVehicleController
                        (1 steered front wheel, 2 driven rear), SEAT / ENTRY_OFFSET anchors
   world/
-    layout.ts          street grid numbers (road/sidewalk/setback), roadSpans(), blocks()
+    layout.ts          street grid numbers + street names, roadSpans(), blocks() (kind: shops/temple/tank)
+    temple.ts          Kapaleeshwarar temple + tank (gopurams, walls, shrine, mandapams, steps, water)
     geo.ts             GeoBuilder: merge quads/boxes/geometry with vertex colours into one mesh
     textures.ts        canvas textures: facade/shop tiles (+ night emissive), signs, asphalt, curbs
     ground.ts          ground, roads, markings, raised sidewalks + curbs (+ colliders), edge walls
     buildings.ts       rows of attached shop-houses: 4 merged draw calls, cuboid colliders, setNight()
-    props.ts           instanced street lamps (+ light pools) and trees, with colliders, setNight()
+    props.ts           instanced street lamps (+ light pools), trees, street-name sign posts; colliders
     sky.ts             DayNight: sky shader, sun/moon light, hemisphere ambient, fog, `night` factor
     solar.ts           IST clock + sun direction over Chennai (pure math)
   ui/
