@@ -40,6 +40,7 @@ import { createPlaces, type Service } from './world/places';
 import { createServiceHubs } from './world/serviceHubs';
 import { createShowrooms } from './world/showrooms';
 import { createHotels } from './world/hotels';
+import { createHotelHalls } from './world/hotelHalls';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
@@ -77,6 +78,10 @@ const PUSH_CLIP_SPEED = 1.2; // m/s the Pushing clip's steps are made for
 const PUSH_LOSE = 3.5;
 /** Navigation ends this close to the destination (metres). */
 const ARRIVE_M = 14;
+/** How close to a hotel's lobby doors / a hall's door to go in / out (m). */
+const DOOR_RADIUS = 1.8;
+/** North of this z you're in one of the dining halls (built off the map, hotelHalls.ts). */
+const HALL_ZONE = -800;
 /** Rain roof probe starts this high (above the tallest building). */
 const ROOF_PROBE_TOP = 120;
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
@@ -145,12 +150,13 @@ async function main() {
   const chepauk = createChepauk(scene, world);
   crowd.addPosed(beachLife.posed); // stall keepers + moon-watchers on the benches
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
-  crowd.addPosed(hotels.posed); // diners, doormen, guards and guests at the hotels
-  crowd.addWalkers(hotels.walkers); // waiters between the tables, guests round the fountain
+  crowd.addPosed(hotels.posed); // doormen, guards and guests at the hotels
+  const halls = createHotelHalls(scene, world); // the dining halls you enter through the hotel lobbies
+  crowd.addPosed(halls.posed); // diners, waiters, chef, musician
   crowd.addAmbient(); // everyday people on whatever street you're on
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
-  eateries.list.push(...hotels.eateries); // hotel lobby restaurants (fine dining)
+  eateries.list.push(...halls.eateries); // hotel dining halls (fine dining, sit down)
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
   eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
   eateries.list.push(...beachLife.eateries); // beach stalls + dessert carts (some move)
@@ -332,6 +338,7 @@ async function main() {
   let crashCooldown = 0;
   let fuelWarned = false;
   let pushing = false;
+  let insideHall = -1; // which hotel's dining hall you're in (-1 = outside)
   const viewDir = new THREE.Vector3(); // camera forward on the ground (ambient walkers spawn out of view)
   let pushT = 0; // seconds since you took hold (walking round to the back first)
   const pushAt = new THREE.Vector3();
@@ -729,7 +736,22 @@ async function main() {
         player.placeAt(lh.door, Math.PI / 2);
       }
     }
-    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store && !service && !atLighthouseDoor && !onLighthouseTop ? crowd.nearest : null;
+    // Hotels: E at the lobby doors takes you in to the dining hall, E at the hall door brings you back out.
+    const near = (p: THREE.Vector3) => Math.hypot(player.position.x - p.x, player.position.z - p.z) < DOOR_RADIUS && Math.abs(player.position.y - p.y) < 3;
+    const hotelDoor = onFootFree ? hotels.doors.findIndex((d) => near(d.at)) : -1;
+    const hallExit = onFootFree ? halls.halls.findIndex((h) => near(h.exit)) : -1;
+    if (hotelDoor >= 0 && input.wasPressed('KeyE')) {
+      const h = halls.halls[hotelDoor];
+      player.placeAt(h.entry, h.entryYaw);
+      cam.yaw = h.entryYaw + Math.PI;
+      insideHall = hotelDoor;
+    } else if (hallExit >= 0 && input.wasPressed('KeyE')) {
+      const d = hotels.doors[hallExit];
+      player.placeAt(d.out, d.outYaw);
+      cam.yaw = d.outYaw + Math.PI;
+      insideHall = -1;
+    }
+    const talkTo = onFootFree && !nearAuto && !other && !eatery && !store && !service && !atLighthouseDoor && !onLighthouseTop && hotelDoor < 0 && hallExit < 0 ? crowd.nearest : null;
     const stolenSpeed = stolen ? traffic.speedOf(stolen) : 0;
     if (free && input.wasPressed('KeyF')) {
       if (stolen) {
@@ -776,6 +798,8 @@ async function main() {
         : shelf ? (shelfOpen ? null : `E - ${shelf.name} (basket ${basket.length}/${BASKET_MAX})`)
         : counter ? (basket.length ? `E - Pay ₹${basketTotal()} at the counter` : 'Cashier: pick something from the shelves first')
         : store && basket.length && !meal.busy ? `Basket: ${basket.length} item(s), ₹${basketTotal()} - pay at the counter`
+        : hotelDoor >= 0 ? `E - Enter ${hotels.doors[hotelDoor].hotel} (${hotels.doors[hotelDoor].name})`
+        : hallExit >= 0 ? `E - Leave ${hotels.doors[hallExit].name}`
         : atLighthouseDoor ? 'E - Go up the lighthouse'
         : onLighthouseTop ? 'E - Go back down'
         : eatery ? (menuFor ? null : `E - Saapdalaam: ${eatery.name} (${eatery.menu.kind === 'hotel' ? 'hotel' : 'snacks'})`)
@@ -969,6 +993,7 @@ async function main() {
     hubs.setNight(dayNight.night);
     showrooms.setNight(dayNight.night);
     hotels.setNight(dayNight.night);
+    halls.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
@@ -1113,9 +1138,12 @@ async function main() {
       }
       hud.setNav(navInfo);
     }
+    // Inside a dining hall (off the map), the maps show you at the hotel.
+    insideHall = player.position.z < HALL_ZONE ? halls.halls.reduce((best, h, i) => (Math.abs(h.entry.x - pp.x) < Math.abs(halls.halls[best].entry.x - pp.x) ? i : best), 0) : -1;
+    const mapAt = insideHall >= 0 ? hotels.doors[insideHall].at : pp;
     phone.update(performance.now());
     minimap.update(performance.now(), {
-      player: { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
+      player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
       view: cam.yaw,
       auto: auto.group.position,
       marker: jobs.target,
@@ -1124,7 +1152,7 @@ async function main() {
       dest: nav,
     });
     bigMap.update(dt, input, {
-      player: { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
+      player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
       auto: auto.group.visible ? auto.group.position : null,
       marker: jobs.target,
       guide,

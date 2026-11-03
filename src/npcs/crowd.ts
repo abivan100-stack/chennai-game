@@ -18,7 +18,7 @@ const AMBIENT_RING: [number, number] = [18, 60]; // ...onto a pavement this far 
 const AMBIENT_HIDDEN_WITHIN = 45; // closer than this, only where the camera isn't looking (no popping in)
 const AMBIENT_NAMES = ['Ramesh', 'Kala', 'Suresh', 'Bhuvana', 'Prakash', 'Jaya', 'Mohan', 'Deepa', 'Sathya', 'Anitha', 'Karthik', 'Malar', 'Ganesh', 'Revathi', 'Vinoth', 'Uma', 'Saravanan', 'Lalitha', 'Raja', 'Geetha'];
 /** People who stay put (stall keepers, sitters) get their own quota so walkers don't crowd them out. */
-const MAX_POSED_DRAWN = 16;
+const MAX_POSED_DRAWN = 24;
 const POSED_DRAW_RADIUS = 60;
 /** ...and only the nearest few cast a shadow. */
 const MAX_SHADOWS = 10;
@@ -256,12 +256,12 @@ export class Crowd {
    * People who stay in one place: shopkeepers at their stalls, people sitting on benches.
    * Added once the places that need them exist; they follow the same hours / drawing rules.
    */
-  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][]; eat?: THREE.Vector3 }[]) {
+  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][]; eat?: THREE.Vector3; model?: NpcModelId }[]) {
     const models: NpcModelId[] = ['mx01', 'mx02', 'mx03', 'mx04', 'mx05', 'mx06', 'mx07', 'mx08', 'mx11', 'mx13', 'mx14'];
     const tints = [undefined, 0xffe0b2, 0xd0e8ff, 0xc8e6c9, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
     people.forEach((p, i) => {
       const position = new THREE.Vector3(p.x, p.y, p.z);
-      const npc = new Npc(this.scene, this.world, this.assets.get(models[(i * 7 + p.name.length) % models.length])!, {
+      const npc = new Npc(this.scene, this.world, this.assets.get(p.model ?? models[(i * 7 + p.name.length) % models.length])!, {
         name: p.name, position, path: [position.clone()], pose: { clip: p.clip, yaw: p.yaw, eat: p.eat },
         height: 1.55 + ((i * 13) % 20) / 100, tint: tints[(i * 5 + p.name.length) % tints.length],
       });

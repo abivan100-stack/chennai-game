@@ -112,9 +112,10 @@ export function createKit(world: RAPIER.World, signDefs: SignDef[]) {
       world.createCollider(RAPIER.ColliderDesc.cylinder(1.5 * s, 0.25 * s).setTranslation(p.x, 1.5 * s, p.z));
     },
     /** Make the meshes; returns setNight for the signs and bulbs. */
-    build(scene: THREE.Scene) {
+    build(scene: THREE.Scene, castShadow = true) {
       const mesh = new THREE.Mesh(geo.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = castShadow; // interiors pass false: their roof would leave the room in shadow
+      mesh.receiveShadow = true;
       const bulbMat = new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffe0a0, emissiveIntensity: 0, roughness: 0.4 });
       const atlas = signAtlas(signDefs);
       const signMat = new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.05, roughness: 0.6, side: THREE.DoubleSide });
