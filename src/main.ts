@@ -435,6 +435,7 @@ async function main() {
   const roadName = (a: Pt, b: Pt) => (Math.abs(b.x - a.x) < 0.5 ? X_ROADS[a.x]?.[0] : Z_ROADS[a.z]?.[0]);
   ride.onDrivingChange = (driving) => {
     sound.door();
+    if (driving && upkeep.fuel > 0) sound.autoStart(); // no petrol: it won't start
     cam.mode = driving ? 'drive' : 'foot';
     cam.ignore = driving ? auto.collider : player.collider;
     hud.setSpeed(driving ? 0 : null);

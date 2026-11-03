@@ -125,7 +125,8 @@ export class Sound {
     const t = ctx.currentTime;
 
     // --- engine
-    if (s.inVehicle && s.vehicleKind) {
+    // Uncle's auto has no running engine loop (it droned); it only gives a short start sound (autoStart).
+    if (s.inVehicle && s.vehicleKind && s.vehicleKind !== 'auto') {
       const p = ENGINES[s.vehicleKind];
       if (s.vehicleKind !== this.engKind) {
         this.engKind = s.vehicleKind;
@@ -246,6 +247,20 @@ export class Sound {
     const t = ctx.currentTime;
     const f = this.burst(t, 0.6, 'lowpass', 3500, 0.8, 0.6, 0.01);
     f.frequency.exponentialRampToValueAtTime(350, t + 0.6);
+  }
+
+  /** Uncle's auto starting: a soft kick-start, a few quick putts that settle and fade (~0.6 s). */
+  autoStart(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.burst(t, 0.05, 'lowpass', 500, 1, 0.25, 0.002); // starter lever
+    for (let i = 0; i < 6; i++) {
+      const at = t + 0.12 + i * (0.075 + i * 0.012);
+      const fade = 1 - i / 6;
+      this.tone(at, 'triangle', 95, 60, 0.07, 0.22 * fade);
+      this.burst(at, 0.05, 'lowpass', 380, 0.8, 0.12 * fade, 0.004);
+    }
   }
 
   door(): void {
