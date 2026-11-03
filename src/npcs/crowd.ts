@@ -12,7 +12,9 @@ const DRAW_RADIUS = 90;
 /** At most this many people drawn at once (nearest first): each costs a draw call + a shadow. */
 const MAX_DRAWN = 24;
 /** Ambient pedestrians: a pool that keeps the streets round the player busy wherever they go. */
-const AMBIENT = 40;
+const AMBIENT = 32;
+const AMBIENT_PER_BLOCK = 3; // at most this many ambient walkers on one block's pavement
+const MIN_GAP = 6; // m: a rerouted walker never starts closer than this to anyone else
 const AMBIENT_RECYCLE = 85; // m: a walker this far away gets moved...
 const AMBIENT_RING: [number, number] = [18, 60]; // ...onto a pavement this far from the player
 const AMBIENT_HIDDEN_WITHIN = 45; // closer than this, only where the camera isn't looking (no popping in)
@@ -201,7 +203,7 @@ function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y'
       lane,
       name,
       model: models[(name.length * 3 + i) % models.length],
-      start: rnd(),
+      start: (i + 0.2 + rnd() * 0.6) / names.length, // evenly round the loop: no clumps
       reverse: rnd() < 0.5,
       height: 1.6 + rnd() * 0.18, // npc.ts nudges it for women / men
     };
@@ -278,6 +280,7 @@ export class Crowd {
   private readonly hours: [number, number][][];
   private readonly present: boolean[];
   private readonly ambient: number[] = [];
+  private readonly ambientBlock = new Map<number, unknown>();
   private ambientCheck = 0;
   /** Street blocks ambient walkers may use (not the beach, not the river blocks). */
   private readonly streetBlocks = blocks().filter((b) => (b.kind === 'shops' || b.kind === 'houses' || b.kind === 'temple' || b.kind === 'tank' || b.kind === 'church') && b.road.w && b.road.e && b.road.n && b.road.s && !(b.z0 < RIVER.z1 && b.z1 > RIVER.z0));
@@ -334,10 +337,13 @@ export class Crowd {
         const cx = (b.x0 + b.x1) / 2;
         const cz = (b.z0 + b.z1) / 2;
         if (Math.hypot(cx - playerPos.x, cz - playerPos.z) > AMBIENT_RING[1] + 30) continue;
+        if (this.ambient.filter((o) => o !== idx && this.ambientBlock.get(o) === b).length >= AMBIENT_PER_BLOCK) continue;
         const path = blockLoop(b.i, b.j, 0.6 + Math.random() * 1.5, Math.random() < 0.5);
         const at = along(path, Math.random());
         const d = Math.hypot(at.x - playerPos.x, at.z - playerPos.z);
         if (d < AMBIENT_RING[0] || d > AMBIENT_RING[1]) continue;
+        if (this.npcs.some((o, j) => j !== idx && this.present[j] && Math.hypot(o.root.position.x - at.x, o.root.position.z - at.z) < MIN_GAP)) continue;
+        this.ambientBlock.set(idx, b);
         if (view && d < AMBIENT_HIDDEN_WITHIN && ((at.x - playerPos.x) * view.x + (at.z - playerPos.z) * view.z) / d > 0.2) continue; // in view
         npc.reroute(path, at);
         break;

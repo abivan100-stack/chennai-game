@@ -52,6 +52,7 @@ Step 11t done: hotels have people all day (hotels.ts: doorman, gate guard, two g
 Step 11u done: hotel dining halls (world/hotelHalls.ts): E at a hotel's lobby doors (hotels.ts HotelDoor) takes you into its hall, built off the north edge of the map (z -900; main.ts HALL_ZONE, the maps show you at the hotel while inside): 36 x 24 m room, tall open windows on to a garden (palms, fountain, hedge), chandeliers, coffered ceiling, red carpet, buffet + chef, music stage + veena player, 12 tables with diners eating (smart clothes), waiters standing at stations (no walking indoors), host stand to order; E at the door inside takes you back out. The old glass restaurant room in the hotel front is gone. Posed people can name their model (addPosed model). Kit.build(scene, castShadow) lets interiors skip shadows.
 Step 11v done: hotel entrances are grand (brass-framed glass double doors, glass canopy with downlights and the hotel's name, lanterns, potted palms, steps, red carpet; lobby glass with brass mullions). The halls' window view: garden with flower beds, lamps, benches, pergola, stone balustrade, then a lake with sailboats, a far shore with hills and a hazy skyline (kept within ~110 m: the fog ends at 170).
 Step 11w done: police are Mixamo too (the last Quaternius model is gone): catalog 'police' loads the suited body separately and chennaiLook.applyPoliceLook repaints it in Tamil Nadu khaki (shirt / trousers by body part, black shoes, belt, peaked cap). Officers chase in Pistol Run, stagger with the 2nd Hit Reaction, punch / hook with the hero's clips; aiming and shooting = idle + right arm reached at the player by IK (left hand cups it, recoil kick per shot), since there's no Mixamo pistol idle / shoot clip.
+Step 11x done: beachfront shops + restaurants (world/beachfront.ts, layout.BEACHFRONT_LOTS: 6 big modern storefronts on the Beach Road facing Elliot's / Besant Nagar: grey cladding top, poster banner (code-drawn atlas), two-colour name board, glass ground floor + arched entrance; 4 restaurants with PLACE_MENUS seafood / biryani / chettinad / icecream, 2 shops). Crowds spread out: crowdOf spaces a group evenly round its loop; ambient walkers: 32, max 3 per block, never placed within 6 m of anyone.
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -139,6 +140,7 @@ src/
     showrooms.ts       fashion street: modern glass-fronted clothing stores (layout.SHOWROOM_LOTS)
     hotels.ts          luxury hotels, palace or tower style (layout.HOTEL_LOTS); lobby doors into the dining halls
     hotelHalls.ts      the hotels' big dining halls (off the map, entered through the lobby doors)
+    beachfront.ts      big shops + restaurants facing the beach (layout.BEACHFRONT_LOTS)
     landmarks.ts       real landmarks per area (Music Academy, Ramakrishna Math, Ice House, ...)
     places.ts          park, Luz Church, market, auto stand, petrol bunk, mechanic, cinema, bank, pharmacy, fish market, beach fair; services + snack counters
     hospital.ts        Isabel Hospital (layout.HOSPITAL_LOT): respawn spot after fainting / being shot
