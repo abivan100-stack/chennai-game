@@ -55,6 +55,8 @@ const HERO = {
     { name: 'kneel_idle', inPlace: true }, // Kneeling Idle: hands-on-knees while arrested
     { name: 'hit_react', inPlace: true }, // Hit Reaction: punched / shot
     { name: 'sit_idle', inPlace: true }, // Sitting: seated idle (hotel stool)
+    { name: 'pistol_run', inPlace: true }, // Pistol Run: police chasing with the gun out
+    { name: 'hit_react2', inPlace: true }, // Hit Reaction (second take): police staggering from a blow
     { name: 'push', inPlace: true }, // Pushing: pushing uncle's auto when the tank is empty
     { name: 'hook', inPlace: true }, // Hook Punch: second punch in a chain
     { name: 'sit_talk', inPlace: true }, // Sitting Talking: seated people chatting (NPCs too)
@@ -69,7 +71,6 @@ const HERO = {
  * only the first model of each rig keeps the animation clips; the game shares them.
  */
 const NPCS = [
-  { src: 'quaternius/men/Casual_2.gltf', out: 'npc-man-casual', rig: 'qmen' },
 ];
 /** Mixamo characters used as NPCs (assets-source/mixamo-npcs/<name>.fbx -> npc-<name>.glb). */
 const MIXAMO_NPCS = Array.from({ length: 14 }, (_, i) => `mx${String(i + 1).padStart(2, '0')}`);
@@ -197,7 +198,8 @@ async function finish(doc, name, srcBytes, before, limit) {
 }
 
 // ---- Hero -------------------------------------------------------------------------------
-if (want('hero')) {
+{
+  if (want('hero')) {
   const src = `${SRC}/${HERO.src}`;
   const tmp = `${TMP}/hero.glb`;
   blender(src, tmp);
@@ -215,6 +217,7 @@ if (want('hero')) {
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [TEXTURE_SIZE, TEXTURE_SIZE] }),
   );
   await finish(doc, 'hero', statSync(src).size, before, HERO_MAX_TRIS);
+  }
 
   for (const clip of HERO.clips) {
     if (!want(clip.name)) continue;

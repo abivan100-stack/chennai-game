@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { loadModel } from '../core/assets';
 import { QUATERNIUS_FROM_MIXAMO, retargetClip } from './retarget';
+import { applyPoliceLook } from './chennaiLook';
 
 /** Every character model is scaled to this height (metres) when loaded. */
 export const CHARACTER_HEIGHT = 1.7;
@@ -22,7 +23,7 @@ const MIXAMO_CLIP_SPEED = { walk: 1.63, run: 5.4 };
 /** Hero (Mixamo): one model file + one file per clip (clip name = file name). */
 const HERO = {
   model: 'hero.glb',
-  clips: ['idle', 'idle_stick', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive', 'swing', 'punch', 'combo', 'kick', 'block', 'death', 'kneel', 'kneel_idle', 'hit_react', 'sit_idle', 'push', 'hook', 'sit_talk', 'fall'].map((c) => `${c}.glb`),
+  clips: ['idle', 'idle_stick', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive', 'swing', 'punch', 'combo', 'kick', 'block', 'death', 'kneel', 'kneel_idle', 'hit_react', 'sit_idle', 'push', 'hook', 'sit_talk', 'fall', 'pistol_run', 'hit_react2'].map((c) => `${c}.glb`),
 };
 /** Hero clips baked onto every NPC rig at load: seated / driving poses and the police jab + hook. */
 const SHARED_WITH_NPCS = ['sit_down', 'drive', 'punch', 'sit_idle', 'sit_talk', 'hook'];
@@ -32,8 +33,8 @@ const SHARED_WITH_NPCS = ['sit_down', 'drive', 'punch', 'sit_idle', 'sit_talk', 
  * clips, and only one file per rig ships them (see scripts/build-models.mjs).
  */
 export const NPC_MODELS = {
-  // Quaternius body kept only for the police (their aim / shoot gun clips belong to this rig).
-  police: { file: 'npc-man-casual.glb', rig: 'qmen' },
+  // The police: the suited Mixamo man (a separate load), dressed in khaki at load (applyPoliceLook).
+  police: { file: 'npc-mx08.glb', rig: 'mixamo' },
   // Mixamo characters (same skeleton as the hero: they use the hero's clips, see MIXAMO_AS).
   mx01: { file: 'npc-mx01.glb', rig: 'mixamo' },
   mx02: { file: 'npc-mx02.glb', rig: 'mixamo' },
@@ -140,6 +141,7 @@ export async function loadCharacters() {
     if (NPC_MODELS[id].rig === 'mixamo') {
       a.clips = fitHipsTo(a.clips, hero.scene, a.scene);
       matte(a.scene);
+      if (id === 'police') applyPoliceLook(a.scene);
       Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id) });
     }
   }

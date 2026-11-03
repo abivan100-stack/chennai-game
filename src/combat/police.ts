@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Animator } from '../characters/animator';
+import { reachCCD } from '../characters/ik';
 import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { route } from '../missions/route';
 import { BEACH_ROAD, X_LINES, Z_LINES } from '../world/layout';
@@ -24,7 +25,6 @@ const ARREST_DIST = 1.7;
 const ARREST_SECONDS = 1.2; // "hands up" time before you're arrested
 const FIRE_EVERY = [0.9, 1.6];
 const DAMAGE = { foot: 11, vehicle: 6 };
-const UNIFORM = 0xc9b07a; // Tamil Nadu Police khaki
 // Fist fights with officers
 const OFFICER_HP = 100;
 const HIT_DAMAGE = { punch: 25, swing: 40, kick: 35 };
@@ -83,6 +83,11 @@ interface Officer {
   punchCooldown: number;
   /** The next blow is a hook (they alternate jab, hook). */
   hook: boolean;
+  /** Standing with the pistol pointed at the player (arms posed by IK over the idle clip). */
+  aiming: boolean;
+  /** Kick of the last shot (decays). */
+  recoil: number;
+  arms: { ra: THREE.Object3D; rf: THREE.Object3D; rh: THREE.Object3D; la: THREE.Object3D; lf: THREE.Object3D; lh: THREE.Object3D };
 }
 
 /** One police jeep with two officers. */
@@ -150,13 +155,7 @@ class Unit {
 }
 
 function makeOfficer(scene: THREE.Scene, world: RAPIER.World, asset: CharacterAsset): Officer {
-  const body = cloneSkinned(asset.scene);
-  body.traverse((m) => {
-    if (!(m instanceof THREE.Mesh)) return;
-    const mat = (m.material as THREE.MeshStandardMaterial).clone();
-    mat.color.set(UNIFORM);
-    m.material = mat;
-  });
+  const body = cloneSkinned(asset.scene); // already in khaki (chennaiLook.applyPoliceLook)
   const root = new THREE.Group();
   root.add(body);
   root.scale.setScalar(1.74 / CHARACTER_HEIGHT);
@@ -164,13 +163,17 @@ function makeOfficer(scene: THREE.Scene, world: RAPIER.World, asset: CharacterAs
   scene.add(root);
   const gun = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.22), new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.6, roughness: 0.4 }));
   gun.position.set(0, 0.08, 0.06);
-  (body.getObjectByName('WristR') ?? body).add(gun);
+  const b = (n: string) => body.getObjectByName(n)!;
+  b('RightHand').add(gun);
   const anim = new Animator(body, asset.clips);
   anim.play('idle', { fade: 0 });
   const rb = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -50, 0));
   const collider = world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.3), rb);
   collider.setEnabled(false);
-  return { root, anim, gun, body: rb, collider, cooldown: 1, down: 0, hp: OFFICER_HP, punchT: -1, punchCooldown: 0, hook: false };
+  return {
+    root, anim, gun, body: rb, collider, cooldown: 1, down: 0, hp: OFFICER_HP, punchT: -1, punchCooldown: 0, hook: false, aiming: false, recoil: 0,
+    arms: { ra: b('RightArm'), rf: b('RightForeArm'), rh: b('RightHand'), la: b('LeftArm'), lf: b('LeftForeArm'), lh: b('LeftHand') },
+  };
 }
 
 /**
@@ -194,6 +197,10 @@ export class Police {
   private audio: AudioContext | null = null;
   private siren: OscillatorNode | null = null;
   private readonly tmp = new THREE.Vector3();
+  private readonly aimFrom = new THREE.Vector3();
+  private readonly aimTo = new THREE.Vector3();
+  private readonly aimGoal = new THREE.Vector3();
+  private readonly aimHand = new THREE.Vector3();
 
   constructor(scene: THREE.Scene, world: RAPIER.World, officerAsset: CharacterAsset, home: THREE.Vector3, homeYaw = -Math.PI / 2) {
     this.world = world;
@@ -254,7 +261,7 @@ export class Police {
       this.shout(pick(LINES.down));
     } else {
       o.down = move === 'kick' ? KICK_DOWN_SECONDS : STAGGER_SECONDS;
-      o.anim.play(move === 'kick' ? 'fall' : 'hit', { once: true, fade: 0.05 });
+      o.anim.play(move === 'kick' ? 'fall' : 'hit_react2', { once: true, fade: 0.05 });
     }
   }
 
@@ -460,6 +467,7 @@ export class Police {
   /** One officer's turn: move (with collisions), arrest or shoot. */
   private updateOfficer(o: Officer, dt: number, ctx: PoliceContext) {
     const r = { dist: Infinity, arrestDist: Infinity, damage: 0, seen: false, runOver: false };
+    let aiming = false;
     if (!o.root.visible) return r;
     const p = o.root.position;
     const dx = ctx.player.x - p.x;
@@ -515,18 +523,21 @@ export class Police {
       o.anim.play('run');
       move = RUN_SPEED * 0.8; // close in for the fight
     } else if (armed && see && d < SHOOT_RANGE) {
-      o.anim.play('shoot');
+      o.anim.play('idle');
+      aiming = true;
       o.cooldown -= dt;
       if (o.cooldown <= 0) {
         o.cooldown = FIRE_EVERY[0] + Math.random() * (FIRE_EVERY[1] - FIRE_EVERY[0]);
+        o.recoil = 1;
         r.damage = this.fire(o, ctx);
       }
       if (d > KEEP_DISTANCE + 4) move = RUN_SPEED * 0.6; // close in while firing
     } else if (d > (armed ? KEEP_DISTANCE : ARREST_DIST * 0.8)) {
-      o.anim.play('run');
+      o.anim.play(armed ? 'pistol_run' : 'run');
       move = RUN_SPEED;
     } else {
-      o.anim.play(armed ? 'aim' : 'idle');
+      o.anim.play('idle');
+      aiming = armed;
     }
     if (move > 0 && d > 0.01) {
       // Character controller: slides along walls, steps up kerbs.
@@ -537,8 +548,27 @@ export class Police {
       p.y = Math.max(0, p.y + m.y);
     }
     o.anim.update(dt);
+    o.aiming = aiming;
+    if (aiming) this.aim(o, ctx, dt);
     o.body.setNextKinematicTranslation({ x: p.x, y: p.y + 0.9, z: p.z });
     return r;
+  }
+
+  /**
+   * Pistol pointed at the player: no Mixamo pistol-idle clip, so the right arm is reached out at
+   * shoulder height towards them over the idle pose, the left hand cups the right, and a shot
+   * kicks the gun up for a moment.
+   */
+  private aim(o: Officer, ctx: PoliceContext, dt: number) {
+    o.recoil = Math.max(0, o.recoil - dt * 6);
+    o.root.updateMatrixWorld(true);
+    const sh = o.arms.ra.getWorldPosition(this.aimFrom);
+    const to = this.aimTo.set(ctx.player.x - sh.x, (ctx.vehicle ? 1.2 : ctx.player.y + 0.4) - sh.y, ctx.player.z - sh.z).normalize();
+    const goal = this.aimGoal.copy(sh).addScaledVector(to, 0.62);
+    goal.y += 0.06 + o.recoil * 0.12;
+    reachCCD(o.arms.ra, o.arms.rf, o.arms.rh, goal, 4);
+    o.arms.rh.getWorldPosition(this.aimHand);
+    reachCCD(o.arms.la, o.arms.lf, o.arms.lh, this.aimHand.addScaledVector(to, -0.04), 4);
   }
 
   /** Clear line from `from` (at chest height `h`) to the player, ignoring people and the player's vehicle. */

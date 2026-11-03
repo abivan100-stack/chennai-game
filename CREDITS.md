@@ -11,9 +11,8 @@ Every third-party asset shipped in `public/models/`. Add a row here whenever you
 | Talking, Yelling, Stand To Sit, Sit To Stand, Driving animations | `talk.glb`, `yell.glb`, `sit_down.glb`, `stand_up.glb`, `drive.glb` (talk + yell are also retargeted onto the NPCs at load) | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 | Punching, Stable Sword Outward Slash (lathi), Flying Kick, Body Block, Fist Fight A combo animations | `punch.glb`, `swing.glb`, `kick.glb`, `block.glb`, `combo.glb` (combo + punch are also retargeted onto the NPCs) | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 | Falling Back Death, Kneel, Kneeling Idle, Hit Reaction, Sitting animations | `death.glb`, `kneel.glb`, `kneel_idle.glb`, `hit_react.glb`, `sit_idle.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
-| Pushing, Hook Punch, Sitting Talking, Jump, Jumping Down, Standing Idle animations | `push.glb`, `hook.glb`, `sit_talk.glb`, `jump.glb`, `fall.glb`, `idle.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
+| Pushing, Hook Punch, Sitting Talking, Jump, Jumping Down, Standing Idle, Pistol Run, Hit Reaction (2nd) animations | `push.glb`, `hook.glb`, `sit_talk.glb`, `jump.glb`, `fall.glb`, `idle_stick.glb`, `pistol_run.glb`, `hit_react2.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 | 14 Mixamo characters (NPCs: office wear, casual, tracksuits, worker, delivery rider) | `npc-mx01.glb` … `npc-mx14.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
-| Ultimate Modular Men Pack: Casual_2 (+ Idle/Walk/Run/gun clips), used for the police | `npc-man-casual.glb` | Quaternius | https://quaternius.com/packs/ultimatemodularcharacters.html | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 
 All models were converted and optimised by `scripts/build-models.mjs` (simplified, merged draw calls, 1K WebP textures, Meshopt compression). CC0 needs no attribution; Quaternius is credited anyway.
 

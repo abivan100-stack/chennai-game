@@ -314,3 +314,74 @@ export function applyChennaiLook(model: THREE.Object3D) {
   const kumkum = new THREE.MeshStandardMaterial({ color: 0xc00020, roughness: 0.6 });
   attach(model, 'Head', new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), kumkum), new THREE.Vector3(head.x, head.y + 0.104, head.z + 0.104));
 }
+
+// ---- Police uniform (Tamil Nadu khaki) -------------------------------------------------------
+const KHAKI_SHIRT = [196, 170, 112];
+const KHAKI_PANTS = [176, 150, 98];
+const BOOTS = [24, 20, 18];
+
+/**
+ * Dress a Mixamo body (the police officer) in Tamil Nadu Police khaki: shirt and trousers by
+ * body part (same bone-weight mask as the hero's outfit), black shoes, the leather belt and a
+ * khaki peaked cap with a dark band. Skin goes a shade browner; hair is left alone.
+ */
+export function applyPoliceLook(model: THREE.Object3D) {
+  let body: THREE.SkinnedMesh | null = null;
+  model.traverse((o) => {
+    if (!(o instanceof THREE.SkinnedMesh)) return;
+    const mat = o.material as THREE.MeshStandardMaterial;
+    if (!mat.map || /hair|lash/i.test(mat.name)) return;
+    const img = mat.map.image as CanvasImageSource & { width: number; height: number };
+    const w = img.width;
+    const h = img.height;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(img, 0, 0);
+    const data = g.getImageData(0, 0, w, h);
+    const px = data.data;
+    const mask = partMask(o, w, h);
+    for (let i = 0; i < px.length; i += 4) {
+      const { h: hue, s, v } = hsv(px[i], px[i + 1], px[i + 2]);
+      const x = (i / 4) % w;
+      const weave = 0.95 + 0.07 * hash(x, Math.floor(i / 4 / w));
+      const shade = THREE.MathUtils.clamp(0.8 + 0.3 * v, 0.86, 1.08) * weave;
+      const part = partAt(mask, i);
+      const rgb = part === 'shirt' ? KHAKI_SHIRT : part === 'pants' ? KHAKI_PANTS : part === 'shoes' ? BOOTS : null;
+      if (rgb) {
+        px[i] = Math.min(255, rgb[0] * shade);
+        px[i + 1] = Math.min(255, rgb[1] * shade);
+        px[i + 2] = Math.min(255, rgb[2] * shade);
+      } else if (hue < 45 && s > 0.1 && s < 0.65 && v > 0.25) {
+        px[i] *= SKIN_TONE[0];
+        px[i + 1] *= SKIN_TONE[1];
+        px[i + 2] *= SKIN_TONE[2];
+      }
+    }
+    g.putImageData(data, 0, 0);
+    const tex = new THREE.CanvasTexture(c);
+    tex.flipY = mat.map.flipY;
+    tex.colorSpace = mat.map.colorSpace;
+    tex.channel = mat.map.channel;
+    const m2 = mat.clone(); // the civilians wearing this body keep their own clothes
+    m2.map = tex;
+    m2.roughness = 1;
+    m2.metalness = 0;
+    m2.roughnessMap = null;
+    m2.metalnessMap = null;
+    o.material = m2;
+    body = o;
+  });
+  if (body) addBelt(body);
+  // Peaked cap: crown, dark band and a black peak over the brow.
+  model.updateWorldMatrix(true, true);
+  const hb = model.getObjectByName('Head');
+  if (!hb) return;
+  const head = model.worldToLocal(hb.getWorldPosition(new THREE.Vector3()));
+  const khaki = new THREE.MeshStandardMaterial({ color: 0xb59a62, roughness: 0.9 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.6 });
+  attach(model, 'Head', new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.1, 0.07, 18), khaki), new THREE.Vector3(head.x, head.y + 0.19, head.z + 0.01));
+  attach(model, 'Head', new THREE.Mesh(new THREE.CylinderGeometry(0.102, 0.102, 0.03, 18), dark), new THREE.Vector3(head.x, head.y + 0.145, head.z + 0.01));
+  attach(model, 'Head', new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 14, 1, false, -Math.PI / 2, Math.PI).scale(1.2, 1, 1), dark), new THREE.Vector3(head.x, head.y + 0.135, head.z + 0.085));
+}
