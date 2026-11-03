@@ -47,6 +47,15 @@ export const PLACE_MENUS = {
       { name: 'Chocolate brownie', price: 120, energy: 22, seconds: 5, color: '#5a3a22' },
     ],
   },
+  fine: {
+    kind: 'shop', greet: 'Good evening sir, welcome! Chef recommends the Chettinad thali today.',
+    items: [
+      { name: 'Chettinad thali', price: 950, energy: 80, seconds: 10, color: '#c8742a' },
+      { name: 'Dum biryani (mutton)', price: 780, energy: 70, seconds: 9, color: '#d9a441' },
+      { name: 'Seafood platter', price: 1450, energy: 85, seconds: 10, color: '#e07a4a' },
+      { name: 'Filter coffee, silver tumbler', price: 220, energy: 10, seconds: 4, color: '#8a5a32' },
+    ],
+  },
   bakery: {
     kind: 'shop', greet: 'Fresh-aa oven-la irundhu! Enna venum?',
     items: [

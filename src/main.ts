@@ -38,6 +38,8 @@ import { createPosters } from './world/posters';
 import { createHospital } from './world/hospital';
 import { createPlaces, type Service } from './world/places';
 import { createServiceHubs } from './world/serviceHubs';
+import { createShowrooms } from './world/showrooms';
+import { createHotels } from './world/hotels';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
@@ -122,6 +124,8 @@ async function main() {
   const hospital = createHospital(scene, world);
   const places = createPlaces(scene, world);
   const hubs = createServiceHubs(scene, world);
+  const showrooms = createShowrooms(scene, world);
+  const hotels = createHotels(scene, world);
   places.services.push(...hubs.services); // petrol / mechanic / ATM / medicals in every area
   const landmarks = createLandmarks(scene, world);
   const tidel = createTidelPark(scene, world);
@@ -134,6 +138,7 @@ async function main() {
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
+  eateries.list.push(...hotels.eateries); // hotel lobby restaurants (fine dining)
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
   eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
   eateries.list.push(...beachLife.eateries); // beach stalls + dessert carts (some move)
@@ -948,6 +953,8 @@ async function main() {
     places.update(dt);
     places.setNight(dayNight.night);
     hubs.setNight(dayNight.night);
+    showrooms.setNight(dayNight.night);
+    hotels.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);

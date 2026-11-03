@@ -4,7 +4,9 @@ import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
-import { SERVICE_HUBS } from '../world/layout';
+import { HOTEL_LOTS, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
+import { SHOWROOMS } from '../world/showrooms';
+import { HOTELS } from '../world/hotels';
 import { SHOP_SIGNS } from '../world/textures';
 
 /** Pixels per metre of the pre-drawn town map. Minimap and phone map crop/scale from it. */
@@ -293,6 +295,21 @@ export function drawTownMap(data: MapData): TownMap {
     add(11, 3, `${hub.area} ATM`, '#0d47a1', '₹', 'atm', 3);
     add(15, 5, `${hub.area} Medicals`, '#1b5e20', '+', 'medical', 3);
   }
+
+  // Silk street showrooms and the luxury hotels.
+  SHOWROOM_LOTS().forEach((lot, i) => {
+    g.fillStyle = '#f3d6e0';
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const name = SHOWROOMS[i % SHOWROOMS.length][1].replace(/(\w)(\w*)/g, (_, a: string, b: string) => a + b.toLowerCase());
+    poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#ad1457', '👗', 'shop', 2);
+  });
+  labels.push({ text: 'Silk street', x: -205, z: -185, kind: 'landmark' });
+  HOTEL_LOTS().forEach((lot, i) => {
+    g.fillStyle = '#e8dcc0';
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const name = HOTELS[i % HOTELS.length].en.split(' ·')[0].replace(/(\w)(\w*)/g, (_, a: string, b: string) => a + b.toLowerCase());
+    poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#14213d', '🏨', 'place', 1);
+  });
 
   // Buildings, then trees, then shop dots on top.
   for (const f of data.footprints) {

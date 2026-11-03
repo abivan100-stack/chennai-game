@@ -418,3 +418,32 @@ export const SERVICE_HUBS: { area: string; ta: string; lot: () => Lot }[] = (() 
     { area: 'Velachery', ta: 'வேளச்சேரி', lot: at(-2, 11, 'w', 5) },
   ];
 })();
+
+/** A lot of frontage w x depth d on one side of block (i, j), `along` metres from its start. */
+const sideLot = (i: number, j: number, front: Front, along: number, w: number, d: number): Lot => {
+  const b = block(i, j);
+  if (front === 'e') return { x0: b.x1 - d, x1: b.x1, z0: b.z0 + along, z1: b.z0 + along + w, front };
+  if (front === 'w') return { x0: b.x0, x1: b.x0 + d, z0: b.z0 + along, z1: b.z0 + along + w, front };
+  if (front === 'n') return { x0: b.x0 + along, x1: b.x0 + along + w, z0: b.z0, z1: b.z0 + d, front };
+  return { x0: b.x0 + along, x1: b.x0 + along + w, z0: b.z1 - d, z1: b.z1, front };
+};
+
+/**
+ * Silk street: big multi-storey textile / clothing showrooms facing each other along Eldams Road
+ * (world/showrooms.ts). Index order = SHOWROOMS data order.
+ */
+export const SHOWROOM_LOTS = (): Lot[] => [
+  sideLot(-2, -1, 'e', 3, 34, 22),
+  sideLot(-2, -1, 'e', 39, 34, 22),
+  sideLot(-1, -1, 'w', 3, 34, 22),
+  sideLot(-1, -1, 'w', 39, 34, 22),
+  sideLot(-2, -2, 'e', 20, 34, 22),
+  sideLot(-1, -2, 'w', 20, 34, 22),
+];
+
+/** Luxury hotels (world/hotels.ts): Anna Salai (Teynampet), TTK Road (Alwarpet), Anna Salai (Adyar end). */
+export const HOTEL_LOTS = (): Lot[] => [
+  sideLot(-2, 6, 'w', 0, 45, 42),
+  sideLot(-1, 5, 'e', 0, 40, 40),
+  sideLot(-2, 9, 'w', 6, 64, 42),
+];
