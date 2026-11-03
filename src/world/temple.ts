@@ -142,6 +142,8 @@ function gopuram(p: Parts, cx: number, cz: number, yaw: number, width: number, d
   box(p.gopuram, side, baseH, depth, -(passage + side) / 2, baseH / 2, 0, CARVED, true);
   box(p.gopuram, side, baseH, depth, (passage + side) / 2, baseH / 2, 0, CARVED, true);
   box(p.stone, passage, 1.5, depth, 0, baseH - 0.75, 0, GRANITE);
+  // Granite posts across both ends of the passage: people walk between them, vehicles can't (0.96 m gap; the auto is 1.28 m).
+  for (const z of [-depth / 2 - 0.2, depth / 2 + 0.2]) for (const x of [-0.6, 0.6]) box(p.stone, 0.24, 0.9, 0.24, x, 0.45, z, GRANITE, true);
   box(p.stone, width + 0.6, 0.4, depth + 0.6, 0, baseH + 0.2, 0, CORNICE);
 
   // Painted tiers.

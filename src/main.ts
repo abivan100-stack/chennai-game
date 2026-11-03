@@ -18,7 +18,7 @@ import { loadingScreen } from './ui/loading';
 import { AutoRickshaw } from './vehicles/auto';
 import { createBuildings } from './world/buildings';
 import { createGround } from './world/ground';
-import { SIDEWALK_HEIGHT } from './world/layout';
+import { SIDEWALK_HEIGHT, blocks } from './world/layout';
 import { createProps } from './world/props';
 import { DayNight } from './world/sky';
 import { createTemple } from './world/temple';
@@ -189,7 +189,10 @@ async function main() {
   const player = new PlayerController(world, scene, spawn, characters.hero);
   applyChennaiLook(player.model); // full-sleeve shirt, trousers, shoes, belt, vibhuti
   if (saved) player.mesh.rotation.y = saved.player.yaw;
-  const auto = new AutoRickshaw(scene, world, autoSpot, saved ? saved.auto.heading : Math.PI);
+  // A save from before the temple posts (or any glitch) may have the auto inside a block: back to its kerb.
+  const offRoad = blocks().some((b) => (b.kind === 'temple' || b.kind === 'tank') && autoSpot.x > b.x0 && autoSpot.x < b.x1 && autoSpot.z > b.z0 && autoSpot.z < b.z1);
+  if (offRoad) autoSpot.set(25 - 4.2, 0, -4);
+  const auto = new AutoRickshaw(scene, world, autoSpot, saved && !offRoad ? saved.auto.heading : Math.PI);
   const ride = new Ride(player, auto);
   const melee = new Melee(player);
   const heroHips = player.model.getObjectByName('Hips')!;
