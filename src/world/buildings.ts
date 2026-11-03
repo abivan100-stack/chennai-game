@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
 import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SERVICE_HUBS, SHOWROOM_LOTS, HOTEL_LOTS, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
-import { SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
+import { SHOP_ROWS, SIGN_COUNT, facadeTextures, shopTextures, signTextures } from './textures';
 
 const DEPTH = [9, 15];
 const ALLEY_CHANCE = 0.12;
@@ -14,6 +14,13 @@ const OLD_HOUSE_CHANCE = 0.14; // tiled-roof house with a pillared verandah (thi
 const SHOWROOM_CHANCE = 0.08; // one wide shop with a big signboard
 const NO_SHOP_CHANCE = 0.4; // old-town buildings that are just homes (no ground-floor shops)
 const SHOP_WIDTH: [number, number] = [4.5, 9]; // m per shop bay (wider bays = fewer, bigger shops)
+const AWNING_CHANCE = 0.5; // shops with a sloping fabric awning instead of the concrete sunshade
+const STRIPED_CHANCE = 0.35; // ...of which striped
+const AWNINGS = [0xc62828, 0x2e7d32, 0x1565c0, 0xf9a825, 0x6a1b9a, 0x00838f, 0xef6c00, 0xad1457].map((c) => new THREE.Color(c));
+const AWNING_TILT = 0.4; // rad, front edge down
+const WHITE = new THREE.Color(0xffffff);
+const AWNING_BOX = new THREE.BoxGeometry(1, 0.05, 1.1); // scaled to each stripe's width
+const SHOP_TINT = 0.7; // how far shopfronts are lightened towards white (keeps the shop designs' own colours)
 const TILE = 180; // metres: buildings are merged per tile (frustum culling works per tile)
 /**
  * Each area looks like its real counterpart:
@@ -164,6 +171,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     // Shop bays: 1 for a showroom, otherwise SHOP_WIDTH each. The shop tile holds two shops.
     const bays = showroom ? 1 : Math.max(1, Math.round(w / range(SHOP_WIDTH[0], SHOP_WIDTH[1])));
     const shopShift = rand() < 0.5 ? 0 : 0.5;
+    const shopRow = Math.floor(rand() * SHOP_ROWS); // which pair of shop designs this building has
 
     // Walls: [from, to] corners in local x/z, outward normal. Front = +z.
     const walls = [
@@ -180,7 +188,9 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       const g = [P(ax, 0, az), P(bx, 0, bz), P(bx, groundH, bz), P(ax, groundH, az)];
       if (wl.front && !oldHouse && !noShops) {
         const u1 = bays / 2 + shopShift;
-        shops.quad(g[0], g[1], g[2], g[3], [[shopShift, 0], [u1, 0], [u1, 1], [shopShift, 1]], wall, out);
+        const v0 = 1 - (shopRow + 1) / SHOP_ROWS;
+        const v1 = 1 - shopRow / SHOP_ROWS;
+        shops.quad(g[0], g[1], g[2], g[3], [[shopShift, v0], [u1, v0], [u1, v1], [shopShift, v1]], wall.clone().lerp(WHITE, SHOP_TINT), out);
       } else if (wl.front) {
         facade.quad(g[0], g[1], g[2], g[3], [[0, 0], [windowsU, 0], [windowsU, 0.5], [0, 0.5]], wall, out);
       } else {
@@ -253,13 +263,28 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       }
 
       // Sunshade over the shops, one signboard per shop sized to its width (houses: none).
-      if (!noShops) box(w, 0.1, 0.8, 0, groundH - 0.05, hd + 0.4, office ? BAND : wall);
       const bayW = w / bays;
+      const awning = !office && !noShops && !showroom && rand() < AWNING_CHANCE;
+      if (!noShops && !awning) box(w, 0.1, 0.8, 0, groundH - 0.05, hd + 0.4, office ? BAND : wall);
+      if (awning) {
+        // A sloping fabric awning over each shop, its own colour (some striped with white).
+        for (let bay = 0; bay < bays; bay++) {
+          const colour = AWNINGS[Math.floor(rand() * AWNINGS.length)];
+          const striped = rand() < STRIPED_CHANCE;
+          const aw = bayW - 0.25;
+          const n = striped ? Math.max(2, Math.round(aw / 0.45)) : 1;
+          for (let k = 0; k < n; k++) {
+            const x = -hw + bayW * bay + 0.125 + (aw / n) * (k + 0.5);
+            const am = new THREE.Matrix4().multiplyMatrices(m, new THREE.Matrix4().makeTranslation(x, groundH - 0.2, hd + 0.55).multiply(new THREE.Matrix4().makeRotationX(AWNING_TILT)).scale(new THREE.Vector3(aw / n - 0.01, 1, 1)));
+            plain.add(AWNING_BOX, am, striped && k % 2 ? WHITE : colour);
+          }
+        }
+      }
       for (let bay = 0; bay < (noShops ? 0 : bays); bay++) {
         if (!showroom && rand() < 0.1) continue; // the odd shop without a board
         const x = -hw + bayW * (bay + 0.5);
         const sw = bayW - 0.3;
-        const sh = THREE.MathUtils.clamp(sw / 7, 0.45, showroom ? 1.6 : 1.0);
+        const sh = THREE.MathUtils.clamp((sw / 7) * range(0.85, 1.5), 0.45, showroom ? 1.6 : 1.3); // board heights vary
         const signIndex = Math.floor(rand() * SIGN_COUNT);
         if (fp.shop === null) fp.shop = signIndex;
         const front = P(x, 0, hd);

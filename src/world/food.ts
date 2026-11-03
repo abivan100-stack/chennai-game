@@ -48,7 +48,8 @@ export const PLACE_MENUS = {
     ],
   },
   fine: {
-    kind: 'shop', greet: 'Good evening sir, welcome! Chef recommends the Chettinad thali today.',
+    kind: 'hotel', // sit down at a table in the hotel restaurant
+    greet: 'Good evening sir, welcome! Chef recommends the Chettinad thali today.',
     items: [
       { name: 'Chettinad thali', price: 950, energy: 80, seconds: 10, color: '#c8742a' },
       { name: 'Dum biryani (mutton)', price: 780, energy: 70, seconds: 9, color: '#d9a441' },

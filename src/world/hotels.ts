@@ -1,6 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { Eatery } from './eateries';
+import type { PoseClip } from '../npcs/npc';
+import { GeoBuilder } from './geo';
 import { PLACE_MENUS } from './food';
 import { createKit, frame, type Frame, type SignDef } from './kit';
 import { HOTEL_LOTS } from './layout';
@@ -14,14 +16,29 @@ import { HOTEL_LOTS } from './layout';
 
 type Style = 'palace' | 'tower';
 /** Order matches layout.HOTEL_LOTS. */
-export const HOTELS: { ta: string; en: string; style: Style; floors: number; wall: number; glass: number }[] = [
-  { ta: 'ஹோட்டல் காவேரி பேலஸ்', en: 'HOTEL KAVERI PALACE', style: 'palace', floors: 5, wall: 0xe2c79a, glass: 0x4a5b6b },
-  { ta: 'தி ஆழ்வார்பேட்டை ரெசிடென்சி', en: 'THE ALWARPET RESIDENCY', style: 'tower', floors: 11, wall: 0xf3f1ec, glass: 0x5f86a8 },
-  { ta: 'அடையார் கிராண்ட்', en: 'ADYAR GRAND · HOTEL & SPA', style: 'tower', floors: 14, wall: 0xd9d4ca, glass: 0x3e6d8e },
+export const HOTELS: { ta: string; en: string; style: Style; floors: number; wall: number; glass: number; diner: [string, string] }[] = [
+  { ta: 'ஹோட்டல் காவேரி பேலஸ்', en: 'HOTEL KAVERI PALACE', style: 'palace', floors: 5, wall: 0xe2c79a, glass: 0x4a5b6b, diner: ['சோழ மண்டபம்', 'CHOLA MANDAPAM · DINING'] },
+  { ta: 'தி ஆழ்வார்பேட்டை ரெசிடென்சி', en: 'THE ALWARPET RESIDENCY', style: 'tower', floors: 11, wall: 0xf3f1ec, glass: 0x5f86a8, diner: ['மல்லிகை', 'MALLIGAI · ALL-DAY DINING'] },
+  { ta: 'அடையார் கிராண்ட்', en: 'ADYAR GRAND · HOTEL & SPA', style: 'tower', floors: 14, wall: 0xd9d4ca, glass: 0x3e6d8e, diner: ['கடற்கரை கிச்சன்', 'THE COAST KITCHEN'] },
 ];
-const SIGNS: SignDef[] = HOTELS.map((h): SignDef => [h.ta, h.en, '#14213d', '#f2d27a']);
+const SIGNS: SignDef[] = [
+  ...HOTELS.map((h): SignDef => [h.ta, h.en, '#14213d', '#f2d27a']),
+  ...HOTELS.map((h): SignDef => [h.diner[0], h.diner[1], '#3b1f0f', '#f2d27a']),
+];
+/** People at the other tables (crowd.addPosed). */
+const DINERS = ['Mr. Raghavan', 'Mrs. Raghavan', 'Anjali', 'Siddharth', 'Dr. Iyer', 'Farah', 'Kartik', 'Nandini', 'Joseph', 'Lakshmi'];
+const DINNER_HOURS: [number, number][] = [[12, 15.5], [19, 23.5]];
+const ROOM_D = 8; // restaurant room depth
+const ROOM_H = 4.4;
+const FLOOR_TOP = 0.06; // restaurant floor
+const TABLE_TOP = 0.74; // as eateries.ts: the meal puts the leaf here
+const SEAT_TOP = 0.46;
+const SEAT_GAP = 0.62; // chair centre to table centre (meal.ts swivels to face the table)
+const BENCH_TOP = 0.5; // seat height the sitting clips are dropped onto (npc.ts)
 
 const C = (hex: number) => new THREE.Color(hex);
+/** 'HOTEL KAVERI PALACE' -> 'Hotel Kaveri Palace'. */
+const title = (t: string) => t.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const CREAM = C(0xf6efe0);
 const GOLD = C(0xc9a24a);
 const PAVING = C(0xbfb6a6);
@@ -37,6 +54,8 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
   const k = createKit(world, SIGNS);
   const { box, board, shape } = k;
   const eateries: Eatery[] = [];
+  const posed: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][] }[] = [];
+  const glassGeo = new GeoBuilder(); // restaurant windows (one transparent draw call)
 
   const palm = (f: Frame, u: number, v: number, h = 6) => {
     shape(f, new THREE.CylinderGeometry(0.16, 0.26, h, 7).translate(0, h / 2, 0), u, 0, v, PALM_TRUNK);
@@ -97,6 +116,73 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
     const bd = d - bv0 - 0.5;
     const bw = w - 4;
     const lobbyH = FLOOR_H * 1.5;
+    // Restaurant room: the left end of the ground floor, glass to the forecourt.
+    const roomW = Math.min(bw / 2 - 8.5, 14);
+    const r0 = -bw / 2 + 0.5;
+    const r1 = r0 + roomW;
+    /** The lowest block of the building, with the restaurant room cut out of its ground floor. */
+    const baseBlock = (hb: number) => {
+      box(f, bw, hb - ROOM_H, bd, 0, ROOM_H, bv0 + bd / 2, wall);
+      box(f, bw / 2 - r1, ROOM_H, bd, (r1 + bw / 2) / 2, 0, bv0 + bd / 2, wall);
+      box(f, 0.5, ROOM_H, bd, -bw / 2 + 0.25, 0, bv0 + bd / 2, wall);
+      box(f, roomW, ROOM_H, bd - ROOM_D, (r0 + r1) / 2, 0, bv0 + ROOM_D + (bd - ROOM_D) / 2, wall);
+    };
+    const restaurant = () => {
+      const rc = (r0 + r1) / 2;
+      const gold = GOLD;
+      box(f, roomW, FLOOR_TOP, ROOM_D, rc, 0, bv0 + ROOM_D / 2, C(0xe9e2d6), false); // marble floor
+      k.shape(f, new THREE.BoxGeometry(roomW, ROOM_H - 0.3, 0.05).translate(0, (ROOM_H - 0.3) / 2, 0), rc, FLOOR_TOP, bv0 + ROOM_D - 0.03, C(0xf3d9a4), 0, k.bulbs); // warm back wall
+      for (let u = r0 + 1.2; u < r1 - 0.6; u += 2.4) box(f, 0.25, ROOM_H - 0.4, 0.12, u, FLOOR_TOP, bv0 + ROOM_D - 0.1, C(0x7a4a22), false); // wood panelling
+      box(f, roomW, 0.12, ROOM_D, rc, ROOM_H - 0.12, bv0 + ROOM_D / 2, CREAM, false); // ceiling
+      // Chandeliers.
+      for (let u = r0 + 3; u < r1 - 1.5; u += 5) {
+        box(f, 0.04, 0.8, 0.04, u, ROOM_H - 0.9, bv0 + ROOM_D / 2, gold, false);
+        for (let a = 0; a < 8; a++) k.shape(f, new THREE.SphereGeometry(0.09, 6, 4), u + Math.cos((a / 8) * Math.PI * 2) * 0.45, ROOM_H - 1.05, bv0 + ROOM_D / 2 + Math.sin((a / 8) * Math.PI * 2) * 0.45, C(0xfff1c8), 0, k.bulbs);
+      }
+      // Glass front with gold mullions, a door gap near the lobby end.
+      const doorU = r1 - 1.4;
+      for (const [a, b] of [[r0, doorU - 0.8], [doorU + 0.8, r1]]) {
+        if (b - a < 0.2) continue;
+        const p = f.at((a + b) / 2, bv0 + 0.04);
+        glassGeo.box(b - a, ROOM_H - 0.2, 0.04, p.x, FLOOR_TOP + (ROOM_H - 0.2) / 2, p.z, C(0xf2e6c8), f.yaw);
+        k.solid(f, b - a, ROOM_H, 0.15, (a + b) / 2, 0, bv0 + 0.04);
+      }
+      for (let u = r0; u <= r1 + 0.01; u += roomW / 6) box(f, 0.1, ROOM_H, 0.1, u, 0, bv0, gold, false);
+      box(f, roomW + 0.4, 0.9, 0.3, rc, ROOM_H + 0.1, bv0 - 0.2, C(0x3b1f0f), false);
+      board(f, HOTELS.length + i, rc, ROOM_H + 0.15, bv0 - 0.36, Math.min(roomW - 1, 9), 0.8);
+      // Host stand by the door: order here.
+      box(f, 0.9, 1.1, 0.5, doorU, FLOOR_TOP, bv0 + 1.6, C(0x5a3418));
+      const spot = f.at(doorU, bv0 + 1.0, FLOOR_TOP);
+      const waiter = f.at(doorU, bv0 + 2.2);
+      const toDoor = f.at(0, -1).sub(f.at(0, 0));
+      posed.push({ name: 'Head waiter', x: waiter.x, y: FLOOR_TOP, z: waiter.z, yaw: Math.atan2(toDoor.x, toDoor.z), clip: 'idle', hours: [[7, 24]] });
+      // Tables: round, white cloth, a candle, two chairs facing each other along the room.
+      const dirU = f.at(1, 0).sub(f.at(0, 0));
+      const eatYaw = Math.atan2(dirU.x, dirU.z);
+      const tv = bv0 + 4.6;
+      let t = 0;
+      for (let tu = r0 + 2; tu < r1 - 2.6; tu += 3.6, t++) {
+        shape(f, new THREE.CylinderGeometry(0.42, 0.42, 0.04, 16), tu, FLOOR_TOP + TABLE_TOP - 0.04, tv, C(0xffffff));
+        shape(f, new THREE.CylinderGeometry(0.43, 0.5, 0.3, 16).translate(0, 0.15, 0), tu, FLOOR_TOP + TABLE_TOP - 0.34, tv, C(0xf6f3ec)); // cloth drop
+        shape(f, new THREE.CylinderGeometry(0.05, 0.08, TABLE_TOP - 0.34, 8).translate(0, (TABLE_TOP - 0.34) / 2, 0), tu, FLOOR_TOP, tv, gold);
+        k.shape(f, new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6), tu, FLOOR_TOP + TABLE_TOP, tv, C(0xffd27a), 0, k.bulbs); // candle
+        k.solid(f, 0.84, TABLE_TOP, 0.84, tu, 0, tv);
+        for (const sg of [-1, 1]) {
+          const cu = tu + sg * SEAT_GAP;
+          box(f, 0.44, 0.06, 0.44, cu, FLOOR_TOP + SEAT_TOP - 0.06, tv, C(0x7a1f1f), false);
+          box(f, 0.06, 0.55, 0.44, cu + sg * 0.22, FLOOR_TOP + SEAT_TOP, tv, C(0x5a3418), false); // backrest
+          for (const lu of [-0.18, 0.18]) for (const lv of [-0.18, 0.18]) box(f, 0.04, SEAT_TOP - 0.06, 0.04, cu + lu, FLOOR_TOP, tv + lv, C(0x5a3418), false);
+          const seat = f.at(cu, tv, FLOOR_TOP + SEAT_TOP);
+          if (t === 0 && sg < 0) {
+            // Your table: the meal walks you here, sits you down and serves you.
+            const table = f.at(tu, tv, FLOOR_TOP + TABLE_TOP);
+            eateries.push({ name: `${title(HOTELS[i].diner[1].split(' ·')[0])}, ${title(HOTELS[i].en.split(' ·')[0])}`, menu: PLACE_MENUS.fine, spot, seat, seatYaw: eatYaw - Math.PI / 2, eatYaw, table });
+          } else if ((t + (sg > 0 ? 1 : 0)) % 3 !== 2) {
+            posed.push({ name: `${DINERS[(i * 4 + t * 2 + (sg > 0 ? 1 : 0)) % DINERS.length]} dining`, x: seat.x, y: FLOOR_TOP + SEAT_TOP - BENCH_TOP, z: seat.z, yaw: sg < 0 ? eatYaw : eatYaw + Math.PI, clip: 'sit_talk', hours: DINNER_HOURS });
+          }
+        }
+      }
+    };
     const band = (u: number, y: number, v: number, width: number, lit: boolean) =>
       k.shape(f, new THREE.BoxGeometry(width, 2.1, 0.06).translate(0, 1.05, 0), u, y, v, lit ? glass : glass.clone().multiplyScalar(0.6), 0, lit ? k.bulbs : k.geo);
     // Lobby: tall glass front with a warm glow, revolving door.
@@ -106,7 +192,7 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
     if (h.style === 'palace') {
       // Sandstone wings with a colonnade, a raised centre with a big dome, corner chhatris.
       const H = h.floors * FLOOR_H;
-      box(f, bw, H, bd, 0, 0, bv0 + bd / 2, wall);
+      baseBlock(H);
       box(f, bw + 0.6, 0.7, bd + 0.6, 0, H, bv0 + bd / 2, CREAM, false);
       for (let u = -bw / 2 + 1.5; u <= bw / 2 - 1.5; u += 3) {
         if (Math.abs(u) < 7.5) continue;
@@ -128,8 +214,8 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
     } else {
       // Two-storey podium, a slab tower on top with glass bands and a lit crown.
       const podH = FLOOR_H * 2;
-      box(f, bw, podH, bd, 0, 0, bv0 + bd / 2, wall);
-      for (const s of [-1, 1]) band(s * (bw / 4 + 3), FLOOR_H + 0.5, bv0 - 0.04, bw / 2 - 8, true);
+      baseBlock(podH);
+      band(bw / 4 + 3, FLOOR_H + 0.5, bv0 - 0.04, bw / 2 - 8, true); // right side only: the restaurant is on the left
       const tw = Math.min(bw - 8, 30);
       const td = Math.min(bd - 4, 14);
       const tv = bv0 + 2 + td / 2;
@@ -152,9 +238,11 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
       }
     }
 
-    const door = f.at(0, bv0 - 3.2);
-    eateries.push({ name: `${h.en.split(' ·')[0].replace(/\b(\w)(\w*)/g, (_, a: string, b: string) => a + b.toLowerCase())} restaurant`, menu: PLACE_MENUS.fine, spot: new THREE.Vector3(door.x, 0, door.z), seat: door.clone(), seatYaw: 0, eatYaw: 0, table: door.clone() });
+    restaurant();
   });
 
-  return { eateries, setNight: k.build(scene) };
+  const glassMesh = new THREE.Mesh(glassGeo.build(), new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.25, roughness: 0.05, metalness: 0.4, depthWrite: false }));
+  glassMesh.renderOrder = 1;
+  scene.add(glassMesh);
+  return { eateries, posed, setNight: k.build(scene) };
 }
