@@ -30,6 +30,8 @@ import { Phone, type NavInfo, type Place } from './ui/phone';
 import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
+import { RENT, Rent } from './missions/rent';
+import { STORY_MISSIONS, nextMission } from './missions/storyMissions';
 import { Sound } from './audio/sound';
 import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
@@ -92,6 +94,22 @@ const STORY_LINES: Record<number, [string, string][]> = {
     ['Chithappa (memory)', '"Auto-va paathukko da. Adhu namma kudumbam maadhiri." - you can almost hear him.'],
     ['Auto Anna', 'Chapter 2: every rupee is yours now. Goals in Phone > Story.'],
   ],
+};
+/** House owner's messages about the rent (Chapter 2). */
+const LANDLORD = 'Rajeswari amma (veetu owner)';
+const RENT_LINES = {
+  start: 'Thambi, kadan mudinjudhu-nu kelvi patten, santhosham! Ini veedu vaadagai ₹{rent} vaaram vaaram kattanum. (Phone > Wallet)',
+  reminder: 'Naalaiku vaadagai naal thambi. ₹{rent} ready-aa vechukko.',
+  due: 'Inniku vaadagai naal. ₹{rent} kattiru thambi. (Phone > Wallet)',
+  missed: 'Vaadagai baaki ₹{owed} aayiduchu! Moonu vaaram aana veetu saavi vaangiduven.',
+  evicted: 'Moonu vaaram vaadagai varala. Veetu kadhava pootiten! ₹{owed} kattuna thirandhu tharen.',
+  paid: 'Vaadagai vandhuchu, nandri thambi!',
+  back: 'Seri, ellam settle aayiduchu. Saavi gate-la vechirukken.',
+  ended: 'Sondha veedu vaangiteengala! Vaazhthukkal thambi. Ini vaadagai venaam.',
+};
+const STORY_RIDE_LINES = {
+  passed: 'Story ride done: {title}! Phone > Story-la paarunga.',
+  failed: "{title} didn't go well. It'll come up again later on the phone.",
 };
 const HOME_LINES = {
   cantAfford: 'Sir, ₹{price} venum. Konjam saerthu vachittu vaanga!',
@@ -227,8 +245,15 @@ async function main() {
   const owned = new Set<number>(saved?.homes ?? [0]);
   // The story: older saves start in chapter 1 (the check below moves them on if the kadan is paid).
   const story = new Story(saved?.story);
-  const storyState = () => ({ loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: [...owned].filter((i) => i !== 0).length });
+  // Story rides passed (Chapter 2 missions) and the rent on the Mandaveli house.
+  const storyDone: string[] = [...(saved?.story?.done ?? [])];
+  let storyRideIn = 45; // s before the next story ride shows up on the phone
+  const rent = new Rent();
+  if (saved?.rent) rent.restore(saved.rent);
+  const homesBought = () => [...owned].filter((i) => i !== 0).length;
+  const storyState = () => ({ loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.length });
   let storyCheck = 0;
+  if (rent.evicted) owned.delete(0); // locked out of the rented house until the rent is paid
   homes.homes.forEach((h, i) => h.setOwned(owned.has(i)));
   if (saved) {
     economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false, savings: saved.economy.savings ?? 0 }); // older saves lack these
@@ -456,6 +481,20 @@ async function main() {
     newGame: () => newGame(),
     redeem: () => redeemAuto(),
     story: () => ({ chapter: story.chapter, state: storyState() }),
+    rent: () => ({ active: rent.active, owed: rent.owed, evicted: rent.evicted, weekly: RENT, daysLeft: Math.max(0, rent.dueDay - Math.floor(istTime(dayNight.timeMs).day)) }),
+    payRent: () => {
+      const paid = rent.pay(economy.cash);
+      if (!paid) return;
+      economy.cash -= paid;
+      showMoney();
+      sound.coin();
+      if (!rent.evicted && !owned.has(0)) {
+        owned.add(0);
+        homes.homes[0].setOwned(true);
+        phone.addMessage(LANDLORD, RENT_LINES.back);
+      } else phone.addMessage(LANDLORD, RENT_LINES.paid);
+      saveNow();
+    },
     bank: (op, amount) => {
       const n = op === 'deposit' ? economy.deposit(amount) : economy.withdraw(amount);
       if (!n) return;
@@ -479,7 +518,16 @@ async function main() {
     console.log(`[fare] ₹${fare}${tip ? ` + ₹${tip} tip` : ''}`);
   };
   jobs.onNewOrder = (o) => {
-    if (!jobs.busy) phone.notify(`🛺 New order: ${o.from.name} → ${o.to.name} · ₹${o.fare}`);
+    if (o.story) phone.notify(o.story.lines.offer);
+    else if (!jobs.busy) phone.notify(`🛺 New order: ${o.from.name} → ${o.to.name} · ₹${o.fare}`);
+  };
+  jobs.onStory = (id, passed) => {
+    const m = STORY_MISSIONS.find((s) => s.id === id);
+    if (passed && !storyDone.includes(id)) storyDone.push(id);
+    storyRideIn = 90;
+    const line = (passed ? STORY_RIDE_LINES.passed : STORY_RIDE_LINES.failed).replace('{title}', m ? m.title : id);
+    phone.addMessage('Auto Anna', line);
+    saveNow();
   };
   let online = false;
   // Road route from the auto (or the player on foot) to the job target; refreshed a few times a second.
@@ -527,7 +575,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -649,7 +697,8 @@ async function main() {
       auto: { x: a.x, y: a.y, z: a.z, heading: auto.heading },
       upkeep: { fuel: upkeep.fuel, condition: upkeep.condition },
       homes: [...owned],
-      story: story.snapshot(),
+      story: { ...story.snapshot(), done: storyDone },
+      rent: rent.snapshot(),
     });
   };
   window.setInterval(saveNow, AUTOSAVE_MS);
@@ -983,7 +1032,31 @@ async function main() {
     scene.environmentIntensity = ENV_NIGHT + (ENV_DAY - ENV_NIGHT) * (1 - dayNight.night);
     renderer.toneMappingExposure = EXPOSURE_DAY + (EXPOSURE_NIGHT - EXPOSURE_DAY) * dayNight.night; // eyes adjust at night
     // New IST day: settle the moneylender's daily amount.
-    const settled = economy.tickDay(Math.floor(istTime(dayNight.timeMs).day));
+    const today = Math.floor(istTime(dayNight.timeMs).day);
+    const settled = economy.tickDay(today);
+    // Rent (Chapter 2 on, until you own a home).
+    if (story.chapter >= 2 && homesBought() === 0 && !rent.active) {
+      rent.start(today);
+      phone.addMessage(LANDLORD, RENT_LINES.start.replace('{rent}', RENT.toLocaleString('en-IN')));
+    }
+    if (rent.active && homesBought() > 0) {
+      rent.stop();
+      if (!owned.has(0)) {
+        owned.add(0);
+        homes.homes[0].setOwned(true);
+      }
+      phone.addMessage(LANDLORD, RENT_LINES.ended);
+    }
+    const rentEv = rent.tick(today);
+    if (rentEv) {
+      const msg = RENT_LINES[rentEv].replace('{rent}', RENT.toLocaleString('en-IN')).replace('{owed}', rent.owed.toLocaleString('en-IN'));
+      phone.addMessage(LANDLORD, msg);
+      if (rentEv !== 'reminder') hud.say(LANDLORD, msg);
+      if (rentEv === 'evicted') {
+        owned.delete(0);
+        homes.homes[0].setOwned(false);
+      }
+    }
     if (settled === 'missed') phone.addMessage(LENDER, MSG_MISSED[Math.min(economy.missedDays, MSG_MISSED.length) - 1]);
     if (economy.seized && auto.group.visible) {
       seizeAuto();
@@ -1129,6 +1202,7 @@ async function main() {
         const msg = MSG_SIGNAL_JUMP.replace('{fine}', String(SIGNAL_FINE)) + (owed > 0 ? ` (₹${owed} kadan-la)` : '');
         hud.say(TRAFFIC_POLICE, msg);
         phone.addMessage(TRAFFIC_POLICE, msg);
+        jobs.redLight();
       }
       if (j < 0 && redLatch <= 0) finedAt.clear();
     }
@@ -1218,6 +1292,13 @@ async function main() {
     // Inside a dining hall (off the map), the maps show you at the hotel.
     insideHall = player.position.z < HALL_ZONE ? halls.halls.reduce((best, h, i) => (Math.abs(h.entry.x - pp.x) < Math.abs(halls.halls[best].entry.x - pp.x) ? i : best), 0) : -1;
     const mapAt = insideHall >= 0 ? hotels.doors[insideHall].at : pp;
+    // Story rides: from Chapter 2, one at a time on the phone while you're online.
+    storyRideIn -= dt;
+    if (story.chapter >= 2 && storyRideIn <= 0 && jobs.phase !== 'off' && !jobs.storyOpen) {
+      storyRideIn = 30;
+      const m = nextMission(storyDone);
+      if (m) jobs.addStory(m);
+    }
     // Story: once a second, see if this chapter is finished; the next one opens with its card.
     storyCheck -= dt;
     if (storyCheck <= 0) {

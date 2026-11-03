@@ -9,6 +9,7 @@ import {
   URGENT_LATE, URGENT_ON_TIME, URGENT_PICKUP, VIP_BUMP, VIP_NAMES, VIP_PICKUP, VIP_ROUGH, VIP_SMOOTH,
   fare, payment, stopPoint, timeLimit, type OrderKind, type Stop,
 } from './data';
+import { VIA_WAIT, judge, type StoryMission } from './storyMissions';
 
 const NOTICE_RADIUS = 18; // passenger waves when the auto comes this close
 const PICKUP_RADIUS = 5.5; // stop this close to the passenger to pick them up
@@ -36,6 +37,8 @@ export interface Order {
   kind: OrderKind;
   /** Seconds allowed from pickup to drop (urgent / delivery), or null. */
   limit: number | null;
+  /** A story mission (kind 'story'). */
+  story?: StoryMission;
 }
 
 const OPEN_ORDERS = 3;
@@ -92,6 +95,8 @@ export class TaxiJobs {
   fareBoost = 1;
   /** A new ride request arrived on the phone. */
   onNewOrder: (order: Order) => void = () => {};
+  /** A story mission ended (passed or not). */
+  onStory: (id: string, passed: boolean) => void = () => {};
   /** Open ride requests (shown on the phone). */
   readonly orders: Order[] = [];
   private nextId = 1;
@@ -117,6 +122,14 @@ export class TaxiJobs {
   private bumps = 0;
   private lastSpeed = 0;
   private parcel: THREE.Mesh | null = null;
+  // Story mission in progress.
+  private story: StoryMission | null = null;
+  private via: Stop | null = null;
+  private viaShown = false;
+  private viaDone = false;
+  private viaHold = 0;
+  private reds = 0;
+  private readonly garland: THREE.InstancedMesh;
   private readonly hipStart = new THREE.Vector3();
   private readonly hipTarget = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
@@ -128,11 +141,59 @@ export class TaxiJobs {
     this.auto = auto;
     this.pickupMarker = new Marker(scene, 0xffd21f);
     this.dropMarker = new Marker(scene, 0x35e06b);
+    // Marigold garland across the front of the auto (wedding rides).
+    const N = 26;
+    this.garland = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.055, 0), new THREE.MeshStandardMaterial({ roughness: 0.8 }), N);
+    const m = new THREE.Matrix4();
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1) * 2 - 1; // -1..1 across
+      m.setPosition(t * 0.62, 1.62 - 0.32 * (1 - t * t), 1.3);
+      this.garland.setMatrixAt(i, m);
+      this.garland.setColorAt(i, new THREE.Color(i % 3 === 2 ? 0xffd54f : 0xff8f00));
+    }
+    this.garland.visible = false;
+    auto.group.add(this.garland);
+  }
+
+  /** A story order is waiting on the phone or being driven. */
+  get storyOpen() {
+    return this.story !== null || this.orders.some((o) => o.kind === 'story');
+  }
+
+  /** Put a story mission on the phone (it doesn't expire). */
+  addStory(m: StoryMission) {
+    const from = STOPS.find((s) => s.name === m.from)!;
+    const to = STOPS.find((s) => s.name === m.to)!;
+    const via = m.via ? STOPS.find((s) => s.name === m.via)! : null;
+    const p = (st: Stop) => stopPoint(st, 'kerb');
+    const dist = (a: Stop, b: Stop) => Math.hypot(p(a).x - p(b).x, p(a).z - p(b).z);
+    const metres = via ? dist(from, via) + dist(via, to) : dist(from, to);
+    const order: Order = {
+      id: this.nextId++,
+      name: `📖 ${m.title}: ${m.passenger}`,
+      from,
+      to,
+      fare: m.reward,
+      expires: Infinity,
+      kind: 'story',
+      limit: m.tight ? Math.round(timeLimit(metres) * m.tight + (via ? VIA_WAIT + 6 : 0)) : null,
+      story: m,
+    };
+    this.orders.unshift(order);
+    this.onNewOrder(order);
+  }
+
+  /** The driver jumped a red light (main.ts fines it): story passengers notice. */
+  redLight() {
+    if (!this.story || this.phase !== 'riding') return;
+    this.reds++;
+    if (this.story.lines.red) this.onSay(this.name, this.story.lines.red);
   }
 
   /** Where to go next (for the minimap): pickup while waiting, destination while riding. */
   get target(): { x: number; z: number; kind: 'pickup' | 'drop' } | null {
     if (this.phase === 'waiting' || this.phase === 'boarding') return { ...stopPoint(this.from, 'sidewalk'), kind: 'pickup' };
+    if (this.phase === 'riding' && this.via && this.viaShown && !this.viaDone) return { ...stopPoint(this.via, 'kerb'), kind: 'drop' };
     if (this.phase === 'seating' || this.phase === 'riding') return { ...stopPoint(this.to, 'kerb'), kind: 'drop' };
     return null;
   }
@@ -146,8 +207,10 @@ export class TaxiJobs {
       case 'seating':
       case 'riding': {
         const clock = this.limit !== null && this.phase === 'riding' ? ` ⏱ ${Math.max(0, Math.ceil(this.limit - this.rideTime))}s` : '';
-        const what = this.kind === 'delivery' ? 'Deliver the parcel' : `Drop ${this.name}`;
-        return `${what} at ${this.to.name} (green marker)${clock}`;
+        if (this.story && this.via && this.viaShown && !this.viaDone) return `📖 Detour: stop at ${this.via.name} and wait${clock}`;
+        const rules = this.story ? `${this.story.maxBumps !== undefined ? ' · no bumps' : ''}${this.story.maxReds !== undefined ? ' · no red lights' : ''}` : '';
+        const what = this.story ? `📖 ${this.story.title}: drop ${this.name}` : this.kind === 'delivery' ? 'Deliver the parcel' : `Drop ${this.name}`;
+        return `${what} at ${this.to.name} (green marker)${clock}${rules}`;
       }
       default:
         return 'Open your phone (P) and accept a ride order';
@@ -177,6 +240,13 @@ export class TaxiJobs {
     this.kind = o.kind;
     this.limit = o.limit;
     this.bumps = 0;
+    this.story = o.story ?? null;
+    this.via = this.story?.via ? STOPS.find((s) => s.name === this.story!.via)! : null;
+    this.viaShown = this.viaDone = false;
+    this.viaHold = 0;
+    this.reds = 0;
+    if (this.story) this.name = this.story.passenger;
+    this.garland.visible = !!this.story?.garland;
     this.spawnPassenger();
     this.addOrder(true);
     return true;
@@ -200,6 +270,7 @@ export class TaxiJobs {
     if (this.phase === 'riding' && this.lastSpeed - speed > BUMP_DECEL) {
       this.bumps++;
       if (this.kind === 'vip') this.onSay(this.name, rand(VIP_BUMP));
+      if (this.story?.lines.bump) this.onSay(this.name, rand(this.story.lines.bump));
     }
     this.lastSpeed = speed;
     const autoPos = this.auto.group.position;
@@ -230,7 +301,7 @@ export class TaxiJobs {
         this.faceTowards(autoPos, dt);
         if (stopped && d < PICKUP_RADIUS) {
           this.side = this.auto.group.worldToLocal(this.root!.position.clone()).x >= 0 ? 1 : -1;
-          const line = this.kind === 'urgent' ? URGENT_PICKUP : this.kind === 'vip' ? VIP_PICKUP : rand(PICKUP_LINES);
+          const line = this.story ? this.story.lines.pickup : this.kind === 'urgent' ? URGENT_PICKUP : this.kind === 'vip' ? VIP_PICKUP : rand(PICKUP_LINES);
           this.onSay(this.name, line.replace('{place}', this.to.name));
           this.animator!.play('walk');
           this.go('boarding');
@@ -290,7 +361,25 @@ export class TaxiJobs {
         this.chatter -= dt;
         if (this.chatter <= 0 && this.kind !== 'delivery') {
           this.chatter = CHATTER_EVERY;
-          this.onSay(this.name, rand(RIDE_LINES));
+          this.onSay(this.name, rand(this.story ? this.story.lines.ride : RIDE_LINES));
+        }
+        // Story detour: revealed a little into the ride; park there a few seconds, then go on.
+        if (this.via && !this.viaDone) {
+          if (!this.viaShown && this.rideTime > (this.story!.viaAfter ?? 0)) {
+            this.viaShown = true;
+            this.onSay(this.name, this.story!.lines.via ?? '');
+            this.dropMarker.show(stopPoint(this.via, 'kerb'));
+          }
+          if (this.viaShown) {
+            const v = stopPoint(this.via, 'kerb');
+            this.viaHold = stopped && Math.hypot(autoPos.x - v.x, autoPos.z - v.z) < DROP_RADIUS ? this.viaHold + dt : 0;
+            if (this.viaHold >= VIA_WAIT) {
+              this.viaDone = true;
+              this.onSay(this.name, this.story!.lines.viaDone ?? '');
+              this.dropMarker.show(stopPoint(this.to, 'kerb'));
+            }
+          }
+          return;
         }
         const drop = stopPoint(this.to, 'kerb');
         if (stopped && Math.hypot(autoPos.x - drop.x, autoPos.z - drop.z) < DROP_RADIUS) {
@@ -309,6 +398,14 @@ export class TaxiJobs {
           } else if (this.kind === 'delivery') {
             tip = onTime ? Math.round(base * PAY.deliveryHotTip) : 0;
             line = onTime ? PARCEL_HOT : PARCEL_COLD;
+          } else if (this.story) {
+            const passed = judge(this.story, { onTime, bumps: this.bumps, reds: this.reds });
+            tip = passed ? Math.max(0, this.story.reward - base) : 0;
+            line = (passed ? this.story.lines.success : this.story.lines.fail).replace('{reward}', String(base + tip));
+            this.onStory(this.story.id, passed);
+            this.story = null;
+            this.via = null;
+            this.garland.visible = false;
           }
           this.rides++;
           this.onPaid(base, tip);

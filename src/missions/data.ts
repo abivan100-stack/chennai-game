@@ -1,3 +1,5 @@
+import { roadHalf } from '../world/layout.ts';
+
 /**
  * Fare data: stops, passenger names and their Tanglish lines. Pure data (no three.js), so
  * writers can edit it freely and scripts/check.ts can test the fare maths.
@@ -137,8 +139,9 @@ export const PHARMACY = [
 // ---- Order types -------------------------------------------------------------------------
 /** ride = normal fare; urgent = to the hospital against the clock (double fare on time);
  *  vip = triple fare if you don't bump them around; delivery = a food parcel from a hotel (tip if hot). */
-export type OrderKind = 'ride' | 'urgent' | 'vip' | 'delivery';
-export const ORDER_WEIGHTS: Record<OrderKind, number> = { ride: 0.5, delivery: 0.2, urgent: 0.15, vip: 0.15 };
+export type OrderKind = 'ride' | 'urgent' | 'vip' | 'delivery' | 'story';
+/** story orders never come up at random: the story hands them out (missions/storyMissions.ts). */
+export const ORDER_WEIGHTS: Record<OrderKind, number> = { ride: 0.5, delivery: 0.2, urgent: 0.15, vip: 0.15, story: 0 };
 export const PAY = { urgentOnTime: 2, vipSmooth: 3, deliveryHotTip: 0.5 };
 /** Seconds allowed for a timed job: driving time at a brisk pace plus some slack. */
 export function timeLimit(metres: number) {
@@ -198,7 +201,8 @@ export function payment(metres: number, seconds: number) {
 
 /** World position of a stop: where the auto pulls up (road) or the passenger waits (sidewalk). */
 export function stopPoint(s: Stop, where: 'kerb' | 'sidewalk') {
-  const offset = s.side * (where === 'kerb' ? 3.4 : 6.0);
+  const half = roadHalf(s.axis === 'x' ? 'z' : 'x', s.line); // a stop on axis 'x' is on a north-south road
+  const offset = s.side * (where === 'kerb' ? half - 1.6 : half + 1.0);
   return s.axis === 'x' ? { x: s.line + offset, z: s.along } : { x: s.along, z: s.line + offset };
 }
 

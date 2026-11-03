@@ -32,6 +32,9 @@ export interface PhoneDeps {
   story: () => { chapter: number; state: StoryState };
   /** Net banking: move money between the bank and your pocket. */
   bank: (op: 'deposit' | 'withdraw', amount: number) => void;
+  /** Rent on the Mandaveli house (Chapter 2) and paying it. */
+  rent: () => { active: boolean; owed: number; daysLeft: number; evicted: boolean; weekly: number };
+  payRent: () => void;
   /** Camera yaw (the map turns with it, like the minimap). */
   view: () => number;
   /** Everywhere you can navigate to. */
@@ -251,7 +254,7 @@ export class Phone {
           h('div', { class: 'phone-row' }, h('b', {}, o.name), h('b', { class: 'fare' }, rupees(o.fare))),
           h('div', {}, `📍 ${o.from.name}`),
           h('div', {}, `🏁 ${o.to.name}`),
-          h('div', { class: 'phone-row muted' }, h('span', {}, `${away} m away`), h('span', {}, `expires in ${Math.ceil(o.expires)} s`)),
+          h('div', { class: 'phone-row muted' }, h('span', {}, `${away} m away`), h('span', {}, o.story ? (o.limit ? `⏱ ${o.limit} s` : '📖 story') : `expires in ${Math.ceil(o.expires)} s`)),
           accept,
         ),
       );
@@ -434,6 +437,7 @@ export class Phone {
       h('div', { class: 'phone-card' }, h('div', { class: 'big' }, rupees(economy.cash)), h('div', { class: 'muted' }, 'cash in hand')),
       h('div', { class: 'phone-card' }, `Today: ${rupees(economy.earnedToday)} earned · ${economy.rides} rides total`),
       this.bankCard(),
+      ...(this.deps.rent().active ? [this.rentCard()] : []),
       ...(economy.seized ? [this.seizedCard()] : []),
       h(
         'div',
@@ -468,6 +472,27 @@ export class Phone {
       h('div', { class: 'muted' }, 'Safe from pickpockets; fines come out of it before the kadan grows.'),
       h('div', { class: 'phone-row' }, btn('Deposit all cash', 'deposit', economy.cash, economy.cash > 0), btn('Withdraw ₹500', 'withdraw', 500, economy.savings > 0)),
       h('div', { class: 'phone-row' }, btn(`Withdraw all`, 'withdraw', economy.savings, economy.savings > 0)),
+    );
+  }
+
+  /** Rent for the Mandaveli house: what's owed, when the next week falls due, pay button. */
+  private rentCard() {
+    const r = this.deps.rent();
+    const want = r.owed > 0 ? r.owed : r.weekly;
+    const b = h('button', { class: 'phone-btn' }, r.owed > 0 ? `Pay ${rupees(r.owed)} rent` : `Pay next week (${rupees(r.weekly)})`);
+    if (this.deps.economy.cash < Math.min(want, r.weekly)) b.setAttribute('disabled', '');
+    b.onclick = () => {
+      this.deps.payRent();
+      this.render();
+    };
+    return h(
+      'div',
+      { class: 'phone-card' },
+      h('b', {}, '🏠 Rent: Mandaveli house'),
+      h('div', {}, `${rupees(r.weekly)} a week · next due in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'}`),
+      h('div', { class: r.owed > 0 ? 'due' : 'muted' }, r.evicted ? `Locked out! ${rupees(r.owed)} owed` : r.owed > 0 ? `Owed: ${rupees(r.owed)}` : 'All paid ✔'),
+      h('div', { class: 'muted' }, 'Buy a house of your own and the rent stops.'),
+      b,
     );
   }
 

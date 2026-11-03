@@ -10,6 +10,7 @@ export interface StoryState {
   cash: number;
   savings: number;
   homesBought: number; // homes owned beyond the rented one
+  storyRides: number; // story missions passed (missions/storyMissions.ts)
 }
 
 export interface Goal {
@@ -52,6 +53,7 @@ export const CHAPTERS: Chapter[] = [
       { text: 'Save ₹50,000 in the bank', done: (s) => s.savings >= 50000, progress: (s) => `${rupees(s.savings)} / ₹50,000` },
       { text: 'Buy your own home', done: (s) => s.homesBought > 0 },
       { text: 'Give 100 rides', done: (s) => s.rides >= 100, progress: (s) => `${Math.min(s.rides, 100)}/100` },
+      { text: 'Story rides: wedding, hospital, exam', done: (s) => s.storyRides >= 3, progress: (s) => `${Math.min(s.storyRides, 3)}/3` },
     ],
     needed: [0, 1],
   },

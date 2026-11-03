@@ -180,7 +180,7 @@ console.log('check: all passed');
 {
   const { Story } = await import('../src/missions/story.ts');
   const st = new Story();
-  const base = { loan: 15000, rides: 0, cash: 0, savings: 0, homesBought: 0 };
+  const base = { loan: 15000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0 };
   assert(st.update(base) === null && st.chapter === 1, 'chapter 1 while the kadan is unpaid');
   assert(st.update({ ...base, loan: 0 })?.n === 2 && st.chapter === 2, 'paying the kadan opens chapter 2');
   assert(st.update({ ...base, loan: 0, savings: 60000 }) === null, 'chapter 2 needs a home too');
@@ -188,3 +188,31 @@ console.log('check: all passed');
   assert(new Story({ chapter: 99 }).chapter === 2, 'a saved chapter is clamped to the last one that is built');
 }
 console.log('check: story passed');
+
+// --- Rent (chapter 2) and story rides ---
+{
+  const { Rent, RENT, RENT_EVERY, EVICT_AFTER } = await import('../src/missions/rent.ts');
+  const r = new Rent();
+  assert(r.tick(10) === null, 'no rent before it starts');
+  r.start(10);
+  assert(r.tick(10 + RENT_EVERY - 1) === 'reminder', 'reminder the day before');
+  assert(r.tick(10 + RENT_EVERY) === 'due' && r.owed === RENT, 'first week falls due');
+  assert(r.pay(RENT * 5) === RENT && r.owed === 0, 'paying clears only what is owed');
+  let ev = null;
+  for (let d = 10 + RENT_EVERY + 1; d <= 10 + RENT_EVERY * (EVICT_AFTER + 1); d++) ev = r.tick(d) ?? ev;
+  assert(r.evicted && ev === 'evicted' && r.unpaidWeeks === EVICT_AFTER, `evicted after ${EVICT_AFTER} unpaid weeks`);
+  assert(r.pay(RENT) === RENT && r.evicted, 'part payment keeps you locked out');
+  r.pay(r.owed);
+  assert(!r.evicted && r.owed === 0, 'paying it all lets you back in');
+  r.stop();
+  assert(r.tick(999) === null && !r.active, 'no rent once you own a home');
+
+  const { STORY_MISSIONS, judge, nextMission } = await import('../src/missions/storyMissions.ts');
+  for (const m of STORY_MISSIONS) {
+    for (const n of [m.from, m.to, m.via].filter(Boolean)) assert(STOPS.some((s) => s.name === n), `story ride ${m.id}: stop "${n}" exists`);
+  }
+  const labour = STORY_MISSIONS.find((m) => m.id === 'labour')!;
+  assert(judge(labour, { onTime: true, bumps: 0, reds: 0 }) && !judge(labour, { onTime: true, bumps: 0, reds: 1 }) && !judge(labour, { onTime: true, bumps: 2, reds: 0 }), 'labour ride: no red lights, at most one bump');
+  assert(nextMission([])?.id === STORY_MISSIONS[0].id && nextMission(STORY_MISSIONS.map((m) => m.id)) === null, 'story rides come in order, then stop');
+}
+console.log('check: rent + story rides passed');

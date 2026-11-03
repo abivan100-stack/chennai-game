@@ -22,7 +22,9 @@ export interface SaveData {
   /** Homes you own (indices into world/homes.ts HOMES); older saves: just the rented one. */
   homes?: number[];
   /** Story progress (older saves: chapter 1, or 2 if the kadan was already paid). */
-  story?: { chapter: number };
+  story?: { chapter: number; done?: string[] };
+  /** Rent on the Mandaveli house (Chapter 2). */
+  rent?: { active: boolean; dueDay: number; owed: number; evicted: boolean };
 }
 
 export function loadSave(): SaveData | null {
