@@ -17,9 +17,14 @@ import { STORE_LOTS } from './layout';
  * Draw calls: the kit (3), the see-through glass (1), letters + posters (1).
  */
 
-type Look = 'mall' | 'boutique' | 'brand';
+type Look = 'mall' | 'boutique' | 'brand' | 'small' | 'sweets';
+type Show = 'clothes' | 'shoes' | 'bags' | 'pots';
 /** Order matches layout.STORE_LOTS. accent: band / frame / fascia colour; letters: name colour. */
-export const STORES: { name: string; look: Look; accent: number; letters: string; cinema?: string }[] = [
+/**
+ * small: stone = pilaster colour, wall = upper floors, show = what's in the window, awning = fabric
+ * colour (instead of spotlights). sweets: accent = sandstone.
+ */
+export const STORES: { name: string; look: Look; accent: number; letters: string; cinema?: string; stone?: number; wall?: number; show?: Show; awning?: number }[] = [
   { name: 'stylebay', look: 'mall', accent: 0x1f3557, letters: '#ffffff', cinema: 'MAYA' },
   { name: 'Kalyani Mart', look: 'mall', accent: 0x6a1b2a, letters: '#ffe9a8', cinema: 'RAAGAM' },
   { name: 'newtrend', look: 'mall', accent: 0x0f4c5c, letters: '#ffffff', cinema: 'THIRAI' },
@@ -34,6 +39,23 @@ export const STORES: { name: string; look: Look; accent: number; letters: string
   { name: 'TERRA MYLAI', look: 'brand', accent: 0x4e3b2a, letters: '#ffffff' },
   { name: 'Aruvi', look: 'boutique', accent: 0x9cc9b8, letters: '#1f3a33' },
   { name: 'SOUTHLINE', look: 'brand', accent: 0x37474f, letters: '#ffffff' },
+  // Venkatanarayana Road (T. Nagar): small shopfronts, two sweet shops, a few bigger ones.
+  { name: 'SAAL', look: 'small', accent: 0xc8a27a, letters: '#2b2b33', stone: 0xe6dcc6, wall: 0xf1e7d3, show: 'clothes' },
+  { name: 'Thenmozhi Sweets', look: 'sweets', accent: 0xd4a373, letters: '#8a1c1c' },
+  { name: 'kora & co', look: 'small', accent: 0x2f3b45, letters: '#f3e9d2', stone: 0xbfc4c6, wall: 0xdfe6e8, show: 'bags' },
+  { name: 'LOOMWORKS', look: 'brand', accent: 0x4a3426, letters: '#ffffff' },
+  { name: 'MINU', look: 'small', accent: 0x8a5a3c, letters: '#fff6e6', stone: 0xd9b99b, wall: 0xf5d9c4, show: 'shoes', awning: 0x1d5c4d },
+  { name: 'INDIGO LANE', look: 'small', accent: 0x1f3c88, letters: '#ffffff', stone: 0xf4f1ea, wall: 0xc9d8f0, show: 'clothes' },
+  { name: 'Thamarai', look: 'boutique', accent: 0xe8b4a8, letters: '#5a1f2e' },
+  { name: 'Paavai', look: 'small', accent: 0xd9c3a5, letters: '#4a2c2a', stone: 0xe2d4c0, wall: 0xf3e0e6, show: 'clothes', awning: 0xb03a48 },
+  { name: 'Paal Kova Palace', look: 'sweets', accent: 0xc98f5e, letters: '#5b1a6b' },
+  { name: 'OOSI', look: 'small', accent: 0x1b1b1b, letters: '#e8c26a', stone: 0x9e9e9e, wall: 0xe0e0e0, show: 'bags' },
+  { name: 'Kuyil', look: 'boutique', accent: 0xa8c5d6, letters: '#24323d' },
+  { name: 'thread.', look: 'small', accent: 0xb98b5e, letters: '#1f1f1f', stone: 0xece4d4, wall: 0xd8e6d2, show: 'pots' },
+  { name: 'MARINA MEN', look: 'brand', accent: 0x263238, letters: '#ffffff' },
+  { name: 'VEDHA', look: 'small', accent: 0x3e6b5a, letters: '#ffffff', stone: 0xd8cfc0, wall: 0xf0ead8, show: 'pots', awning: 0xe0a526 },
+  { name: 'ANBU STUDIO', look: 'small', accent: 0x6d4c41, letters: '#fdf3e3', stone: 0xc9b79c, wall: 0xe8d6f0, show: 'shoes' },
+  { name: 'nool kadai', look: 'small', accent: 0xdcb98a, letters: '#3a2a1e', stone: 0xf0e8da, wall: 0xfbe3b8, show: 'clothes' },
 ];
 
 const C = (hex: number) => new THREE.Color(hex);
@@ -70,11 +92,13 @@ function buildAtlas() {
   STORES.forEach((s) => {
     const font = s.look === 'boutique' ? '600 104px Georgia, "Times New Roman", serif'
       : s.look === 'brand' ? '700 92px Georgia, "Times New Roman", serif'
+      : s.look === 'small' ? '600 96px "Segoe UI", system-ui, sans-serif'
+      : s.look === 'sweets' ? '800 96px Georgia, "Times New Roman", serif'
       : '700 italic 110px "Segoe UI", system-ui, sans-serif';
     rows.push({ text: s.name, font, fill: s.letters });
     if (s.cinema) rows.push({ text: `${s.cinema} CINEMAS`, font: '900 108px "Segoe UI", system-ui, sans-serif', fill: '#ffffff', stroke: '#ffc107' });
   });
-  const posterRows = Math.ceil(POSTERS.length / (ATLAS_W / CELL_W));
+  const posterRows = Math.ceil((POSTERS.length + 1) / (ATLAS_W / CELL_W)); // + the jali cell
   const c = document.createElement('canvas');
   c.width = ATLAS_W;
   c.height = rows.length * ROW_H + posterRows * CELL_H;
@@ -151,6 +175,29 @@ function buildAtlas() {
     });
     g.textAlign = 'center';
   });
+  // Jali (carved stone screen) cell after the posters: sandstone with see-through holes.
+  {
+    const n = POSTERS.length;
+    const x = (n % 4) * CELL_W;
+    const y = top + Math.floor(n / 4) * CELL_H;
+    g.fillStyle = '#d9a774';
+    g.fillRect(x, y, CELL_W, CELL_H);
+    g.globalCompositeOperation = 'destination-out';
+    for (let r = 0; r < 9; r++) {
+      for (let q = 0; q < 6; q++) {
+        const cx = x + 30 + q * 39 + (r % 2) * 19;
+        const cy = y + 40 + r * 31;
+        if (cx > x + CELL_W - 24) continue;
+        g.beginPath();
+        g.moveTo(cx, cy - 12);
+        g.lineTo(cx + 10, cy);
+        g.lineTo(cx, cy + 12);
+        g.lineTo(cx - 10, cy);
+        g.fill();
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -161,7 +208,7 @@ function buildAtlas() {
     const y = top + Math.floor(n / 4) * CELL_H;
     return [x / ATLAS_W, 1 - (y + CELL_H) / c.height, (x + CELL_W) / ATLAS_W, 1 - y / c.height];
   };
-  return { tex: t, uvRow, uvPoster };
+  return { tex: t, uvRow, uvPoster, jali: uvPoster(POSTERS.length) };
 }
 
 export function createBrandStores(scene: THREE.Scene, world: RAPIER.World) {
@@ -211,8 +258,183 @@ export function createBrandStores(scene: THREE.Scene, world: RAPIER.World) {
     const cinemaRow = s.cinema ? row++ : -1;
     if (s.look === 'mall') mall(f, s, nameRow, cinemaRow, i);
     else if (s.look === 'boutique') boutique(f, s, nameRow);
+    else if (s.look === 'small') small(f, s, nameRow, i);
+    else if (s.look === 'sweets') sweets(f, s, nameRow);
     else brand(f, s, nameRow, i);
   });
+
+  /** Small shopfront in an old 3-storey building: stone pilasters, plank fascia, big black-framed window, open door. */
+  function small(f: Frame, s: (typeof STORES)[number], nameRow: number, i: number) {
+    const { w, d } = f;
+    const bw = w - 0.2;
+    const fv = 0.5;
+    const G = 4.2;
+    const H = G + 2 * 3.3;
+    const room = 3.6;
+    const stone = C(s.stone ?? 0xe6dcc6);
+    const groove = C(s.stone ?? 0xe6dcc6).multiplyScalar(0.85);
+    const wall = C(s.wall ?? 0xf1e7d3);
+    const fascia = C(s.accent);
+    box(f, bw, H, d - fv - room, 0, 0, fv + room + (d - fv - room) / 2, wall);
+    box(f, bw, H - G, room + 0.3, 0, G, fv + room / 2 - 0.15, wall);
+    // Inside: wood floor, a lit back wall, a rail of clothes or shelves of goods.
+    box(f, bw - 1.6, 0.06, room, 0, 0, fv + room / 2, C(0xa0703f), false);
+    k.shape(f, new THREE.BoxGeometry(bw - 1.6, G - 0.6, 0.05).translate(0, (G - 0.6) / 2, 0), 0, 0, fv + room - 0.03, INTERIOR, 0, k.bulbs);
+    if (s.show === 'clothes') rack(f, 0, 0, fv + room - 0.8, bw - 2.4);
+    else for (let sh = 0; sh < 3; sh++) box(f, bw - 2.4, 0.05, 0.35, 0, 0.7 + sh * 0.65, fv + room - 0.25, C(0x6d4c41), false);
+    // Stone pilasters (grooved) and the cornice over the fascia.
+    for (const sg of [-1, 1]) {
+      box(f, 0.8, G, 0.4, sg * (bw / 2 - 0.4), 0, fv - 0.1, stone);
+      for (let y = 0.6; y < G; y += 0.6) box(f, 0.82, 0.04, 0.42, sg * (bw / 2 - 0.4), y, fv - 0.1, groove, false);
+    }
+    box(f, bw, 0.3, 0.6, 0, G - 0.1, fv - 0.15, stone, false);
+    // Fascia with plank joints and the name.
+    const fy = G - 1.35;
+    box(f, bw - 1.6, 1.15, 0.22, 0, fy, fv - 0.15, fascia, false);
+    for (let y = fy + 0.29; y < fy + 1.1; y += 0.29) box(f, bw - 1.6, 0.02, 0.01, 0, y, fv - 0.27, C(s.accent).multiplyScalar(0.8), false);
+    const nw = Math.min(bw - 2.4, 5.6);
+    decal(f, atlas.uvRow(nameRow), 0, fy + 0.18, fv - 0.28, nw, (nw / 8) * 1.1);
+    if (s.awning !== undefined) {
+      // Fabric awning over the window and door.
+      shape(f, new THREE.BoxGeometry(bw - 1.4, 0.06, 1.3).rotateX(0.35).translate(0, 0, -0.6), 0, fy - 0.05, fv - 0.2, C(s.awning));
+      box(f, bw - 1.4, 0.25, 0.04, 0, fy - 0.72, fv - 1.4, C(s.awning), false);
+    } else {
+      // Two spotlights on arms over the fascia.
+      for (const sg of [-1, 1]) {
+        box(f, 0.05, 0.05, 0.6, sg * 1.4, G - 0.05, fv - 0.5, DARK, false);
+        k.shape(f, new THREE.CylinderGeometry(0.07, 0.1, 0.22, 8), sg * 1.4, G - 0.2, fv - 0.8, C(0xfff4d0), 0, k.bulbs);
+      }
+    }
+    // Window (left ~60%) in a black frame, the door on the right standing open.
+    const inner = bw - 1.6;
+    const ww = inner * 0.62;
+    const dw = inner - ww;
+    const wu = -inner / 2 + ww / 2;
+    const du = inner / 2 - dw / 2;
+    for (const y of [0, fy - 0.12]) box(f, ww, 0.12, 0.12, wu, y, fv, DARK, false);
+    for (const e of [-1, 1]) box(f, 0.1, fy, 0.12, wu + (e * ww) / 2, 0, fv, DARK, false);
+    box(f, 0.1, fy, 0.12, inner / 2 - 0.05, 0, fv, DARK, false);
+    pane(f, wu, 0.12, fv, ww - 0.1, fy - 0.24);
+    k.solid(f, ww, fy, 0.2, wu, 0, fv);
+    k.solid(f, dw, fy, 0.2, du, 0, fv + room - 0.4); // the back of the shop stops you
+    const door = f.at(inner / 2 - 0.4, fv + 0.45);
+    glass.box(0.9, fy - 0.3, 0.04, door.x, 0.15 + (fy - 0.3) / 2, door.z, C(0xd6ecf7), f.yaw + 1.3);
+    // Window display on a low white plinth.
+    box(f, ww - 0.4, 0.35, 1.2, wu, 0, fv + 0.8, C(0xf2f0ea), false);
+    const n = Math.max(2, Math.floor(ww / 1.1));
+    for (let m = 0; m < n; m++) {
+      const u = wu - ww / 2 + (m + 0.5) * (ww / n);
+      const c = CLOTHES[(i * 3 + m * 5) % CLOTHES.length];
+      if (s.show === 'clothes') mannequin(f, u, 0.35, fv + 0.85, c, m % 2 === 0);
+      else if (s.show === 'shoes') {
+        for (let t = 0; t < 3; t++) {
+          box(f, 0.5, 0.05, 0.3, u, 0.35 + t * 0.45, fv + 0.8, C(0xf2f0ea), false);
+          box(f, 0.28, 0.12, 0.12, u, 0.4 + t * 0.45, fv + 0.8, CLOTHES[(m + t + i) % CLOTHES.length], false);
+        }
+      } else if (s.show === 'bags') {
+        box(f, 0.5, 0.4, 0.2, u, 0.35, fv + 0.8, c, false);
+        shape(f, new THREE.TorusGeometry(0.14, 0.02, 4, 10, Math.PI), u, 0.75, fv + 0.8, c);
+        box(f, 0.05, 1.0, 0.05, u, 0.35, fv + 1.2, DARK, false);
+        box(f, 0.4, 0.3, 0.15, u, 1.35, fv + 1.2, CLOTHES[(m + 3) % CLOTHES.length], false);
+      } else {
+        shape(f, new THREE.SphereGeometry(0.22, 10, 8).scale(1, 1.3, 1), u, 0.62, fv + 0.8, c);
+        shape(f, new THREE.CylinderGeometry(0.12, 0.16, 0.4, 10), u + 0.3, 0.35, fv + 0.6, C(0xe8dcc8));
+      }
+    }
+    for (const u of [wu - ww / 2 + 0.45, inner / 2 + 0.05]) plant(f, u, fv - 0.55, 0.7);
+    // Upper floors: two windows each, a little balcony on the first.
+    for (let fl = 0; fl < 2; fl++) {
+      const y = G + 0.8 + fl * 3.3;
+      for (const sg of [-1, 1]) {
+        box(f, 1.3, 1.6, 0.06, sg * bw * 0.22, y, fv - 0.18, C(0x4a5a60), false);
+        box(f, 1.5, 0.1, 0.25, sg * bw * 0.22, y - 0.1, fv - 0.25, C(0xffffff), false);
+      }
+    }
+    box(f, bw * 0.7, 0.9, 0.05, 0, G + 0.3, fv - 1.05, C(0x333333), false); // balcony rail
+    box(f, bw * 0.7, 0.12, 0.9, 0, G + 0.2, fv - 0.6, wall, false);
+    box(f, bw, 0.6, d - fv, 0, H, fv + (d - fv) / 2, wall, false);
+  }
+
+  /** Sweet shop: carved sandstone front with jali screens, open counters full of sweets, a railing on top. */
+  function sweets(f: Frame, s: (typeof STORES)[number], nameRow: number) {
+    const { w, d } = f;
+    const bw = w - 0.4;
+    const fv = 1.4;
+    const G = 4.6;
+    const room = 4.5;
+    const sand = C(s.accent);
+    const sandD = C(s.accent).multiplyScalar(0.78);
+    const wood = C(0x6d4c2e);
+    const JARS = [C(0xf57c00), C(0xffd54f), C(0xd84315), C(0xfff3e0)];
+    box(f, bw, G + 1.8, d - fv - room, 0, 0, fv + room + (d - fv - room) / 2, sand);
+    box(f, bw, 0.3, room + fv, 0, 0, (room + fv) / 2, C(0xb39a82), false); // plinth / step
+    box(f, bw - 1, 0.04, room, 0, 0.3, fv + room / 2, C(0x8d6e4f), false);
+    // Inside: warm back wall, wooden shelves with jars, hanging lamps.
+    k.shape(f, new THREE.BoxGeometry(bw - 1, G - 0.6, 0.05).translate(0, (G - 0.6) / 2, 0), 0, 0.3, fv + room - 0.03, C(0xffe2b0), 0, k.bulbs);
+    for (let sh = 0; sh < 4; sh++) {
+      box(f, bw - 2, 0.06, 0.45, 0, 1.0 + sh * 0.75, fv + room - 0.3, wood, false);
+      let j = sh;
+      for (let u = -bw / 2 + 1.3; u < bw / 2 - 1; u += 0.45) shape(f, new THREE.CylinderGeometry(0.13, 0.13, 0.4, 8), u, 1.06 + sh * 0.75, fv + room - 0.3, JARS[j++ % 4]);
+    }
+    for (const u of [-bw / 4, bw / 4]) {
+      box(f, 0.02, 0.9, 0.02, u, G - 0.9, fv + 2, DARK, false);
+      k.shape(f, new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI), u, G - 0.85, fv + 2, C(0xfff0c8), 0, k.bulbs);
+    }
+    // Two glass counters of sweets, one per bay.
+    const SWEET = [C(0xf39c12), C(0xf6d26b), C(0xfffaf0), C(0x8d4b2a)];
+    for (const sg of [-1, 1]) {
+      const u = (sg * bw) / 4;
+      const cw = bw / 2 - 2;
+      box(f, cw, 0.9, 1, u, 0.3, fv + 0.7, C(0xf4ead8));
+      box(f, cw - 0.2, 0.35, 0.02, u, 0.45, fv + 0.19, C(0xe08a2c), false); // orange panel
+      pane(f, u, 1.2, fv + 0.2, cw, 0.9, 0xfff6e0);
+      for (let t = 0; t < 2; t++) {
+        box(f, cw - 0.2, 0.03, 0.8, u, 1.2 + t * 0.42, fv + 0.7, C(0xcfd8dc), false);
+        let kind = t;
+        for (let x = u - cw / 2 + 0.25; x < u + cw / 2 - 0.15; x += 0.3) {
+          const kk = kind++ % 4;
+          if (kk === 0 || kk === 2) shape(f, new THREE.SphereGeometry(0.08, 6, 4), x, 1.3 + t * 0.42, fv + 0.7, SWEET[kk]);
+          else box(f, 0.18, 0.08, 0.18, x, 1.23 + t * 0.42, fv + 0.7, SWEET[kk], false);
+        }
+      }
+      k.solid(f, cw, 2.2, 1, u, 0.3, fv + 0.7);
+    }
+    // Carved pillars: the sides and the middle one, each with a jali panel.
+    for (const u of [-bw / 2 + 0.7, 0, bw / 2 - 0.7]) {
+      const pw = u === 0 ? 0.9 : 1.4;
+      box(f, pw, G, 0.6, u, 0.3, fv - 0.1, sand);
+      box(f, pw + 0.2, 0.3, 0.7, u, 0.3, fv - 0.1, sandD, false);
+      box(f, pw + 0.2, 0.3, 0.7, u, G - 0.1, fv - 0.1, sandD, false);
+      decal(f, atlas.jali, u, 0.9, fv - 0.42, pw - 0.3, (pw - 0.3) * 2.2);
+    }
+    k.solid(f, bw - 1, G, 0.3, 0, 0.3, fv + 1.4); // keeps you out of the shop
+    // White sign board with the name and a round logo, cornice, side chajjas.
+    const sy = G + 0.3;
+    const nw = Math.min(bw - 3.2, 8);
+    box(f, bw - 0.6, 1.3, 0.3, 0, sy, fv - 0.2, C(0xfbfbf8), false);
+    decal(f, atlas.uvRow(nameRow), -0.6, sy + 0.2, fv - 0.36, nw, (nw / 8) * 1.1);
+    shape(f, new THREE.TorusGeometry(0.42, 0.05, 6, 20), bw / 2 - 1.3, sy + 0.65, fv - 0.36, C(0x333333));
+    box(f, bw + 0.6, 0.35, 1.3, 0, sy + 1.3, fv - 0.3, sandD, false);
+    for (const sg of [-1, 1]) shape(f, new THREE.BoxGeometry(1.6, 0.1, 1.4).rotateZ(sg * 0.35), sg * (bw / 2 + 0.3), sy + 0.9, fv - 0.1, C(0xa86f43));
+    // Railing on top: posts with finials, jali panels between, a top rail.
+    const ry = sy + 1.65;
+    box(f, bw, 0.25, 1, 0, ry, fv + 0.2, sand, false);
+    const posts = 7;
+    const gap = (bw - 0.4) / (posts - 1);
+    for (let n = 0; n < posts; n++) {
+      const u = -bw / 2 + 0.2 + n * gap;
+      box(f, 0.35, 1.2, 0.35, u, ry + 0.25, fv + 0.2, sand, false);
+      shape(f, new THREE.ConeGeometry(0.22, 0.45, 4), u, ry + 1.45, fv + 0.2, sandD, Math.PI / 4);
+      if (n < posts - 1) decal(f, atlas.jali, u + gap / 2, ry + 0.35, fv + 0.02, gap - 0.4, 0.9);
+    }
+    box(f, bw, 0.15, 0.45, 0, ry + 1.25, fv + 0.2, sandD, false);
+    // Potted palms either side.
+    for (const sg of [-1, 1]) {
+      const u = sg * (bw / 2 + 0.1);
+      shape(f, new THREE.CylinderGeometry(0.3, 0.22, 0.55, 10), u, 0.3, fv - 0.9, C(0xf5f5f5));
+      for (let l = 0; l < 6; l++) shape(f, new THREE.ConeGeometry(0.12, 1.1, 4).translate(0, 0.55, 0).rotateZ(0.6).rotateY((l / 6) * Math.PI * 2), u, 0.8, fv - 0.9, PLANT);
+    }
+  }
 
   /** Big department store with a cinema on top (like the old Chennai ones). */
   function mall(f: Frame, s: (typeof STORES)[number], nameRow: number, cinemaRow: number, i: number) {

@@ -314,7 +314,8 @@ export function drawTownMap(data: MapData): TownMap {
     g.fillStyle = '#f3d6e0';
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
     const name = st.look === 'mall' ? `${st.name} + ${st.cinema} Cinemas` : st.name;
-    poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#ad1457', st.look === 'mall' ? '🏬' : '👗', 'shop', st.look === 'mall' ? 1 : 2);
+    const sweet = st.look === 'sweets';
+    poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, sweet ? '#ef6c00' : '#ad1457', st.look === 'mall' ? '🏬' : sweet ? '🍬' : '👗', sweet ? 'food' : 'shop', st.look === 'mall' ? 1 : 2);
   });
   BEACHFRONT_LOTS().forEach((lot, i) => {
     g.fillStyle = '#ffe3c8';

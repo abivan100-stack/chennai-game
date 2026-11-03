@@ -529,6 +529,23 @@ export const STORE_LOTS = (): Lot[] => [
   sideLot(-3, 0, 'n', 2, 16, 16), // Dr. Radhakrishnan Salai (Kodambakkam end)
   sideLot(1, 8, 's', 7, 16, 16), // Adyar Main Road
   sideLot(-3, 8, 's', 20, 16, 16),
+  // Venkatanarayana Road (z = -25), T. Nagar: small shops (8 x 10), two sweet shops (12 x 12), bigger ones (16 x 16).
+  sideLot(-3, 1, 's', 2, 8, 10),
+  sideLot(-3, 1, 's', 11, 12, 12),
+  sideLot(-3, 1, 's', 24, 8, 10),
+  sideLot(-3, 1, 's', 33, 16, 16),
+  sideLot(-3, 1, 's', 50, 8, 10),
+  sideLot(-3, 1, 's', 59, 8, 10),
+  sideLot(-3, 2, 'n', 2, 16, 16),
+  sideLot(-3, 2, 'n', 19, 8, 10),
+  sideLot(-3, 2, 'n', 28, 12, 12),
+  sideLot(-3, 2, 'n', 41, 8, 10),
+  sideLot(-5, 1, 's', 2, 16, 16),
+  sideLot(-5, 1, 's', 19, 8, 10),
+  sideLot(-5, 1, 's', 28, 16, 16),
+  sideLot(-5, 2, 'n', 2, 8, 10),
+  sideLot(-5, 2, 'n', 11, 8, 10),
+  sideLot(-5, 2, 'n', 20, 8, 10),
 ];
 
 /** Homes (world/homes.ts): 12 x 13 m plots. Index order = HOMES data order (0 = the rented house you start in). */
