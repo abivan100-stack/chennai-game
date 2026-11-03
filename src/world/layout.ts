@@ -388,3 +388,33 @@ export const POLICE_LOT = () => {
   const mid = (b.x0 + b.x1) / 2;
   return { x0: mid - 10, x1: mid + 10, z0: b.z1 - 18, z1: b.z1 };
 };
+
+/**
+ * Roadside service stops (world/serviceHubs.ts) spread over the map so you're never far from
+ * petrol: each has a petrol bunk, a mechanic shed, an ATM and a medical shop on one 34 x 16 m lot.
+ */
+export const HUB_W = 34;
+export const HUB_D = 16;
+export const SERVICE_HUBS: { area: string; ta: string; lot: () => Lot }[] = (() => {
+  const at = (i: number, j: number, front: Front, along: number) => (): Lot => {
+    const b = block(i, j);
+    if (front === 'e') return { x0: b.x1 - HUB_D, x1: b.x1, z0: b.z0 + along, z1: b.z0 + along + HUB_W, front };
+    if (front === 'w') return { x0: b.x0, x1: b.x0 + HUB_D, z0: b.z0 + along, z1: b.z0 + along + HUB_W, front };
+    if (front === 'n') return { x0: b.x0 + along, x1: b.x0 + along + HUB_W, z0: b.z0, z1: b.z0 + HUB_D, front };
+    return { x0: b.x0 + along, x1: b.x0 + along + HUB_W, z0: b.z1 - HUB_D, z1: b.z1, front };
+  };
+  return [
+    { area: 'Triplicane', ta: 'திருவல்லிக்கேணி', lot: at(1, -2, 'w', 10) },
+    { area: 'Chepauk', ta: 'சேப்பாக்கம்', lot: at(3, -1, 'e', 30) },
+    { area: 'Gopalapuram', ta: 'கோபாலபுரம்', lot: at(-1, -2, 'e', 30) },
+    { area: 'Teynampet', ta: 'தேனாம்பேட்டை', lot: at(-2, 4, 'w', 3) },
+    { area: 'Alwarpet', ta: 'ஆழ்வார்பேட்டை', lot: at(-1, 6, 'e', 5) },
+    { area: 'Santhome', ta: 'சாந்தோம்', lot: at(4, 4, 'e', 3) },
+    { area: 'Mandaveli', ta: 'மந்தைவெளி', lot: at(3, 5, 'e', 3) },
+    { area: 'R.A. Puram', ta: 'ஆர்.ஏ. புரம்', lot: at(2, 7, 'n', 0.5) },
+    { area: 'Adyar', ta: 'அடையார்', lot: at(-1, 9, 'e', 20) },
+    { area: 'Taramani', ta: 'தரமணி', lot: at(0, 10, 'e', 10) },
+    { area: 'Perungudi', ta: 'பெருங்குடி', lot: at(3, 11, 'e', 5) },
+    { area: 'Velachery', ta: 'வேளச்சேரி', lot: at(-2, 11, 'w', 5) },
+  ];
+})();

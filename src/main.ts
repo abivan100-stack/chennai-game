@@ -24,9 +24,9 @@ import { DayNight } from './world/sky';
 import { createTemple } from './world/temple';
 import { TaxiJobs } from './missions/jobs';
 import { Minimap } from './ui/minimap';
-import { BigMap } from './ui/bigMap';
-import { drawTownMap } from './ui/mapArt';
-import { Phone } from './ui/phone';
+import { BigMap, fmtDist } from './ui/bigMap';
+import { drawTownMap, type Dest } from './ui/mapArt';
+import { Phone, type NavInfo, type Place } from './ui/phone';
 import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
@@ -37,6 +37,7 @@ import { createMandaveli } from './world/mandaveli';
 import { createPosters } from './world/posters';
 import { createHospital } from './world/hospital';
 import { createPlaces, type Service } from './world/places';
+import { createServiceHubs } from './world/serviceHubs';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
@@ -52,7 +53,7 @@ import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHAR
 import { Weather } from './world/weather';
 import { Traffic } from './vehicles/traffic';
 import { istTime } from './world/solar';
-import { route } from './missions/route';
+import { nextTurn, route, routeLength, type Pt } from './missions/route';
 import { Police } from './combat/police';
 import { Melee, type Target } from './combat/melee';
 import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
@@ -65,9 +66,14 @@ import { Meal } from './player/meal';
 import { createEateries, type Eatery } from './world/eateries';
 import { BASKET_FULL, BASKET_MAX, CASHIER, CASHIER_HELLO, CASHIER_THANKS, MEAL_DONE, NO_MONEY, SHOPLIFT_LINE, type FoodItem, type Shelf } from './world/food';
 import { createSupermarkets, type Store } from './world/supermarket';
-import { SEA_X, X_LINES, Z_LINES } from './world/layout';
+import { SEA_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
+/** Pushing the auto by hand: where you walk (auto's own frame: beside the driver's handlebar) and how far you can fall behind before you let go. */
+const PUSH_SPOT = new THREE.Vector3(0.95, 0, 0.55);
+const PUSH_LOSE = 3.5;
+/** Navigation ends this close to the destination (metres). */
+const ARRIVE_M = 14;
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const AUTOSAVE_MS = 10_000;
 const HEADLIGHT = { intensity: 40, distance: 38, angle: 0.48, penumbra: 0.55 }; // the vehicle you drive
@@ -114,6 +120,8 @@ async function main() {
   const posters = createPosters(scene, town.footprints);
   const hospital = createHospital(scene, world);
   const places = createPlaces(scene, world);
+  const hubs = createServiceHubs(scene, world);
+  places.services.push(...hubs.services); // petrol / mechanic / ATM / medicals in every area
   const landmarks = createLandmarks(scene, world);
   const tidel = createTidelPark(scene, world);
   const gated = createComplex(scene, world);
@@ -304,6 +312,14 @@ async function main() {
   let lastAutoSpeed = 0;
   let crashCooldown = 0;
   let fuelWarned = false;
+  let pushing = false;
+  const pushAt = new THREE.Vector3();
+  const stopPush = () => {
+    pushing = false;
+    auto.push = false;
+    player.walkTo(null);
+    if (ride.phase === 'onFoot') auto.park();
+  };
   let lastShowHour = -1;
 
   // Supermarket shopping: pick into the basket at the shelves, pay at the counter.
@@ -364,6 +380,11 @@ async function main() {
     player: () => ({ x: player.position.x, z: player.position.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }),
     auto: () => auto.group.position,
     guide: () => guide,
+    view: () => cam.yaw,
+    places: () => navPlaces(),
+    dest: () => nav,
+    navigate: (d) => navigate(d),
+    navInfo: () => navInfo,
     newGame: () => newGame(),
     redeem: () => redeemAuto(),
     bank: (op, amount) => {
@@ -395,6 +416,23 @@ async function main() {
   // Road route from the auto (or the player on foot) to the job target; refreshed a few times a second.
   let guide: { x: number; z: number }[] | null = null;
   let guideAge = 0;
+  // Navigation (Google Maps style): a place picked on the phone or the big map. Overrides the job route while set.
+  let nav: Dest | null = null;
+  let navLeft = 0;
+  let navInfo: NavInfo | null = null;
+  const navigate = (d: Dest | null) => {
+    nav = d;
+    guideAge = 1; // re-route now
+    if (d) phone.notify(`🧭 Route to ${d.name}`);
+  };
+  bigMap.onNavigate = navigate;
+  let placeList: Place[] | null = null;
+  /** Every map place plus every eatery (built once, on first use). */
+  const navPlaces = () => (placeList ??= [
+    ...townMap.pois,
+    ...eateries.list.filter((e) => !townMap.pois.some((p) => p.name === e.name)).map((e): Place => ({ name: e.name, x: e.spot.x, z: e.spot.z, cat: 'food', icon: '🍛', colour: '#ef6c00' })),
+  ]);
+  const roadName = (a: Pt, b: Pt) => (Math.abs(b.x - a.x) < 0.5 ? X_ROADS[a.x]?.[0] : Z_ROADS[a.z]?.[0]);
   ride.onDrivingChange = (driving) => {
     sound.door();
     cam.mode = driving ? 'drive' : 'foot';
@@ -637,7 +675,7 @@ async function main() {
       }
     }
     // Places: E opens the service menu (on foot, or stopped in the auto for petrol / repairs).
-    const autoStopped = ride.driving && Math.abs(auto.speed) < 1 && free;
+    const autoStopped = ((ride.driving && Math.abs(auto.speed) < 1) || pushing) && free;
     const service = onFootFree && !nearAuto && !other && !eatery && !store ? nearService(player.position, false)
       : autoStopped ? nearService(auto.group.position, true) : null;
     if (serviceOpen && serviceOpen !== service) closeMenu();
@@ -677,6 +715,13 @@ async function main() {
       else if (ride.canExit) ride.exit();
       else if (other) takeVehicle(other);
     }
+    // Pushing uncle's auto (empty tank): G beside it; W/S push / pull, A/D steer, G to let go.
+    if (pushing && (!onFootFree || !nearAuto || input.wasPressed('KeyG') || player.position.distanceTo(auto.group.localToWorld(pushAt.copy(PUSH_SPOT))) > PUSH_LOSE)) stopPush();
+    else if (!pushing && nearAuto && input.wasPressed('KeyG')) {
+      pushing = true;
+      auto.push = true;
+      if (melee.stickOut) melee.toggleStick();
+    }
     // (meal.busy: the same key press may have just ordered food from a menu this frame)
     if (onFootFree && !meal.busy && !menuFor && !shelfOpen && !serviceOpen && input.wasPressed('Digit1')) melee.toggleStick();
     if (onFootFree && input.wasPressed('Mouse0')) {
@@ -697,7 +742,8 @@ async function main() {
     hud.setPrompt(
       !free ? null
         : stolen ? (Math.abs(stolenSpeed) < 3 ? 'F - Get out' : null)
-        : nearAuto ? 'F - Get in'
+        : pushing ? 'W/S - Push · A/D - Steer · G - Let go · F - Get in'
+        : nearAuto ? (upkeep.fuel <= 0 ? 'F - Get in · G - Push the auto (no petrol)' : 'F - Get in · G - Push')
         : service && !serviceOpen ? `E - ${service.name}`
         : ride.canExit ? 'F - Get out'
         : other ? (other.driver ? `F - Steal the ${otherName} (police will come!)` : `F - Get in the ${otherName}`)
@@ -712,6 +758,11 @@ async function main() {
     );
 
     // --- Simulation: input once per frame, physics in fixed steps
+    if (pushing) {
+      const k = free ? input : NO_INPUT;
+      auto.control(Number(k.isDown('KeyW')) - Number(k.isDown('KeyS')), Number(k.isDown('KeyA')) - Number(k.isDown('KeyD')), false);
+      player.walkTo(auto.group.localToWorld(pushAt.copy(PUSH_SPOT)));
+    }
     player.handleInput(free ? input : NO_INPUT, cam.yaw);
     ride.update(dt, free ? input : NO_INPUT);
     meal.update(dt, free ? input : NO_INPUT);
@@ -886,6 +937,7 @@ async function main() {
     if (upkeep.fuel >= 1) fuelWarned = false;
     places.update(dt);
     places.setNight(dayNight.night);
+    hubs.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
@@ -1007,9 +1059,28 @@ async function main() {
     guideAge += dt;
     if (guideAge > 0.25) {
       guideAge = 0;
-      const t = jobs.target;
-      const from = player.onFoot ? player.position : auto.group.position;
+      const from = stolen ? stolen.group.position : player.onFoot ? player.position : auto.group.position;
+      if (nav && Math.hypot(nav.x - from.x, nav.z - from.z) < ARRIVE_M) {
+        phone.notify(`📍 Vandhaachu! ${nav.name}`);
+        nav = null;
+      }
+      const t = nav ?? jobs.target;
       guide = t ? route({ x: from.x, z: from.z }, t, X_LINES, Z_LINES) : null;
+      navLeft = guide ? routeLength(guide) : 0;
+      const turn = guide ? nextTurn(guide) : null;
+      navInfo = null;
+      if (turn && t) {
+        const name = nav ? nav.name : jobs.target?.kind === 'pickup' ? 'Pickup' : 'Drop-off';
+        const road = turn.next ? roadName(turn.at, turn.next) : undefined;
+        const mins = Math.max(1, Math.round(navLeft / (player.onFoot ? 1.8 : 9) / 60));
+        navInfo = {
+          arrow: turn.kind === 'left' ? '↰' : turn.kind === 'right' ? '↱' : '📍',
+          dist: fmtDist(turn.dist),
+          line: turn.kind === 'arrive' ? `${name}${turn.side ? ` on your ${turn.side}` : ''}` : `Turn ${turn.kind}${road ? ` onto ${road}` : ''}`,
+          sub: `${fmtDist(navLeft)} · ~${mins} min${nav ? '' : ` · ${jobs.mission}`}`,
+        };
+      }
+      hud.setNav(navInfo);
     }
     phone.update(performance.now());
     minimap.update(performance.now(), {
@@ -1019,6 +1090,7 @@ async function main() {
       marker: jobs.target,
       guide,
       police: police.blips(),
+      dest: nav,
     });
     bigMap.update(dt, input, {
       player: { x: pp.x, z: pp.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
@@ -1026,6 +1098,8 @@ async function main() {
       marker: jobs.target,
       guide,
       police: police.blips(),
+      dest: nav,
+      destLeft: navLeft,
     });
 
     renderer.render(scene, camera);

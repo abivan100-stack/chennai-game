@@ -9,6 +9,18 @@ export const hud = {
     $('wallet').textContent = `₹ ${rupees.toLocaleString('en-IN')}`;
     if (loan > 0) $('wallet').append(Object.assign(document.createElement('div'), { className: 'loan', textContent: `Kadan ₹${loan.toLocaleString('en-IN')}` }));
   },
+  /** Turn-by-turn banner (top centre); null hides it. */
+  setNav(n: { arrow: string; dist: string; line: string; sub: string } | null) {
+    const el = $('nav');
+    el.style.display = n ? 'flex' : 'none';
+    if (!n) return;
+    const key = `${n.arrow}|${n.dist}|${n.line}|${n.sub}`;
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    const text = Object.assign(document.createElement('div'), { className: 'nav-text' });
+    text.append(Object.assign(document.createElement('b'), { textContent: `${n.dist} · ${n.line}` }), Object.assign(document.createElement('div'), { textContent: n.sub }));
+    el.replaceChildren(Object.assign(document.createElement('div'), { className: 'nav-arrow', textContent: n.arrow }), text);
+  },
   setMission(text: string) {
     const el = $('mission');
     if (el.textContent !== text) el.textContent = text;

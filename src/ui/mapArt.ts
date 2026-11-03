@@ -3,6 +3,8 @@ import { CAFE_SPOTS } from '../world/cafeSpots';
 import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
+import { frame } from '../world/kit';
+import { SERVICE_HUBS } from '../world/layout';
 import { SHOP_SIGNS } from '../world/textures';
 
 /** Pixels per metre of the pre-drawn town map. Minimap and phone map crop/scale from it. */
@@ -18,7 +20,7 @@ export interface MapLabel {
   text: string;
   x: number;
   z: number;
-  kind: 'street' | 'landmark';
+  kind: 'street' | 'landmark' | 'area';
 }
 
 /**
@@ -39,7 +41,23 @@ export function drawCrop(g: CanvasRenderingContext2D, img: HTMLCanvasElement, sx
 export interface TownMap {
   canvas: HTMLCanvasElement;
   labels: MapLabel[];
+  pois: Poi[];
 }
+
+export type PoiCat = 'fuel' | 'mechanic' | 'atm' | 'medical' | 'police' | 'transport' | 'food' | 'shop' | 'place' | 'stop';
+/** A place on the map: an icon drawn at screen size over the town picture, and a navigation destination. */
+export interface Poi {
+  name: string;
+  x: number;
+  z: number;
+  colour: string;
+  icon: string;
+  cat: PoiCat;
+  /** 1 = always shown, 2 = from a medium zoom, 3 = only close up. */
+  rank: 1 | 2 | 3;
+}
+/** Places big enough to show at any zoom. */
+const MAJOR = ['Tidel Park', 'Chepauk Stadium', 'Presidency College', 'Nageswara Rao Park', 'Kamadhenu Cinemas', 'Velankanni Church', 'Ashtalakshmi Temple', 'Grand Lake Residences', 'Semmozhi Poonga', 'Music Academy'];
 
 /** Cafes / boutiques on the CAFE_LOTS, in order (names and whether they serve food). */
 const CAFE_NAMES = CAFE_SPOTS;
@@ -70,6 +88,13 @@ const C = {
   sea: '#8cc4e8',
 };
 export const MAP_LAND = C.land;
+export const MAP_SEA = C.sea;
+/** A navigation destination (a place from the map, an eatery, or a dropped pin). */
+export interface Dest {
+  name: string;
+  x: number;
+  z: number;
+}
 /** The outer roads and the Beach Road are the big ones (yellow, like a main road on a nav app). */
 const MAIN_ROADS = [-70, 70, BEACH_ROAD, -145, -265, -130, 300];
 const isMain = (r: RoadLine) => MAIN_ROADS.includes(r.c);
@@ -87,6 +112,8 @@ export function drawTownMap(data: MapData): TownMap {
   const P = mapPx;
   const M = (m: number) => m * MAP_PPM;
   const labels: MapLabel[] = [];
+  const pois: Poi[] = [];
+  const poi = (name: string, x: number, z: number, colour: string, icon: string, cat: PoiCat, rank: 1 | 2 | 3) => pois.push({ name, x, z, colour, icon, cat, rank });
 
   g.fillStyle = C.land;
   g.fillRect(0, 0, MAP_W, MAP_H);
@@ -104,19 +131,18 @@ export function drawTownMap(data: MapData): TownMap {
   labels.push({ text: 'Adyar River', x: -180, z: (RIVER.z0 + RIVER.z1) / 2, kind: 'landmark' });
   labels.push({ text: 'Adyar River', x: 40, z: (RIVER.z0 + RIVER.z1) / 2, kind: 'landmark' });
   labels.push({ text: 'Buckingham Canal', x: (CANAL.x0 + CANAL.x1) / 2, z: 100, kind: 'landmark' });
-  labels.push({ text: 'ALWARPET', x: -175, z: -45, kind: 'landmark' });
-  labels.push({ text: 'TEYNAMPET', x: -235, z: 50, kind: 'landmark' });
-  labels.push({ text: 'R.A. PURAM', x: -48, z: 270, kind: 'landmark' });
-  labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'landmark' });
-  labels.push({ text: 'TARAMANI', x: -48, z: 440, kind: 'landmark' });
-  labels.push({ text: 'PERUNGUDI', x: 0, z: 630, kind: 'landmark' });
-  labels.push({ text: 'TRIPLICANE', x: -20, z: -260, kind: 'landmark' });
+  labels.push({ text: 'ALWARPET', x: -175, z: -45, kind: 'area' });
+  labels.push({ text: 'TEYNAMPET', x: -235, z: 50, kind: 'area' });
+  labels.push({ text: 'R.A. PURAM', x: -48, z: 270, kind: 'area' });
+  labels.push({ text: 'ADYAR', x: -48, z: 375, kind: 'area' });
+  labels.push({ text: 'TARAMANI', x: -48, z: 440, kind: 'area' });
+  labels.push({ text: 'PERUNGUDI', x: 0, z: 630, kind: 'area' });
+  labels.push({ text: 'TRIPLICANE', x: -20, z: -260, kind: 'area' });
   labels.push({ text: 'Marina Beach', x: 165, z: -300, kind: 'landmark' });
-  labels.push({ text: 'BESANT NAGAR', x: 97, z: 470, kind: 'landmark' });
+  labels.push({ text: 'BESANT NAGAR', x: 97, z: 470, kind: 'area' });
   labels.push({ text: "Elliot's Beach", x: 165, z: 540, kind: 'landmark' });
-  badge(g, P(170), P(600), '#14213d', '♫');
-  labels.push({ text: 'Music stage (6-10 pm)', x: 170, z: 608, kind: 'landmark' });
-  labels.push({ text: 'VELACHERY', x: -205, z: 610, kind: 'landmark' });
+  poi('Music stage (6-10 pm)', 170, 600, '#14213d', '♫', 'place', 2);
+  labels.push({ text: 'VELACHERY', x: -205, z: 610, kind: 'area' });
 
   /** A band `half` wide either side of each road's centre line, over the road's length. */
   const bands = (half: number, colour: string, only?: boolean) => {
@@ -138,10 +164,8 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(ch.x0), P(ch.z0), M(ch.x1 - ch.x0), M(ch.z1 - ch.z0));
   g.fillStyle = '#e4e0d6';
   g.fillRect(P(ch.x0 + 7), P(-7), M(28), M(14));
-  badge(g, P(ch.x0 + 21), P(0), '#5c6bc0', '✝');
-  labels.push({ text: 'San Thome Basilica', x: (ch.x0 + ch.x1) / 2, z: ch.z0 + 4, kind: 'landmark' });
-  badge(g, P(150), P(-80), '#c62828', 'L');
-  labels.push({ text: 'Lighthouse', x: 150, z: -73, kind: 'landmark' });
+  poi('San Thome Basilica', ch.x0 + 21, 0, '#5c6bc0', '✝', 'place', 1);
+  poi('Lighthouse', 150, -80, '#c62828', 'L', 'place', 1);
 
   // Temple: court, striped wall, gopurams, shrine.
   const t = TEMPLE_BLOCK();
@@ -155,8 +179,7 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(t.x0), P(-4.5), M(6), M(9));
   g.fillStyle = '#d4ad84';
   g.fillRect(P(-7), P(-4), M(8), M(8));
-  badge(g, P(-3), P(10), '#c0472f', 'T');
-  labels.push({ text: 'Kapaleeshwarar Temple', x: 0, z: t.z0 + 5, kind: 'landmark' });
+  poi('Kapaleeshwarar Temple', -3, 10, '#c0472f', 'T', 'place', 1);
 
   // Tank: steps, water, mandapam.
   const k = TANK_BLOCK();
@@ -176,32 +199,28 @@ export function drawTownMap(data: MapData): TownMap {
   g.fillRect(P(ps.x0), P(ps.z0), M(ps.x1 - ps.x0), M(ps.z1 - ps.z0));
   g.fillStyle = '#9fb3dc';
   g.fillRect(P(ps.x0 + 2), P(ps.z0 + 1), M(16), M(9));
-  badge(g, P(ps.x0 + 10), P(ps.z0 + 5.5), '#1c3f8f', 'P');
-  labels.push({ text: 'Police Station', x: (ps.x0 + ps.x1) / 2, z: ps.z1 - 3, kind: 'landmark' });
+  poi('Mylapore Police Station', ps.x0 + 10, ps.z0 + 5.5, '#1c3f8f', 'P', 'police', 1);
 
   // Mandaveli: the MTC depot yard, and the MRTS line along the south edge.
   const dep = DEPOT_LOT();
   g.fillStyle = '#d6dbe8';
   g.fillRect(P(dep.x0), P(dep.z0), M(dep.x1 - dep.x0), M(dep.z1 - dep.z0));
-  badge(g, P((dep.x0 + dep.x1) / 2), P((dep.z0 + dep.z1) / 2), '#1d4fa8', 'D');
-  labels.push({ text: 'MTC Bus Depot', x: (dep.x0 + dep.x1) / 2, z: dep.z0 + 22, kind: 'landmark' });
+  poi('MTC Bus Depot', (dep.x0 + dep.x1) / 2, (dep.z0 + dep.z1) / 2, '#1d4fa8', 'D', 'transport', 2);
   // The MRTS viaduct runs north-south over the Buckingham Canal.
   g.fillStyle = '#9a9488';
   g.fillRect(P(MRTS_X - 16.5), P(BOUNDS.z0), M(3), MAP_H);
   for (const [z, name] of MRTS_STATIONS) {
-    badge(g, P(MRTS_X - 6), P(z), '#f4a000', 'M');
-    labels.push({ text: name, x: MRTS_X + 4, z: z + 7, kind: 'landmark' });
+    poi(name, MRTS_X - 6, z, '#f4a000', 'M', 'transport', 1);
   }
-  labels.push({ text: 'MANDAVELI', x: -48, z: 150, kind: 'landmark' });
-  labels.push({ text: 'SANTHOME', x: 100, z: -90, kind: 'landmark' });
-  labels.push({ text: 'MYLAPORE', x: -48, z: -90, kind: 'landmark' });
+  labels.push({ text: 'MANDAVELI', x: -48, z: 150, kind: 'area' });
+  labels.push({ text: 'SANTHOME', x: 100, z: -90, kind: 'area' });
+  labels.push({ text: 'MYLAPORE', x: -48, z: -90, kind: 'area' });
 
   // Isabel Hospital.
   const hos = HOSPITAL_LOT();
   g.fillStyle = '#fde0e0';
   g.fillRect(P(hos.x0), P(hos.z0), M(hos.x1 - hos.x0), M(hos.z1 - hos.z0));
-  badge(g, P((hos.x0 + hos.x1) / 2), P(hos.z0 + 11), '#d32f2f', 'H');
-  labels.push({ text: 'Isabel Hospital', x: (hos.x0 + hos.x1) / 2, z: hos.z0 + 19, kind: 'landmark' });
+  poi('Isabel Hospital', (hos.x0 + hos.x1) / 2, hos.z0 + 11, '#d32f2f', 'H', 'medical', 1);
 
   // Neighbourhood places: a tinted lot, a badge and a label each.
   const pl = PLACE_LOTS();
@@ -211,13 +230,13 @@ export function drawTownMap(data: MapData): TownMap {
     [pl.church, '#e3f2fd', '#1b3a6b', '✝', 'Luz Church'],
     [pl.market, '#ffecb3', '#ef6c00', 'V', 'Vegetable market'],
     [pl.stand, '#fff9c4', '#222222', 'A', 'Auto stand · tea'],
-    [pl.bunk, '#ffccbc', '#d84315', '⛽', 'Petrol bunk'],
-    [pl.mechanic, '#cfd8dc', '#37474f', '🔧', 'Mechanic'],
+    [pl.bunk, '#ffccbc', '#d84315', '⛽', 'Mylai Fuels'],
+    [pl.mechanic, '#cfd8dc', '#37474f', '🔧', 'Murugan Auto Works'],
     [pl.cinema, '#e1bee7', '#7b1fa2', '🎬', 'Kamadhenu Cinemas'],
-    [pl.bank, '#bbdefb', '#0d47a1', '₹', 'Bank · ATM'],
-    [pl.pharmacy, '#c8e6c9', '#1b5e20', '+', 'Pharmacy'],
-    [FISH_MARKET, '#b3e5fc', '#0277bd', 'F', 'Fish market'],
-    [BEACH_FAIR, '#f8bbd0', '#ad1457', '★', 'Beach fair'],
+    [pl.bank, '#bbdefb', '#0d47a1', '₹', 'Mylapore Co-op Bank ATM'],
+    [pl.pharmacy, '#c8e6c9', '#1b5e20', '+', 'Sri Ram Medicals'],
+    [FISH_MARKET, '#b3e5fc', '#0277bd', 'F', 'Santhome Fish Market'],
+    [BEACH_FAIR, '#f8bbd0', '#ad1457', '★', 'Santhome Beach Fair'],
     [COLLEGE_LOT(), '#f3d9cf', '#8d2b1e', '🎓', 'Vivekananda College'],
     [BOAT_CLUB_LOT(), '#c8e6c9', '#0d3b66', '⛵', 'Madras Boat Club'],
     [CAMPUS_LOT(), '#a5d6a7', '#33691e', '🌳', 'Adyar Banyan Campus'],
@@ -243,8 +262,8 @@ export function drawTownMap(data: MapData): TownMap {
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
     const cx = (lot.x0 + lot.x1) / 2;
     const cz = (lot.z0 + lot.z1) / 2;
-    badge(g, P(cx), P(cz), colour, letter);
-    labels.push({ text: name, x: cx, z: cz + 7, kind: 'landmark' });
+    const cat: PoiCat = letter === '⛽' ? 'fuel' : letter === '🔧' ? 'mechanic' : letter === '₹' ? 'atm' : letter === '+' ? 'medical' : letter === '☕' || letter === 'F' ? 'food' : letter === '🛍' ? 'shop' : 'place';
+    poi(name, cx, cz, colour, letter, cat, cat === 'food' || cat === 'shop' ? 3 : MAJOR.includes(name) || cat === 'fuel' ? 1 : 2);
   }
 
   // Supermarkets.
@@ -256,8 +275,23 @@ export function drawTownMap(data: MapData): TownMap {
     g.strokeRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
     const mx = (lot.x0 + lot.x1) / 2;
     const mz = (lot.z0 + lot.z1) / 2;
-    badge(g, P(mx), P(mz), '#2e7d32', 'S');
-    labels.push({ text: 'Supermarket', x: mx, z: mz + 4, kind: 'landmark' });
+    poi('Kapali Supermarket', mx, mz, '#2e7d32', 'S', 'shop', 2);
+  }
+
+  // Service stops in every area: forecourt tint + four POIs each (same spots as world/serviceHubs.ts).
+  for (const hub of SERVICE_HUBS) {
+    const lot = hub.lot();
+    const f = frame(lot);
+    g.fillStyle = '#ffe0d2';
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const add = (u: number, v: number, name: string, colour: string, icon: string, cat: PoiCat, rank: 1 | 2 | 3) => {
+      const q = f.at(u, v);
+      poi(name, q.x, q.z, colour, icon, cat, rank);
+    };
+    add(-8, 6, `${hub.area} Fuels`, '#d84315', '⛽', 'fuel', 1);
+    add(5.5, 6, `${hub.area} Auto Works`, '#37474f', '🔧', 'mechanic', 2);
+    add(11, 3, `${hub.area} ATM`, '#0d47a1', '₹', 'atm', 3);
+    add(15, 5, `${hub.area} Medicals`, '#1b5e20', '+', 'medical', 3);
   }
 
   // Buildings, then trees, then shop dots on top.
@@ -294,7 +328,7 @@ export function drawTownMap(data: MapData): TownMap {
   // Ride stops.
   for (const s of STOPS) {
     const p = stopPoint(s, 'sidewalk');
-    badge(g, P(p.x), P(p.z), '#1565c0', 'B', 7);
+    poi(s.name, p.x, p.z, '#1565c0', 'B', 'stop', 3);
   }
 
   // Street names: one per stretch of road, at its middle.
@@ -306,36 +340,146 @@ export function drawTownMap(data: MapData): TownMap {
       else labels.push({ text: Z_ROADS[r.c][0], x: mid, z: r.c, kind: 'street' });
     }
   }
-  return { canvas: c, labels };
+  return { canvas: c, labels, pois };
 }
 
-/** Round map icon with a letter (no emoji: they render differently on every OS). */
-function badge(g: CanvasRenderingContext2D, x: number, y: number, colour: string, letter: string, r = 10) {
+type Rect = [number, number, number, number];
+const hits = (a: Rect, list: Rect[]) => list.some((b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]);
+
+/** How a map view wants its icons and labels drawn. */
+export interface Overlay {
+  /** Screen px per metre. */
+  k: number;
+  w: number;
+  h: number;
+  toScreen: (x: number, z: number) => { x: number; y: number };
+  /** North-up maps: names of north-south roads run along the road instead of across it. */
+  rotateStreets?: boolean;
+  /** Always drawn, bigger, with its name (hovered / chosen place). */
+  highlight?: Poi | null;
+}
+
+/** Is this place shown at zoom k? */
+export const poiVisible = (p: Poi, k: number) => p.rank === 1 || (p.rank === 2 && k >= 1.6) || k >= 3.2;
+
+/** Round icon (white rim, soft shadow) at a screen point. */
+export function drawBadge(g: CanvasRenderingContext2D, x: number, y: number, colour: string, icon: string, r: number) {
+  g.save();
+  g.shadowColor = '#0006';
+  g.shadowBlur = 4;
+  g.shadowOffsetY = 1;
   g.fillStyle = colour;
-  g.strokeStyle = '#fff';
-  g.lineWidth = 2;
   g.beginPath();
   g.arc(x, y, r, 0, Math.PI * 2);
   g.fill();
+  g.restore();
+  g.strokeStyle = '#fff';
+  g.lineWidth = 2;
   g.stroke();
   g.fillStyle = '#fff';
-  g.font = `700 ${Math.round(r * 1.2)}px system-ui, sans-serif`;
+  g.font = `700 ${Math.round(r * 1.15)}px system-ui, "Segoe UI Emoji", sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(letter, x, y + 0.5);
+  g.fillText(icon, x, y + 1);
 }
 
-/** Upright label with a white halo at screen point (x, y). */
-export function drawLabel(g: CanvasRenderingContext2D, l: MapLabel, x: number, y: number) {
-  g.font = l.kind === 'street' ? '600 10px system-ui, sans-serif' : '700 11px system-ui, sans-serif';
+function text(g: CanvasRenderingContext2D, s: string, x: number, y: number, font: string, fill: string, halo = '#ffffffee') {
+  g.font = font;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.lineJoin = 'round';
-  g.lineWidth = 3;
-  g.strokeStyle = '#ffffffe6';
-  g.strokeText(l.text, x, y);
-  g.fillStyle = l.kind === 'street' ? '#55524c' : '#7a2b10';
-  g.fillText(l.text, x, y);
+  g.lineWidth = 3.5;
+  g.strokeStyle = halo;
+  g.strokeText(s, x, y);
+  g.fillStyle = fill;
+  g.fillText(s, x, y);
+}
+
+/**
+ * Icons and names on top of the town picture, in priority order (area names, places, street
+ * names, the rest); anything that would overlap something already drawn is skipped, so the map
+ * stays readable at every zoom. Returns where each place icon landed (for clicks / hover).
+ */
+export function drawOverlay(g: CanvasRenderingContext2D, town: TownMap, o: Overlay) {
+  const placed: Rect[] = [];
+  const icons: { poi: Poi; x: number; y: number }[] = [];
+  const on = (p: { x: number; y: number }, m: number) => p.x > -m && p.x < o.w + m && p.y > -m && p.y < o.h + m;
+  const label = (s: string, x: number, y: number, font: string, fill: string, force = false, angle = 0) => {
+    g.font = font;
+    const tw = g.measureText(s).width / 2 + 3;
+    const th = 8;
+    const r: Rect = angle ? [x - th, y - tw, x + th, y + tw] : [x - tw, y - th, x + tw, y + th];
+    if (!force && hits(r, placed)) return;
+    placed.push(r);
+    if (angle) {
+      g.save();
+      g.translate(x, y);
+      g.rotate(angle);
+      text(g, s, 0, 0, font, fill);
+      g.restore();
+    } else text(g, s, x, y, font, fill);
+  };
+
+  // Area names: big and faint, mostly for the zoomed-out view.
+  const areaPx = Math.round(Math.min(20, Math.max(12, 10 + o.k * 2.2)));
+  for (const l of town.labels) {
+    if (l.kind !== 'area') continue;
+    const p = o.toScreen(l.x, l.z);
+    if (on(p, 60)) label(l.text, p.x, p.y, `800 ${areaPx}px system-ui, sans-serif`, '#5d4e3fb0');
+  }
+  // Places: the highlighted one first, then by rank.
+  const r = o.k >= 3 ? 10 : 8;
+  const order = town.pois.filter((p) => p === o.highlight || poiVisible(p, o.k)).sort((a, b) => (a === o.highlight ? -1 : b === o.highlight ? 1 : a.rank - b.rank));
+  for (const p of order) {
+    const s = o.toScreen(p.x, p.z);
+    if (!on(s, 20)) continue;
+    const hi = p === o.highlight;
+    const rr = hi ? r + 3 : r;
+    const box: Rect = [s.x - rr, s.y - rr, s.x + rr, s.y + rr];
+    if (!hi && hits(box, placed)) continue;
+    placed.push(box);
+    drawBadge(g, s.x, s.y, p.colour, p.icon, rr);
+    icons.push({ poi: p, x: s.x, y: s.y });
+    if (hi || p.rank === 1 || o.k >= 2.2) label(p.name, s.x, s.y + rr + 9, `700 ${hi ? 13 : 11}px system-ui, sans-serif`, hi ? '#0b3d91' : '#6a2a12', hi);
+  }
+  // Street names, once zoomed in enough to read them.
+  if (o.k >= 1.8) {
+    for (const l of town.labels) {
+      if (l.kind !== 'street') continue;
+      const p = o.toScreen(l.x, l.z);
+      if (!on(p, 40)) continue;
+      const along = o.rotateStreets && X_ROADS[l.x]?.[0] === l.text; // a north-south road
+      label(l.text, p.x, p.y, '600 10px system-ui, sans-serif', '#55524c', false, along ? -Math.PI / 2 : 0);
+    }
+  }
+  for (const l of town.labels) {
+    if (l.kind !== 'landmark') continue;
+    const p = o.toScreen(l.x, l.z);
+    if (on(p, 60)) label(l.text, p.x, p.y, 'italic 600 11px system-ui, sans-serif', l.text.includes('River') || l.text.includes('Canal') || l.text.includes('Bay') ? '#2a6f9e' : '#7a5a2a');
+  }
+  return icons;
+}
+
+/** Destination pin (red teardrop) standing on a screen point. */
+export function drawPin(g: CanvasRenderingContext2D, x: number, y: number, s = 1) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  g.shadowColor = '#0007';
+  g.shadowBlur = 5;
+  g.fillStyle = '#e53935';
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.bezierCurveTo(-4, -8, -11, -12, -11, -20);
+  g.arc(0, -20, 11, Math.PI, 0);
+  g.bezierCurveTo(11, -12, 4, -8, 0, 0);
+  g.fill();
+  g.shadowBlur = 0;
+  g.fillStyle = '#fff';
+  g.beginPath();
+  g.arc(0, -20, 4.5, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
 }
 
 /** Guide line along the roads to the current pickup / drop-off (white casing, blue core). */

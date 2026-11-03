@@ -112,3 +112,48 @@ export function routeLength(pts: Pt[]) {
   for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
   return d;
 }
+
+export interface Turn {
+  /** What to do at `at`: turn, or arrive (the destination is on that side of the road). */
+  kind: 'left' | 'right' | 'arrive';
+  /** Metres along the route to `at`. */
+  dist: number;
+  at: Pt;
+  /** The stretch after the turn (to name the road you turn onto). */
+  next: Pt | null;
+  /** For 'arrive': which side of the road the destination is on. */
+  side?: 'left' | 'right';
+}
+
+/** Ignore the short hop from the player onto the road (lane offset), it isn't a turn. */
+const JOIN_HOP = 8;
+
+/**
+ * The next instruction along a route() result, like a nav app: "turn right in 120 m" or
+ * "arrive, on your left". Screen-style axes (x east, z south), so cross > 0 is a right turn.
+ */
+export function nextTurn(route: Pt[]): Turn | null {
+  const pts = route.filter((p, i) => i === 0 || Math.hypot(p.x - route[i - 1].x, p.z - route[i - 1].z) > 0.5);
+  if (pts.length >= 3 && Math.hypot(pts[1].x - pts[0].x, pts[1].z - pts[0].z) < JOIN_HOP) pts.shift();
+  if (pts.length < 2) return null;
+  let dist = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    dist += Math.hypot(b.x - a.x, b.z - a.z);
+    const c = pts[i + 1];
+    if (!c) return { kind: 'arrive', dist, at: b, next: null };
+    const ix = b.x - a.x;
+    const iz = b.z - a.z;
+    const ox = c.x - b.x;
+    const oz = c.z - b.z;
+    const cross = ix * oz - iz * ox;
+    const len = Math.hypot(ix, iz) * Math.hypot(ox, oz);
+    if (Math.abs(cross) < len * 0.5) continue; // carrying straight on
+    const side = cross > 0 ? 'right' : 'left';
+    // The last bend is the hop off the road to the door: that's "arrive, on your <side>".
+    if (i === pts.length - 2) return { kind: 'arrive', side, dist, at: b, next: null };
+    return { kind: side, dist, at: b, next: c };
+  }
+  return null;
+}

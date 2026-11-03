@@ -3,7 +3,7 @@ import { sunDirection, istClock } from '../src/world/solar.ts';
 import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/quality.ts';
 import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
 import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
-import { route, routeLength } from '../src/missions/route.ts';
+import { nextTurn, route, routeLength } from '../src/missions/route.ts';
 import { LOSE_SECONDS, Wanted } from '../src/combat/wanted.ts';
 import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts';
 import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
@@ -80,6 +80,11 @@ const r2 = route({ x: 23, z: -10 }, { x: 23, z: 10 }, LINES, LINES);
 const r3 = route({ x: 20, z: 0 }, { x: 128, z: -60 }, [-70, -25, 25, 70, 125], LINES); // temple -> Beach Road
 assert(r3[r3.length - 2].x === 125 && r3.every((p, i) => i === 0 || i === r3.length - 1 || p.x <= 125), 'beach route ends on the Beach Road, never past it'); // same street
 assert(r2.length === 4 && routeLength(r2) < 25, 'same street: straight along it');
+// Turn-by-turn: north up a road, then east = right turn; the door hop at the end = arrive.
+const t1 = nextTurn([{ x: 2, z: 100 }, { x: 0, z: 100 }, { x: 0, z: 0 }, { x: 50, z: 0 }, { x: 50, z: -6 }]);
+assert(t1?.kind === 'right' && Math.abs(t1.dist - 100) < 0.01 && t1.next?.x === 50, `north then east is a right turn in 100 m: ${JSON.stringify(t1)}`);
+const t2 = nextTurn([{ x: 0, z: 0 }, { x: 50, z: 0 }, { x: 50, z: -6 }]);
+assert(t2?.kind === 'arrive' && t2.side === 'left' && Math.abs(t2.dist - 50) < 0.01, `east then a hop north = arrive on the left: ${JSON.stringify(t2)}`);
 
 // --- Wanted level ---
 const w = new Wanted();
@@ -147,7 +152,7 @@ const upk = new Upkeep();
 upk.drive(1000);
 assert(upk.fuel < TANK && upk.fuel > 0, 'driving burns petrol');
 upk.drive(100_000);
-assert(upk.fuel === 0 && upk.speedFactor < 0.2, 'an empty tank only crawls');
+assert(upk.fuel === 0 && upk.speedFactor === 0, 'an empty tank stops the engine');
 assert(Math.abs(upk.litresFor(PETROL_PRICE * 2) - 2) < 1e-9 && upk.litresFor(1e6) === TANK, 'petrol money buys litres up to a full tank');
 upk.fill(TANK);
 assert(upk.crash(CRASH_DV - 0.5) === 0, 'braking is not a crash');

@@ -12,6 +12,8 @@ const MAX_SPEED = TURBO ? 36 : 18; // m/s (turbo ~130 km/h; normal ~65 km/h)
 const MAX_REVERSE = 4;
 const ENGINE_FORCE = TURBO ? 3000 : 1250; // N per rear wheel
 const BRAKE = TURBO ? 22 : 12;
+const PUSH_SPEED = 1.6; // m/s when pushed by hand (walking pace)
+const PUSH_FORCE = 450; // N per rear wheel, a person leaning into it
 const HANDBRAKE = 30;
 const ROLLING_BRAKE = 0.6; // engine braking when off the throttle
 const STEER_LOW_SPEED = 0.6; // rad, full lock at walking pace
@@ -136,6 +138,8 @@ export class AutoRickshaw {
 
   /** Top-speed multiplier (flood water); set by the game each frame. */
   speedLimit = 1;
+  /** Pushed by hand (engine off): walking pace either way, any fuel. */
+  push = false;
 
   /** Call before each physics step. */
   update(dt: number) {
@@ -148,12 +152,16 @@ export class AutoRickshaw {
 
     let engine = 0;
     let brake = 0;
-    if (this.throttle > 0) {
-      if (v < -0.5) brake = BRAKE;
+    if (this.push) {
+      engine = this.throttle * PUSH_FORCE * Math.max(0, 1 - Math.abs(v) / PUSH_SPEED);
+      if (!this.throttle) brake = ROLLING_BRAKE * 3;
+    } else if (this.throttle > 0) {
+      if (top <= 0) brake = ROLLING_BRAKE; // no petrol: the engine won't pull
+      else if (v < -0.5) brake = BRAKE;
       else engine = ENGINE_FORCE * this.throttle * (1 - Math.min(Math.max(v, 0) / top, 1));
     } else if (this.throttle < 0) {
       if (v > 0.5) brake = BRAKE;
-      else engine = v > -MAX_REVERSE ? -ENGINE_FORCE * 0.6 : 0;
+      else engine = v > -MAX_REVERSE && top > 0 ? -ENGINE_FORCE * 0.6 : 0;
     } else {
       brake = ROLLING_BRAKE;
     }

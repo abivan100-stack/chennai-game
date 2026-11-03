@@ -1,4 +1,5 @@
-import { MAP_LAND, MAP_PPM, drawCrop, drawLabel, drawRoute, mapPx, type MapLabel, type TownMap } from './mapArt';
+import { MAP_LAND, MAP_PPM, MAP_SEA, drawCrop, drawOverlay, drawPin, drawRoute, mapPx, type Dest, type TownMap } from './mapArt';
+import { BOUNDS } from '../world/layout';
 
 const SIZE = 200; // px on screen
 const VIEW_M = 80; // metres across the minimap
@@ -18,6 +19,7 @@ export interface MinimapState {
   marker: MapMarker | null;
   guide: { x: number; z: number }[] | null;
   police: { x: number; z: number }[];
+  dest: Dest | null;
 }
 
 /**
@@ -27,16 +29,16 @@ export interface MinimapState {
  */
 export class Minimap {
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly townMap: TownMap;
   private readonly town: HTMLCanvasElement;
-  private readonly labels: MapLabel[];
   private last = 0;
 
   constructor(town: TownMap) {
     const canvas = document.getElementById('minimap') as HTMLCanvasElement;
     canvas.width = canvas.height = SIZE;
     this.ctx = canvas.getContext('2d')!;
+    this.townMap = town;
     this.town = town.canvas;
-    this.labels = town.labels;
   }
 
   update(now: number, s: MinimapState) {
@@ -67,6 +69,11 @@ export class Minimap {
     g.clip();
     g.fillStyle = MAP_LAND;
     g.fillRect(0, 0, SIZE, SIZE);
+    if (s.player.x + VIEW_M > BOUNDS.x1) {
+      // Past the picture's east edge it's all sea.
+      g.fillStyle = MAP_SEA;
+      g.fillRect(0, 0, SIZE, SIZE);
+    }
     // Map image, rotated about the centre.
     g.save();
     g.translate(R, R);
@@ -78,9 +85,10 @@ export class Minimap {
 
     if (s.guide) drawRoute(g, s.guide, toScreen, 5);
 
-    for (const l of this.labels) {
-      const p = toScreen(l.x, l.z);
-      if (p.x > -40 && p.x < SIZE + 40 && p.y > 0 && p.y < SIZE) drawLabel(g, l, p.x, p.y);
+    drawOverlay(g, this.townMap, { k, w: SIZE, h: SIZE, toScreen });
+    if (s.dest) {
+      const d = rim(toScreen(s.dest.x, s.dest.z), 14);
+      drawPin(g, d.x, d.y + 10, 0.75);
     }
 
     // The auto.

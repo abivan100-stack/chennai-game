@@ -1,7 +1,7 @@
 /**
  * Uncle's auto: petrol in the tank and how battered it is. Pure logic (no three.js) so
  * scripts/check.ts can test it. Driving burns petrol; crashes (a sudden loss of speed) dent it.
- * An empty tank or a wrecked auto only crawls, so the petrol bunk and the mechanic matter.
+ * An empty tank stops the engine (push it to a bunk); a wrecked auto only crawls.
  */
 export const TANK = 6; // litres
 export const LITRES_PER_KM = 1.2; // a town's worth of driving per tank
@@ -9,7 +9,7 @@ export const PETROL_PRICE = 105; // ₹ per litre
 export const REPAIR_PRICE = 12; // ₹ per point of damage
 export const CRASH_DV = 3; // m/s lost in one physics step that counts as a crash
 export const CRASH_DAMAGE = 7; // condition points per m/s over CRASH_DV
-export const EMPTY_CRAWL = 0.12; // top-speed factor on fumes
+export const EMPTY_CRAWL = 0; // empty tank: the engine won't go, you push it (G)
 export const WRECK_CRAWL = 0.35; // ...and when the auto is nearly wrecked
 
 export class Upkeep {

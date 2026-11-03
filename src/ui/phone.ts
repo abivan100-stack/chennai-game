@@ -3,9 +3,10 @@ import { DAILY_DUE, LOAN_TOTAL } from '../missions/economy';
 import type { TaxiJobs } from '../missions/jobs';
 import type { Weather } from '../world/weather';
 import { stopPoint } from '../missions/data';
-import { MAP_LAND, MAP_PPM, drawCrop, drawLabel, drawRoute, mapPx, type TownMap } from './mapArt';
-import { routeLength } from '../missions/route';
-import { BOUNDS } from '../world/layout';
+import { MAP_LAND, MAP_PPM, MAP_SEA, drawCrop, drawOverlay, drawPin, drawRoute, mapPx, type Dest, type PoiCat, type TownMap } from './mapArt';
+import { route, routeLength } from '../missions/route';
+import { BOUNDS, X_LINES, Z_LINES } from '../world/layout';
+import { fmtDist } from './bigMap';
 
 type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather';
 
@@ -28,7 +29,41 @@ export interface PhoneDeps {
   redeem: () => void;
   /** Net banking: move money between the bank and your pocket. */
   bank: (op: 'deposit' | 'withdraw', amount: number) => void;
+  /** Camera yaw (the map turns with it, like the minimap). */
+  view: () => number;
+  /** Everywhere you can navigate to. */
+  places: () => Place[];
+  dest: () => Dest | null;
+  navigate: (d: Dest | null) => void;
+  /** The next instruction, or null when not going anywhere. */
+  navInfo: () => NavInfo | null;
 }
+
+export interface Place extends Dest {
+  cat: PoiCat;
+  icon: string;
+  colour: string;
+}
+export interface NavInfo {
+  arrow: string;
+  dist: string;
+  line: string;
+  sub: string;
+}
+
+const PM_W = 252; // phone map size (CSS px)
+const PM_H = 250;
+/** Search chips: key, label, which place kinds they list. */
+const SEARCH: [string, string, PoiCat[]][] = [
+  ['fuel', '⛽ Petrol', ['fuel']],
+  ['mechanic', '🔧 Mechanic', ['mechanic']],
+  ['atm', '₹ ATM', ['atm']],
+  ['medical', '✚ Medical', ['medical']],
+  ['food', '🍛 Food', ['food']],
+  ['shop', '🛍 Shops', ['shop']],
+  ['place', '★ Places', ['place']],
+  ['transit', '🚉 Transit', ['transport', 'stop', 'police']],
+];
 
 interface Message {
   from: string;
@@ -63,12 +98,25 @@ export class Phone {
   private readonly toast: HTMLElement;
   private readonly deps: PhoneDeps;
   private readonly messages: Message[] = [];
-  private mapZoomed = true;
+  private readonly mapCanvas = h('canvas', { class: 'phone-map', style: `width:${PM_W}px;height:${PM_H}px` }) as HTMLCanvasElement;
+  private mapZoom = 2.6; // px per metre
+  private northUp = false;
+  private searchCat: string | null = null;
+  private readonly navArrow = h('div', { class: 'pm-arrow' });
+  private readonly navDist = h('div', { class: 'pm-dist' });
+  private readonly navLine = h('div', { class: 'pm-line' });
+  private readonly navSub = h('div', { class: 'muted' });
+  private readonly navEnd = h('button', { class: 'pm-end' }, 'End');
+  private readonly navBox = h('div', { class: 'pm-nav' }, this.navArrow, h('div', { class: 'pm-navtext' }, this.navDist, this.navLine, this.navSub), this.navEnd);
   private last = 0;
   private toastTimer = 0;
 
   constructor(deps: PhoneDeps) {
     this.deps = deps;
+    this.navEnd.onclick = () => {
+      this.deps.navigate(null);
+      this.render();
+    };
     this.status = h('div', { class: 'phone-status' });
     this.screen = h('div', { class: 'phone-screen' });
     const home = h('button', { class: 'phone-home', title: 'Home' });
@@ -102,9 +150,20 @@ export class Phone {
   }
 
   update(now: number) {
-    if (!this.isOpen || now - this.last < REFRESH_MS) return;
+    if (!this.isOpen) return;
+    if (this.app === 'map') this.tickMap(); // live, every frame
+    if (now - this.last < REFRESH_MS) return;
     this.last = now;
-    this.render();
+    // The map app's DOM (chips, results) only changes when you tap something.
+    if (this.app === 'map') this.renderStatus();
+    else this.render();
+  }
+
+  /** Open the Map app (e.g. from a "where's the bunk?" hint). */
+  openMap(cat: string | null = null) {
+    this.searchCat = cat;
+    if (!this.isOpen) this.toggle();
+    this.show('map');
   }
 
   private show(app: App) {
@@ -113,9 +172,13 @@ export class Phone {
     this.render();
   }
 
-  private render() {
+  private renderStatus() {
     const { weather, clock } = this.deps;
     this.status.replaceChildren(h('span', {}, clock()), h('span', {}, weather.label), h('span', {}, '📶 87%'));
+  }
+
+  private render() {
+    this.renderStatus();
     const apps: Record<App, () => HTMLElement> = {
       home: () => this.home(),
       orders: () => this.orders(),
@@ -191,72 +254,160 @@ export class Phone {
     return list;
   }
 
+  // ---- Map: live heading-up map + "where to?" search + turn-by-turn ----------------------
+
   private map() {
-    const { jobs, town } = this.deps;
-    const W = 268;
-    const H = 380;
-    const c = h('canvas', { width: String(W), height: String(H), class: 'phone-map', title: 'Tap to zoom' }) as HTMLCanvasElement;
-    c.onclick = () => {
-      this.mapZoomed = !this.mapZoomed;
-      this.render();
+    const { jobs } = this.deps;
+    const wrap = h('div', { class: 'pm' });
+    // Category chips: pick one to list the nearest places of that kind.
+    const chips = h('div', { class: 'pm-chips' });
+    for (const [key, label] of SEARCH) {
+      const b = h('button', { class: `pm-chip${this.searchCat === key ? ' on' : ''}` }, label);
+      b.onclick = () => {
+        this.searchCat = this.searchCat === key ? null : key;
+        this.render();
+      };
+      chips.append(b);
+    }
+    // The live map (drawn every frame by tickMap) with zoom / compass buttons over it.
+    const box = h('div', { class: 'pm-box' }, this.mapCanvas);
+    const btn = (t: string, title: string, f: () => void) => {
+      const b = h('button', { class: 'pm-btn', title }, t);
+      b.onclick = f;
+      return b;
     };
+    box.append(h('div', { class: 'pm-btns' },
+      btn('+', 'Zoom in', () => (this.mapZoom = Math.min(8, this.mapZoom * 1.35))),
+      btn('−', 'Zoom out', () => (this.mapZoom = Math.max(0.6, this.mapZoom / 1.35))),
+      btn('🧭', 'North up / heading up', () => (this.northUp = !this.northUp)),
+    ));
+    wrap.append(chips, box, this.navBox);
+    if (this.searchCat) {
+      // Nearest places by road distance.
+      const me = this.deps.player();
+      const cats = SEARCH.find(([k]) => k === this.searchCat)![2];
+      const near = this.deps.places()
+        .filter((p) => cats.includes(p.cat))
+        .map((p) => ({ p, d: Math.hypot(p.x - me.x, p.z - me.z) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 12)
+        .map(({ p }) => ({ p, d: routeLength(route(me, p, X_LINES, Z_LINES)) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 6);
+      const list = h('div', { class: 'pm-list' });
+      for (const { p, d } of near) {
+        const go = h('button', { class: 'phone-btn pm-go' }, 'Go');
+        go.onclick = () => {
+          this.deps.navigate(p);
+          this.searchCat = null;
+          this.render();
+        };
+        list.append(h('div', { class: 'pm-item' },
+          h('span', { class: 'pm-dot', style: `background:${p.colour}` }, p.icon),
+          h('div', { class: 'pm-name' }, h('b', {}, p.name), h('div', { class: 'muted' }, fmtDist(d))),
+          go));
+      }
+      if (!near.length) list.append(h('div', { class: 'muted' }, 'Nothing like that nearby.'));
+      wrap.append(list);
+    } else if (!this.deps.dest() && jobs.target) {
+      wrap.append(h('div', { class: 'phone-sub' }, `${jobs.target.kind === 'pickup' ? '🟡 Pickup' : '🟢 Drop'} · ${jobs.mission}`));
+    } else if (!this.deps.dest()) {
+      wrap.append(h('div', { class: 'phone-sub' }, 'Where to? Pick a chip above, or click a place on the big map (Tab).'));
+    }
+    this.tickMap();
+    return wrap;
+  }
+
+  /** Redraw the live map and the turn card (every frame while the Map app is open). */
+  private tickMap() {
+    const { jobs } = this.deps;
+    const c = this.mapCanvas;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (c.width !== PM_W * dpr) {
+      c.width = PM_W * dpr;
+      c.height = PM_H * dpr;
+    }
     const g = c.getContext('2d')!;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const me = this.deps.player();
-    // Screen px per metre and the map window (centred on the player when zoomed).
-    const k = this.mapZoomed ? 2.6 : W / (BOUNDS.x1 - BOUNDS.x0);
-    const cx = this.mapZoomed ? me.x : (BOUNDS.x0 + BOUNDS.x1) / 2;
-    const cz = this.mapZoomed ? me.z : (BOUNDS.z0 + BOUNDS.z1) / 2;
-    const sw = (W / k) * MAP_PPM;
-    const sh = (H / k) * MAP_PPM;
+    const view = this.northUp ? 0 : this.deps.view();
+    const k = this.mapZoom;
+    const ox = PM_W / 2;
+    const oy = this.northUp ? PM_H / 2 : PM_H * 0.64; // heading-up: show more of the road ahead
+    const cos = Math.cos(view);
+    const sin = Math.sin(view);
+    const S = (x: number, z: number) => {
+      const dx = (x - me.x) * k;
+      const dz = (z - me.z) * k;
+      return { x: ox + dx * cos - dz * sin, y: oy + dx * sin + dz * cos };
+    };
     g.fillStyle = MAP_LAND;
-    g.fillRect(0, 0, W, H);
-    drawCrop(g, town.canvas, mapPx(cx) - sw / 2, mapPx(cz) - sh / 2, sw, sh, 0, 0, W, H);
-    const S = (x: number, z: number) => ({ x: W / 2 + (x - cx) * k, y: H / 2 + (z - cz) * k });
+    g.fillRect(0, 0, PM_W, PM_H);
+    g.save();
+    g.translate(ox, oy);
+    g.rotate(view);
+    const span = Math.hypot(PM_W, PM_H) * 1.3 / k; // metres: enough to fill the corners while turning
+    const east = (BOUNDS.x1 - me.x) * k;
+    g.fillStyle = MAP_SEA;
+    g.fillRect(east - 1, -span * k, span * k * 2, span * k * 2);
+    drawCrop(g, this.deps.town.canvas, mapPx(me.x) - (span * MAP_PPM) / 2, mapPx(me.z) - (span * MAP_PPM) / 2, span * MAP_PPM, span * MAP_PPM, (-span * k) / 2, (-span * k) / 2, span * k, span * k);
+    g.restore();
+    const guide = this.deps.guide();
+    if (guide) drawRoute(g, guide, S, Math.max(4, k * 1.8));
+    drawOverlay(g, this.deps.town, { k, w: PM_W, h: PM_H, toScreen: S, rotateStreets: this.northUp });
     const dot = (x: number, z: number, colour: string, r: number) => {
       const p = S(x, z);
       g.fillStyle = colour;
-      g.strokeStyle = '#000';
-      g.lineWidth = 1.5;
+      g.strokeStyle = '#fff';
+      g.lineWidth = 2;
       g.beginPath();
       g.arc(p.x, p.y, r, 0, Math.PI * 2);
       g.fill();
       g.stroke();
     };
-    const guide = this.deps.guide();
-    if (guide) drawRoute(g, guide, S, this.mapZoomed ? 5 : 3);
-    for (const l of town.labels) {
-      if (!this.mapZoomed && l.kind === 'street') continue; // too cramped at whole-town scale
-      const p = S(l.x, l.z);
-      if (p.x > -40 && p.x < W + 40 && p.y > 0 && p.y < H) drawLabel(g, l, p.x, p.y);
-    }
     for (const b of this.deps.police()) dot(b.x, b.z, '#e53935', 5);
     if (!jobs.busy) for (const o of jobs.orders) dot(stopPoint(o.from, 'sidewalk').x, stopPoint(o.from, 'sidewalk').z, '#ffe680', 4);
     const t = jobs.target;
     if (t) dot(t.x, t.z, t.kind === 'pickup' ? '#ffd21f' : '#35e06b', 7);
     const a = this.deps.auto();
-    dot(a.x, a.z, '#f5c400', 5);
-    const p = S(me.x, me.z);
-    g.save();
-    g.translate(p.x, p.y);
-    g.rotate(-me.yaw);
-    g.fillStyle = '#fff';
+    const ap = S(a.x, a.z);
+    g.fillStyle = '#f5c400';
     g.strokeStyle = '#000';
+    g.lineWidth = 1.5;
+    g.fillRect(ap.x - 5, ap.y - 5, 10, 10);
+    g.strokeRect(ap.x - 5, ap.y - 5, 10, 10);
+    const dest = this.deps.dest();
+    if (dest) {
+      const d = S(dest.x, dest.z);
+      drawPin(g, Math.min(PM_W - 12, Math.max(12, d.x)), Math.min(PM_H - 2, Math.max(26, d.y)), 0.85);
+    }
+    // You: arrow, turned the way you face relative to the map.
+    g.save();
+    g.translate(ox, oy);
+    g.rotate(view - me.yaw);
+    g.fillStyle = '#2f7bff';
+    g.strokeStyle = '#fff';
+    g.lineWidth = 2.5;
     g.beginPath();
-    g.moveTo(0, 9);
-    g.lineTo(7, -7);
+    g.moveTo(0, 11);
+    g.lineTo(8, -8);
     g.lineTo(0, -3);
-    g.lineTo(-7, -7);
+    g.lineTo(-8, -8);
     g.closePath();
     g.fill();
     g.stroke();
     g.restore();
-    return h(
-      'div',
-      {},
-      h('div', { class: 'phone-title' }, 'Map'),
-      c,
-      h('div', { class: 'phone-sub' }, t ? `${t.kind === 'pickup' ? '🟡 Pickup' : '🟢 Drop'} · ${guide ? `${Math.round(routeLength(guide))} m · ` : ''}${jobs.mission}` : '🟡 = open orders · tap map to zoom'),
-    );
+
+    // Turn card.
+    const nav = this.deps.navInfo();
+    this.navBox.style.display = nav ? 'flex' : 'none';
+    if (nav) {
+      this.navArrow.textContent = nav.arrow;
+      this.navDist.textContent = nav.dist;
+      this.navLine.textContent = nav.line;
+      this.navSub.textContent = nav.sub;
+      this.navEnd.style.display = this.deps.dest() ? 'block' : 'none';
+    }
   }
 
   private wallet() {
