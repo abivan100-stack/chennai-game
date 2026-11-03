@@ -456,4 +456,9 @@ export const BEACHFRONT_LOTS = (): Lot[] => [
   sideLot(4, 11, 'e', 26, 22, 20),
   sideLot(4, 6, 'e', 1, 21, 20),
   sideLot(4, 6, 'e', 23.5, 21, 20),
+  // Small shops further up the Beach Road (Santhome).
+  sideLot(4, 1, 'e', 18.5, 12, 14),
+  sideLot(4, 3, 'e', 16, 12, 14),
+  sideLot(4, 0, 'e', 2, 12, 14),
+  sideLot(4, 0, 'e', 30, 12, 14),
 ];
