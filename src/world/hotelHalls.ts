@@ -140,7 +140,7 @@ export function createHotelHalls(scene: THREE.Scene, world: RAPIER.World) {
     for (let v = 1.8; v <= 6.2; v += 0.55) box(f, 5.6, 0.12, 0.12, 14.5, 2.8, D + v, WOOD, false);
     for (let n = 0; n < 9; n++) shape(f, new THREE.IcosahedronGeometry(0.45, 0).scale(1, 0.5, 1), 12.2 + (n % 3) * 2.3, 3, D + 2 + Math.floor(n / 3) * 2, C(0x3f8a3a));
 
-    // A stone balustrade at the garden's edge, then a lake out to a far shore with a skyline and hills.
+    // A stone balustrade at the garden's edge, then a lake out to a far shore with a skyline.
     box(f, W, 0.25, 0.5, 0, 0, D + GARDEN - 0.3, CREAM);
     box(f, W, 0.15, 0.55, 0, 0.95, D + GARDEN - 0.3, CREAM, false);
     for (let u = -W / 2 + 0.3; u < W / 2; u += 0.45) shape(f, new THREE.CylinderGeometry(0.07, 0.1, 0.7, 6).translate(0, 0.35, 0), u, 0.25, D + GARDEN - 0.3, CREAM);
@@ -153,7 +153,6 @@ export function createHotelHalls(scene: THREE.Scene, world: RAPIER.World) {
       const h = 6 + ((n * 53) % 22);
       box(f, 5 + ((n * 7) % 6), h, 6, u, -0.6, D + GARDEN + 104 + ((n * 13) % 8), SKYLINE[n % SKYLINE.length], false);
     }
-    for (const u of [-120, 110]) shape(f, new THREE.SphereGeometry(30, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.6, 0.55, 1), u, -1.2, D + GARDEN + 98, C(0x5f8a55));
     for (let n = 0; n < 5; n++) {
       // Sailboats: a hull and a white sail.
       const u = -40 + n * 21 + ((n * 17) % 9);
