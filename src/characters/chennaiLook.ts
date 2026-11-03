@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /**
  * Dresses the Mixamo hero (red tee, denim shorts, white sneakers) as a Chennai guy in a plain
- * mustard t-shirt (untucked) and loose-fit charcoal cotton trousers, white sneakers, with browner
+ * mustard t-shirt (untucked) and ordinary charcoal cotton trousers, white sneakers, with browner
  * skin, a moustache and vibhuti + kumkum.
  *
  * The model's forearms and shins are bare skin, so the texture is repainted per BODY PART: each
@@ -16,7 +16,7 @@ const TEE = [206, 150, 48];
 const TROUSERS = [62, 64, 70];
 const ARM_SKIN = [150, 102, 74]; // bare forearms (matches the browned face / hands)
 const TEE_HEM_DROP = 0.07; // m below the waist line where the tee ends
-const LOOSE = { hip: 0.012, ankle: 0.045 }; // m the trouser legs stand off the body (baggier towards the ankle)
+const LOOSE = { hip: 0.003, ankle: 0.008 }; // m the trouser legs stand off the body: ordinary straight trousers, just not skin-tight
 const SKIN_TONE = [0.72, 0.58, 0.47]; // multiplies the (pale) source skin
 const WAIST_ABOVE_HIPS = 0.05; // m above the hip joint where the shirt meets the trousers (the belt line)
 const BELT_HEIGHT = 0.04;
