@@ -300,10 +300,11 @@ export function drawTownMap(data: MapData): TownMap {
   SHOWROOM_LOTS().forEach((lot, i) => {
     g.fillStyle = '#f3d6e0';
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
-    const name = SHOWROOMS[i % SHOWROOMS.length][1].replace(/(\w)(\w*)/g, (_, a: string, b: string) => a + b.toLowerCase());
+    const sr = SHOWROOMS[i % SHOWROOMS.length];
+    const name = `${sr.en.charAt(0).toUpperCase()}${sr.en.slice(1).toLowerCase()} fashion store`;
     poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#ad1457', '👗', 'shop', 2);
   });
-  labels.push({ text: 'Silk street', x: -205, z: -185, kind: 'landmark' });
+  labels.push({ text: 'Fashion street', x: -205, z: -185, kind: 'landmark' });
   HOTEL_LOTS().forEach((lot, i) => {
     g.fillStyle = '#e8dcc0';
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));

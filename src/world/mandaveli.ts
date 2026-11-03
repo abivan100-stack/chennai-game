@@ -137,6 +137,10 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
     lg.box(1.6, 0.8, 6.5, x, DECK_Y - 0.6, RAIL_Z, CONCRETE_DARK); // pier caps
   }
   lg.box(len, 1.0, 6.2, mid, DECK_Y - 0.5, RAIL_Z, CONCRETE); // deck
+  // Line frame -> world: line x runs along world +z, line z along world -x (see line.rotation).
+  const overhead = (lx: number, ly: number, lz: number, w: number, h: number, d: number) =>
+    world.createCollider(RAPIER.ColliderDesc.cuboid(d / 2, h / 2, w / 2).setTranslation(MRTS_X - lz, ly, lx));
+  overhead(mid, DECK_Y - 0.5, RAIL_Z, len, 1, 6.2); // keeps the rain off the road under the viaduct
   lg.box(len, 0.9, 0.2, mid, DECK_Y + 0.45, RAIL_Z - 3.0, CONCRETE_DARK); // parapets
   lg.box(len, 0.9, 0.2, mid, DECK_Y + 0.45, RAIL_Z + 3.0, CONCRETE_DARK);
   const signs: THREE.MeshStandardMaterial[] = [];
@@ -146,6 +150,7 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
     for (const s of [-1, 1]) lg.box(sw, 1.0, 3.5, sx, DECK_Y - 0.5, RAIL_Z + s * 4.8, CONCRETE); // platforms
     for (let x = st.x0 + 2; x <= st.x1 - 2; x += 8) for (const s of [-1, 1]) lg.box(0.3, 4, 0.3, x, DECK_Y + 2, RAIL_Z + s * 6.2, CONCRETE_DARK);
     lg.box(sw + 2, 0.35, 14, sx, DECK_Y + 4.1, RAIL_Z, ROOF);
+    overhead(sx, DECK_Y + 4.1, RAIL_Z, sw + 2, 0.35, 14);
     lg.box(18, DECK_Y - 1, 8, sx, (DECK_Y - 1) / 2 - 0.3, RAIL_Z - 9.5, CONCRETE); // ticket hall on the town bank
     lg.box(18.2, 0.6, 8.2, sx, DECK_Y - 1.5, RAIL_Z - 9.5, ROOF);
     const mat = new THREE.MeshStandardMaterial({ map: signTexture([st.ta, st.en], '#f4c20d', '#1a1a1a'), emissive: 0xffffff, emissiveIntensity: 0 });

@@ -12,6 +12,8 @@ const TANK_CHANCE = 0.5;
 const STAIR_ROOM_CHANCE = 0.3;
 const OLD_HOUSE_CHANCE = 0.14; // tiled-roof house with a pillared verandah (thinnai), no shop
 const SHOWROOM_CHANCE = 0.08; // one wide shop with a big signboard
+const NO_SHOP_CHANCE = 0.4; // old-town buildings that are just homes (no ground-floor shops)
+const SHOP_WIDTH: [number, number] = [4.5, 9]; // m per shop bay (wider bays = fewer, bigger shops)
 const TILE = 180; // metres: buildings are merged per tile (frustum culling works per tile)
 /**
  * Each area looks like its real counterpart:
@@ -109,7 +111,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     useTile(cx, cz);
     const oldHouse = (kind === 'old' || house) && !showroom && rand() < (house ? HOUSE.oldChance : OLD_HOUSE_CHANCE);
     // Flats sometimes keep a row of shops on the ground floor; offices always have a showroom.
-    const noShops = house || (flats && rand() < 0.7);
+    const noShops = house || (flats && rand() < 0.7) || (kind === 'old' && !showroom && rand() < NO_SHOP_CHANCE);
     if (office) showroom = true;
     if (yard) {
       // Set the house back behind a front yard; a compound wall with a gate on the old front line.
@@ -159,8 +161,8 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
     };
     const hw = w / 2;
     const hd = d / 2;
-    // Shop bays: 1 for a showroom, otherwise 2.5-7 m each. The shop tile holds two shops.
-    const bays = showroom ? 1 : Math.max(1, Math.round(w / range(2.5, 7)));
+    // Shop bays: 1 for a showroom, otherwise SHOP_WIDTH each. The shop tile holds two shops.
+    const bays = showroom ? 1 : Math.max(1, Math.round(w / range(SHOP_WIDTH[0], SHOP_WIDTH[1])));
     const shopShift = rand() < 0.5 ? 0 : 0.5;
 
     // Walls: [from, to] corners in local x/z, outward normal. Front = +z.

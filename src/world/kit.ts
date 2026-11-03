@@ -14,6 +14,8 @@ export type SignDef = [string, string, string, string];
 const SIGN_ROW = 128; // atlas row height (px)
 const WHITE = new THREE.Color(0xffffff);
 const UP = new THREE.Vector3(0, 1, 0);
+/** A flat slab up high (canopy, shed roof, marquee): gets a collider so rain stops under it. */
+export const isRoof = (w: number, h: number, d: number, y: number) => y >= 2.2 && h <= 1.2 && w * d >= 4;
 
 export function signAtlas(signs: SignDef[]) {
   const c = document.createElement('canvas');
@@ -79,7 +81,7 @@ export function createKit(world: RAPIER.World, signDefs: SignDef[]) {
     box(f: Frame, w: number, h: number, d: number, u: number, y: number, v: number, c: THREE.Color, solid = true, turn = 0) {
       const p = f.at(u, v);
       geo.box(w, h, d, p.x, y + h / 2, p.z, c, f.yaw + turn);
-      if (solid) world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2).setTranslation(p.x, y + h / 2, p.z).setRotation(rot(f.yaw + turn)));
+      if (solid || isRoof(w, h, d, y)) world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2).setTranslation(p.x, y + h / 2, p.z).setRotation(rot(f.yaw + turn)));
     },
     /** Any geometry (origin at its base) placed in a lot's frame. */
     shape(f: Frame, g: THREE.BufferGeometry, u: number, y: number, v: number, c: THREE.Color, turn = 0, target = geo) {

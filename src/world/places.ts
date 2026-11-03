@@ -4,7 +4,7 @@ import { buildAutoModel } from '../vehicles/auto';
 import { PLACE_MENUS } from './food';
 import type { Eatery } from './eateries';
 import { GeoBuilder } from './geo';
-import { frame, type Frame } from './kit';
+import { frame, isRoof, type Frame } from './kit';
 import { BEACH_FAIR, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, FISH_MARKET, PLACE_LOTS } from './layout';
 import { jailerPoster } from './posters';
 import { sandY } from './santhome';
@@ -108,7 +108,7 @@ export function createPlaces(scene: THREE.Scene, world: RAPIER.World) {
   const box = (f: Frame, w: number, h: number, d: number, u: number, y: number, v: number, c: THREE.Color, solid = true, turn = 0) => {
     const p = f.at(u, v);
     geo.box(w, h, d, p.x, y + h / 2, p.z, c, f.yaw + turn);
-    if (solid) {
+    if (solid || isRoof(w, h, d, y)) {
       q.setFromAxisAngle(UP, f.yaw + turn);
       world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2).setTranslation(p.x, y + h / 2, p.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }));
     }

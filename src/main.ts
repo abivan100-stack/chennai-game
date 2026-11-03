@@ -77,6 +77,8 @@ const PUSH_CLIP_SPEED = 1.2; // m/s the Pushing clip's steps are made for
 const PUSH_LOSE = 3.5;
 /** Navigation ends this close to the destination (metres). */
 const ARRIVE_M = 14;
+/** Rain roof probe starts this high (above the tallest building). */
+const ROOF_PROBE_TOP = 120;
 const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const AUTOSAVE_MS = 10_000;
 const HEADLIGHT = { intensity: 40, distance: 38, angle: 0.48, penumbra: 0.55 }; // the vehicle you drive
@@ -106,6 +108,13 @@ async function main() {
   const props = createProps(scene, world);
   const townMap = drawTownMap({ footprints: town.footprints, trees: props.treePoints });
   const weather = new Weather(scene);
+  // Rain stops at the first static surface from the sky (roofs, flyovers, the Tidel gateways).
+  const roofRay = new RAPIER.Ray({ x: 0, y: ROOF_PROBE_TOP, z: 0 }, { x: 0, y: -1, z: 0 });
+  weather.roofAt = (x, z) => {
+    roofRay.origin = { x, y: ROOF_PROBE_TOP, z };
+    const hit = world.castRay(roofRay, ROOF_PROBE_TOP, true, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC | RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC | RAPIER.QueryFilterFlags.EXCLUDE_SENSORS);
+    return hit ? ROOF_PROBE_TOP - hit.timeOfImpact : 0;
+  };
   const traffic = new Traffic(scene, world, characters.npcs);
   traffic.onSay = (name, line) => hud.say(name, line);
   const station = createPoliceStation(scene, world);

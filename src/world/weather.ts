@@ -8,6 +8,8 @@ const REFRESH_MS = 10 * 60 * 1000;
 const RAIN_DROPS = 2500;
 const RAIN_BOX = 40; // metres around the camera
 const FALL_SPEED = 18; // m/s
+const ROOF_CELL = 2; // m: roof heights are looked up (and cached) per cell of this size
+const ROOF_CACHE_MAX = 20000;
 
 /** WMO weather codes -> short English + Tanglish-ish description. */
 function describe(code: number) {
@@ -37,6 +39,11 @@ export class Weather {
   private override: 'rain' | 'clear' | null = null;
   private readonly drops: THREE.LineSegments;
   private readonly positions: Float32Array;
+  /** Height each drop stops at (the ground, or a roof / flyover above it). */
+  private readonly floors = new Float32Array(RAIN_DROPS);
+  /** Topmost static surface at (x, z) (set by main once physics exists); null = open sky everywhere. */
+  roofAt: ((x: number, z: number) => number) | null = null;
+  private readonly roofCache = new Map<number, number>();
 
   constructor(scene: THREE.Scene) {
     // Rain: short vertical streaks recycled inside a box that follows the camera.
@@ -100,18 +107,36 @@ export class Weather {
       }
       p[o + 1] -= FALL_SPEED * dt;
       p[o + 4] -= FALL_SPEED * dt;
-      if (p[o + 4] < 0 || Math.abs(p[o] - camera.x) > RAIN_BOX / 2 || Math.abs(p[o + 2] - camera.z) > RAIN_BOX / 2) {
+      if (p[o + 4] < this.floors[i] || Math.abs(p[o] - camera.x) > RAIN_BOX / 2 || Math.abs(p[o + 2] - camera.z) > RAIN_BOX / 2) {
         this.resetDrop(i, camera, RAIN_BOX * 0.6);
       }
     }
     this.drops.geometry.attributes.position.needsUpdate = true;
   }
 
+  /** Cached roof height for the cell holding (x, z). */
+  private roof(x: number, z: number) {
+    if (!this.roofAt) return 0;
+    const cx = Math.floor(x / ROOF_CELL);
+    const cz = Math.floor(z / ROOF_CELL);
+    const key = cx * 100003 + cz;
+    let h = this.roofCache.get(key);
+    if (h === undefined) {
+      if (this.roofCache.size > ROOF_CACHE_MAX) this.roofCache.clear();
+      h = this.roofAt((cx + 0.5) * ROOF_CELL, (cz + 0.5) * ROOF_CELL);
+      this.roofCache.set(key, h);
+    }
+    return h;
+  }
+
   private resetDrop(i: number, around: THREE.Vector3, top: number) {
     const o = i * 6;
     const x = around.x + (Math.random() - 0.5) * RAIN_BOX;
     const z = around.z + (Math.random() - 0.5) * RAIN_BOX;
-    const y = around.y + Math.random() * top;
+    const floor = this.roof(x, z);
+    this.floors[i] = floor;
+    // Rain can't start below a roof: under cover, drops are born on the roof and die at once.
+    const y = Math.max(around.y + Math.random() * top, floor);
     this.positions.set([x, y, z, x + 0.03, y + 0.6, z], o);
   }
 }
