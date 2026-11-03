@@ -21,6 +21,8 @@ export interface SaveData {
   auto: { x: number; y: number; z: number; heading: number };
   /** Homes you own (indices into world/homes.ts HOMES); older saves: just the rented one. */
   homes?: number[];
+  /** Story progress (older saves: chapter 1, or 2 if the kadan was already paid). */
+  story?: { chapter: number };
 }
 
 export function loadSave(): SaveData | null {

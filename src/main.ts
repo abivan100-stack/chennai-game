@@ -43,6 +43,7 @@ import { createHotels } from './world/hotels';
 import { createHotelHalls } from './world/hotelHalls';
 import { createBeachfront } from './world/beachfront';
 import { createHomes } from './world/homes';
+import { Story } from './missions/story';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
@@ -81,6 +82,14 @@ const PUSH_LOSE = 3.5;
 /** Navigation ends this close to the destination (metres). */
 const ARRIVE_M = 14;
 /** Lines for buying a home and sleeping (Tanglish). */
+/** Messages when a chapter opens. */
+const STORY_LINES: Record<number, [string, string][]> = {
+  2: [
+    ['Kandasamy', 'Kadan full-aa mudinjuthu. Itho, RC book - auto ippo sattappadi ungaludhu. Inimel naan varamaaten!'],
+    ['Chithappa (memory)', '"Auto-va paathukko da. Adhu namma kudumbam maadhiri." - you can almost hear him.'],
+    ['Auto Anna', 'Chapter 2: every rupee is yours now. Goals in Phone > Story.'],
+  ],
+};
 const HOME_LINES = {
   cantAfford: 'Sir, ₹{price} venum. Konjam saerthu vachittu vaanga!',
   bought: 'Congratulations! {area} veedu ippo ungaludhu. Saavi gate-la irukku.',
@@ -208,6 +217,10 @@ async function main() {
   let health = 100;
   // Homes you own: the rented one (0) from the start; bought ones from the save.
   const owned = new Set<number>(saved?.homes ?? [0]);
+  // The story: older saves start in chapter 1 (the check below moves them on if the kadan is paid).
+  const story = new Story(saved?.story);
+  const storyState = () => ({ loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: [...owned].filter((i) => i !== 0).length });
+  let storyCheck = 0;
   homes.homes.forEach((h, i) => h.setOwned(owned.has(i)));
   if (saved) {
     economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false, savings: saved.economy.savings ?? 0 }); // older saves lack these
@@ -434,6 +447,7 @@ async function main() {
     navInfo: () => navInfo,
     newGame: () => newGame(),
     redeem: () => redeemAuto(),
+    story: () => ({ chapter: story.chapter, state: storyState() }),
     bank: (op, amount) => {
       const n = op === 'deposit' ? economy.deposit(amount) : economy.withdraw(amount);
       if (!n) return;
@@ -627,6 +641,7 @@ async function main() {
       auto: { x: a.x, y: a.y, z: a.z, heading: auto.heading },
       upkeep: { fuel: upkeep.fuel, condition: upkeep.condition },
       homes: [...owned],
+      story: story.snapshot(),
     });
   };
   window.setInterval(saveNow, AUTOSAVE_MS);
@@ -1192,6 +1207,18 @@ async function main() {
     // Inside a dining hall (off the map), the maps show you at the hotel.
     insideHall = player.position.z < HALL_ZONE ? halls.halls.reduce((best, h, i) => (Math.abs(h.entry.x - pp.x) < Math.abs(halls.halls[best].entry.x - pp.x) ? i : best), 0) : -1;
     const mapAt = insideHall >= 0 ? hotels.doors[insideHall].at : pp;
+    // Story: once a second, see if this chapter is finished; the next one opens with its card.
+    storyCheck -= dt;
+    if (storyCheck <= 0) {
+      storyCheck = 1;
+      const next = story.update(storyState());
+      if (next) {
+        hud.chapterCard(next.n, next.title, next.ta, next.blurb);
+        storyCheck = 10; // never two cards on top of each other
+        for (const [from, line] of STORY_LINES[next.n] ?? []) phone.addMessage(from, line);
+        saveNow();
+      }
+    }
     phone.update(performance.now());
     minimap.update(performance.now(), {
       player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },

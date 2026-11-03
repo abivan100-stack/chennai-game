@@ -7,8 +7,9 @@ import { MAP_LAND, MAP_PPM, MAP_SEA, drawCrop, drawOverlay, drawPin, drawRoute, 
 import { route, routeLength } from '../missions/route';
 import { BOUNDS, X_LINES, Z_LINES } from '../world/layout';
 import { fmtDist } from './bigMap';
+import { CHAPTERS, type StoryState } from '../missions/story';
 
-type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather';
+type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather' | 'story';
 
 export interface PhoneDeps {
   jobs: TaxiJobs;
@@ -27,6 +28,8 @@ export interface PhoneDeps {
   newGame: () => void;
   /** Pay Kandasamy to get the seized auto back. */
   redeem: () => void;
+  /** The story: chapter number and the numbers its goals are judged on. */
+  story: () => { chapter: number; state: StoryState };
   /** Net banking: move money between the bank and your pocket. */
   bank: (op: 'deposit' | 'withdraw', amount: number) => void;
   /** Camera yaw (the map turns with it, like the minimap). */
@@ -186,6 +189,7 @@ export class Phone {
       wallet: () => this.wallet(),
       messages: () => this.messagesApp(),
       weather: () => this.weatherApp(),
+      story: () => this.storyApp(),
     };
     const body = apps[this.app]();
     // Keep the scroll position of lists across refreshes.
@@ -218,6 +222,7 @@ export class Phone {
         icon('wallet', '👛', 'Wallet', economy.dueToday > 0 ? 1 : 0),
         icon('messages', '💬', 'Messages', unread),
         icon('weather', '🌦️', 'Weather'),
+        icon('story', '📖', 'Story'),
       ),
     );
   }
@@ -498,6 +503,26 @@ export class Phone {
       list.append(h('div', { class: 'phone-card' }, h('div', { class: 'phone-row' }, h('b', {}, m.from), h('span', { class: 'muted' }, m.time)), m.text));
     }
     return list;
+  }
+
+  /** The story so far: this chapter's goals (ticked off as you go), and the chapters behind / ahead. */
+  private storyApp() {
+    const { chapter, state } = this.deps.story();
+    const c = CHAPTERS[chapter - 1];
+    const goals = h('div', { class: 'phone-card current' },
+      h('div', { class: 'muted' }, `Chapter ${c.n} · ${c.ta}`),
+      h('b', { style: 'font-size:17px' }, c.title),
+      h('div', { class: 'muted' }, c.blurb));
+    for (const g of c.goals) {
+      const done = g.done(state);
+      goals.append(h('div', { class: 'phone-row', style: done ? 'color:#1b7f3a' : '' }, h('span', {}, `${done ? '✅' : '⬜'} ${g.text}`), h('span', { class: 'muted' }, done || !g.progress ? '' : g.progress(state))));
+    }
+    const list = h('div', {});
+    for (const ch of CHAPTERS) {
+      const state2 = ch.n < chapter ? '✔ done' : ch.n === chapter ? 'now' : '🔒';
+      list.append(h('div', { class: 'phone-row', style: `padding:4px 2px;${ch.n > chapter ? 'color:#999' : ''}` }, h('span', {}, `${ch.n}. ${ch.title}`), h('span', { class: 'muted' }, state2)));
+    }
+    return h('div', {}, h('div', { class: 'phone-title' }, 'Story'), goals, h('div', { class: 'phone-card' }, list));
   }
 
   private weatherApp() {

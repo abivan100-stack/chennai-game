@@ -102,6 +102,13 @@
       .pm-name { flex: 1; min-width: 0; font-size: 12px; }
       .pm-name b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .pm-go { margin: 0; padding: 5px 12px; background: #1a73e8; }
+      #chapter { inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; z-index: 9;
+        background: radial-gradient(ellipse at center, #000c 0%, #000e 70%); opacity: 0; transition: opacity 0.8s; text-align: center; }
+      #chapter.show { opacity: 1; }
+      #chapter .ch-n { font: 700 16px system-ui, sans-serif; letter-spacing: 6px; color: #f2c200; }
+      #chapter .ch-title { font: 800 52px system-ui, sans-serif; color: #fff; }
+      #chapter .ch-ta { font: 700 26px "Nirmala UI", "Latha", sans-serif; color: #f2c200; }
+      #chapter .ch-blurb { font: 400 18px system-ui, sans-serif; color: #ddd; max-width: min(640px, 85vw); margin-top: 10px; }
       #phone-toast {
         position: fixed; top: 118px; left: 50%; transform: translate(-50%, -20px); opacity: 0; z-index: 6;
         background: #111d; color: #fff; padding: 8px 14px; border-radius: 10px; font: 14px system-ui, sans-serif;
@@ -132,6 +139,7 @@
     </div>
     <div id="mission" class="ui"></div>
     <div id="nav" class="ui"></div>
+    <div id="chapter" class="ui"></div>
     <div id="wallet" class="ui"></div>
     <div id="prompt" class="ui"></div>
     <div id="dialogue" class="ui"></div>

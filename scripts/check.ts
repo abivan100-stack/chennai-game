@@ -175,3 +175,16 @@ assert(inWater(-115, 0) && inWater(-115, 100) && inWater(0, 330) && inWater(-175
 assert(!inWater(-115, -25) && !inWater(-115, 70) && !inWater(-25, 330) && !inWater(125, 330), 'roads cross the water on bridges');
 
 console.log('check: all passed');
+
+// --- Story: chapters advance when their needed goals are done ---
+{
+  const { Story } = await import('../src/missions/story.ts');
+  const st = new Story();
+  const base = { loan: 15000, rides: 0, cash: 0, savings: 0, homesBought: 0 };
+  assert(st.update(base) === null && st.chapter === 1, 'chapter 1 while the kadan is unpaid');
+  assert(st.update({ ...base, loan: 0 })?.n === 2 && st.chapter === 2, 'paying the kadan opens chapter 2');
+  assert(st.update({ ...base, loan: 0, savings: 60000 }) === null, 'chapter 2 needs a home too');
+  assert(st.update({ ...base, loan: 0, savings: 60000, homesBought: 1 }) === null && st.chapter === 2, 'chapter 2 waits while chapter 3 is not built');
+  assert(new Story({ chapter: 99 }).chapter === 2, 'a saved chapter is clamped to the last one that is built');
+}
+console.log('check: story passed');

@@ -1,6 +1,7 @@
 /** On-screen HUD. Plain DOM over the canvas (elements live in index.html). */
 const $ = (id: string) => document.getElementById(id)!;
 const SAY_SECONDS = 4;
+const CHAPTER_CARD_MS = 6500;
 let sayTimer = 0;
 
 export const hud = {
@@ -20,6 +21,18 @@ export const hud = {
     const text = Object.assign(document.createElement('div'), { className: 'nav-text' });
     text.append(Object.assign(document.createElement('b'), { textContent: `${n.dist} · ${n.line}` }), Object.assign(document.createElement('div'), { textContent: n.sub }));
     el.replaceChildren(Object.assign(document.createElement('div'), { className: 'nav-arrow', textContent: n.arrow }), text);
+  },
+  /** Full-screen chapter card (fades in, holds, fades out). */
+  chapterCard(n: number, title: string, ta: string, blurb: string) {
+    const el = $('chapter');
+    el.replaceChildren(
+      Object.assign(document.createElement('div'), { className: 'ch-n', textContent: `CHAPTER ${n}` }),
+      Object.assign(document.createElement('div'), { className: 'ch-title', textContent: title }),
+      Object.assign(document.createElement('div'), { className: 'ch-ta', textContent: ta }),
+      Object.assign(document.createElement('div'), { className: 'ch-blurb', textContent: blurb }),
+    );
+    el.classList.add('show');
+    window.setTimeout(() => el.classList.remove('show'), CHAPTER_CARD_MS);
   },
   setMission(text: string) {
     const el = $('mission');

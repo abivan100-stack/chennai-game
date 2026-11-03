@@ -55,7 +55,8 @@ Step 11w done: police are Mixamo too (the last Quaternius model is gone): catalo
 Step 11x done: beachfront shops + restaurants (world/beachfront.ts, layout.BEACHFRONT_LOTS: 6 big modern storefronts on the Beach Road facing Elliot's / Besant Nagar: grey cladding top, poster banner (code-drawn atlas), two-colour name board, glass ground floor + arched entrance; 4 restaurants with PLACE_MENUS seafood / biryani / chettinad / icecream, 2 shops). Step 11y: beachfront now has three looks so neighbours never match (banner storefront; tall 'tower' restaurant like the big family restaurants: jali screen texture + logo, window-band frame, canopy, palms; 'small' two-storey pastel shop with striped awning, flower boxes, string lights) and 10 lots (4 small shops added up the Beach Road at Santhome). Crowds spread out: crowdOf spaces a group evenly round its loop; ambient walkers: 32, max 3 per block, never placed within 6 m of anyone.
 Step 11z done: hero outfit = plain mustard t-shirt (short sleeves, untucked: hem 7 cm below the waist, split exactly per triangle with a hard gradient so it's straight) + ordinary charcoal cotton trousers (leg vertices nudged out 3-8 mm so they aren't skin-tight: chennaiLook.loosenTrousers), the model's own white sneakers, bare forearms repainted plain skin (no tattoos). No belt.
 Step 12 done: homes (world/homes.ts, layout.HOME_LOTS): a standard house you walk into (compound wall + gate + kolam, hall with sofa / TV / coffee table / fan, kitchen with granite L-counter / gas stove + cylinder / fridge / sink / steel dabbas, bedroom with cot / almirah / mirror table, flat roof + water tank). Home 0 (Mandaveli) is your rented house; three more are for sale (R.A. Puram ₹1.5 / 1.8 lakh, Alwarpet ₹2.5 lakh): E at the FOR SALE board on the gate buys it (cash, then the bank). Homes you don't own are locked (invisible wall in the doorway). E at your own bed sleeps: to 6 am at night, a 3-hour nap in the day; full health. Owned homes are saved (SaveData.homes).
-Next: the story chapters (see Story roadmap below) (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
+Step 12b done: chapter system (missions/story.ts, checked: CHAPTERS with goals judged from a snapshot - loan, rides, cash, savings, homes bought; the story never advances into a chapter with no goals yet, and a saved chapter falls back to the last built one). Paying the kadan opens Chapter 2 "Sondha Kaal": full-screen chapter card (hud.chapterCard), Kandasamy hands over the RC book (phone messages), the auto is yours; phone Story app (goals with progress, chapter list). Saved in SaveData.story.
+Next: Chapter 2 content (roadmap C), then the map decision (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Story roadmap (chapter by chapter)
 Decision: build the story systems on the CURRENT map first; expand the map in Chapter 4, when the
@@ -113,7 +114,7 @@ The city transport tender against Ganesh; the final showdown; a bungalow in Alwa
 house; the auto stays in the garage, polished, the first thing you ever owned.
 
 ### Build order
-A. Homes (done, step 12).  B. Chapter system + Chapter 1 ending.  C. Chapter 2: rent, dealer +
+A. Homes (done, step 12).  B. Chapter system + Chapter 1 ending (done, step 12b).  C. Chapter 2: rent, dealer +
 garage, upgrades, the creative missions (2-3 at a time).  D. Chapter 3: fleet business.
 E. Map expansion + Chapter 4.  F. Chapter 5.
 
