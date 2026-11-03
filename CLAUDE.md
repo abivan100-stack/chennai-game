@@ -44,6 +44,7 @@ Step 11l done: hero idle is the original Mixamo idle, now in place (its root mot
 Step 11m done: silk street on Eldams Road (world/showrooms.ts, layout.SHOWROOM_LOTS: 6 multi-storey textile / clothing showrooms, invented names: recessed glass ground floor with saree shelves + mannequins, real transparent glass (1 extra draw call), gold pillars, huge name boards, light strips) and 3 luxury hotels (world/hotels.ts, layout.HOTEL_LOTS: Hotel Kaveri Palace on Anna Salai = heritage palace with domes; The Alwarpet Residency on TTK Road and Adyar Grand = podium + glass tower, lit crown; gated forecourt, fountain, palms, flags, drive-under porte-cochere; lobby restaurants are eateries with PLACE_MENUS.fine). Both on the maps.
 Step 11n done: rain stops at roofs (weather.roofAt: topmost static collider per 2 m cell, cached; kit / places flat slabs above 2.2 m get colliders via kit.isRoof; MRTS deck + station roofs too). Fewer street shops (buildings.ts NO_SHOP_CHANCE 0.4 of old-town buildings are homes, SHOP_WIDTH 4.5-9 m bays). Fashion street showrooms rebuilt like modern chain stores (invented brands vastra / aadai / NOOL / thari / uduppu / kolam): white frame, glazed lit floors with racks + mannequins, brand letters on the glass (transparent letters atlas, +1 draw call) and a rooftop sign box, coloured band, posters, balloon arch, steps.
 Step 11o done: dine-in at the luxury hotels: a glass-fronted restaurant room cut into each hotel's ground floor (hotels.ts baseBlock / restaurant: marble floor, panelling, chandeliers, white-cloth tables, host stand + head waiter, diners in sit_talk 12-15:30 / 19-23:30); order at the host stand (PLACE_MENUS.fine is now kind 'hotel') and the meal walks you to your chair, sits you down and serves you. Street shops vary: textures.shopTextures is an atlas of 8 shopfront designs (SHOP_ROWS rows of pairs, picked per building), shopfronts only lightly tinted, half get coloured / striped fabric awnings, signboard heights vary.
+Step 11p done: hotel diners eat properly: a plate of food in front of each, seated idle pose + hand-to-mouth bites by CCD IK on the NPC rig (characters/ik.ts reachCCD / biteCurve, shared with the hero's meal; Npc pose.eat = food point); short tablecloths so knees fit under the tables.
 Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
 
 ## Tech stack
@@ -69,7 +70,8 @@ src/
     animator.ts        AnimationMixer wrapper: named clips, crossfade, speed, once-then chains
     chennaiLook.ts     hero outfit at load: texture repainted per body part (UV mask from bone weights; waist line from the rest pose):
                        checked full-sleeve shirt, jeans, shoes, browner skin; belt built in hip-bone space; moustache / vibhuti
-    retarget.ts        bake a clip from one rig onto another (Mixamo talk/yell -> Quaternius NPCs)
+    retarget.ts        bake a clip from one rig onto another (Mixamo seated / driving poses -> Quaternius NPCs)
+    ik.ts              two-bone CCD reach + bite curve (hero meals, NPCs eating)
   player/
     controller.ts      kinematic capsule + KinematicCharacterController; hero animation state;
                        modes: input / walkTo (scripted) / away (in the auto)

@@ -27,6 +27,7 @@ const SIGNS: SignDef[] = [
 ];
 /** People at the other tables (crowd.addPosed). */
 const DINERS = ['Mr. Raghavan', 'Mrs. Raghavan', 'Anjali', 'Siddharth', 'Dr. Iyer', 'Farah', 'Kartik', 'Nandini', 'Joseph', 'Lakshmi'];
+const FOODS = [0xd9a441, 0xc8742a, 0xe07a4a, 0xf3e3b0].map((c) => new THREE.Color(c)); // biryani, curry, fry, appam
 const DINNER_HOURS: [number, number][] = [[12, 15.5], [19, 23.5]];
 const ROOM_D = 8; // restaurant room depth
 const ROOM_H = 4.4;
@@ -54,7 +55,7 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
   const k = createKit(world, SIGNS);
   const { box, board, shape } = k;
   const eateries: Eatery[] = [];
-  const posed: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][] }[] = [];
+  const posed: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][]; eat?: THREE.Vector3 }[] = [];
   const glassGeo = new GeoBuilder(); // restaurant windows (one transparent draw call)
 
   const palm = (f: Frame, u: number, v: number, h = 6) => {
@@ -163,7 +164,7 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
       let t = 0;
       for (let tu = r0 + 2; tu < r1 - 2.6; tu += 3.6, t++) {
         shape(f, new THREE.CylinderGeometry(0.42, 0.42, 0.04, 16), tu, FLOOR_TOP + TABLE_TOP - 0.04, tv, C(0xffffff));
-        shape(f, new THREE.CylinderGeometry(0.43, 0.5, 0.3, 16).translate(0, 0.15, 0), tu, FLOOR_TOP + TABLE_TOP - 0.34, tv, C(0xf6f3ec)); // cloth drop
+        shape(f, new THREE.CylinderGeometry(0.43, 0.46, 0.08, 16).translate(0, 0.04, 0), tu, FLOOR_TOP + TABLE_TOP - 0.12, tv, C(0xf6f3ec)); // short cloth drop: knees fit under
         shape(f, new THREE.CylinderGeometry(0.05, 0.08, TABLE_TOP - 0.34, 8).translate(0, (TABLE_TOP - 0.34) / 2, 0), tu, FLOOR_TOP, tv, gold);
         k.shape(f, new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6), tu, FLOOR_TOP + TABLE_TOP, tv, C(0xffd27a), 0, k.bulbs); // candle
         k.solid(f, 0.84, TABLE_TOP, 0.84, tu, 0, tv);
@@ -178,7 +179,12 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
             const table = f.at(tu, tv, FLOOR_TOP + TABLE_TOP);
             eateries.push({ name: `${title(HOTELS[i].diner[1].split(' ·')[0])}, ${title(HOTELS[i].en.split(' ·')[0])}`, menu: PLACE_MENUS.fine, spot, seat, seatYaw: eatYaw - Math.PI / 2, eatYaw, table });
           } else if ((t + (sg > 0 ? 1 : 0)) % 3 !== 2) {
-            posed.push({ name: `${DINERS[(i * 4 + t * 2 + (sg > 0 ? 1 : 0)) % DINERS.length]} dining`, x: seat.x, y: FLOOR_TOP + SEAT_TOP - BENCH_TOP, z: seat.z, yaw: sg < 0 ? eatYaw : eatYaw + Math.PI, clip: 'sit_talk', hours: DINNER_HOURS });
+            // A plate in front of them, and they eat from it.
+            const pu = tu + sg * 0.24;
+            shape(f, new THREE.CylinderGeometry(0.14, 0.12, 0.015, 16), pu, FLOOR_TOP + TABLE_TOP, tv, C(0xffffff));
+            shape(f, new THREE.SphereGeometry(0.08, 10, 6).scale(1, 0.45, 1), pu, FLOOR_TOP + TABLE_TOP + 0.015, tv, FOODS[(t + (sg > 0 ? 1 : 0) + i) % FOODS.length]);
+            const plate = f.at(pu, tv, FLOOR_TOP + TABLE_TOP + 0.04);
+            posed.push({ name: `${DINERS[(i * 4 + t * 2 + (sg > 0 ? 1 : 0)) % DINERS.length]} dining`, x: seat.x, y: FLOOR_TOP + SEAT_TOP - BENCH_TOP, z: seat.z, yaw: sg < 0 ? eatYaw : eatYaw + Math.PI, clip: 'sit_idle', hours: DINNER_HOURS, eat: plate });
           }
         }
       }

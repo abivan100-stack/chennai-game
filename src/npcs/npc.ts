@@ -2,12 +2,16 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Animator } from '../characters/animator';
+import { biteCurve, reachCCD } from '../characters/ik';
 import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { GREETINGS, nextLine } from './dialogue';
 
 // Movement
 /** Clips for people who stay put: standing, sitting quietly, sitting and chatting. */
 export type PoseClip = 'idle' | 'sit_idle' | 'sit_talk';
+/** Seconds per bite for people eating at a table (plate -> mouth -> chew -> back). */
+const EAT_BITE = 3.2;
+const EAT_MOUTH = new THREE.Vector3();
 const SIT_DROP = 0.42; // m: lowers a seated NPC so the hips rest on a ~0.45 m seat
 const SPEED = { walk: 1.3, run: 3.4 }; // m/s; roughly matches the Quaternius cycles at 1x
 const TURN_RATE = 6;
@@ -41,7 +45,7 @@ export interface NpcOptions {
   tint?: THREE.ColorRepresentation; // multiplies the material colour (variants of one model)
   map?: THREE.Texture; // swap the colour texture
   /** Stays put in this pose facing `yaw` (shopkeepers standing at a counter, people sitting on a bench). */
-  pose?: { clip: PoseClip; yaw: number };
+  pose?: { clip: PoseClip; yaw: number; eat?: THREE.Vector3 };
 }
 
 /**
@@ -62,6 +66,7 @@ export class Npc {
   private target = 0;
   private busy = 0; // talking / scolding
   private readonly pose: NpcOptions['pose'];
+  private eating: { food: THREE.Vector3; upper: THREE.Object3D; fore: THREE.Object3D; hand: THREE.Object3D; head: THREE.Object3D; t: number } | null = null;
   /** Where a posed NPC stays (after the seated drop). */
   private home: THREE.Vector3;
   private scoldCooldown = 0;
@@ -113,6 +118,12 @@ export class Npc {
       if (this.pose.clip.startsWith('sit_')) this.root.position.y -= SIT_DROP * scale;
     }
     this.home = this.root.position.clone();
+    const food = this.pose?.eat;
+    if (food) {
+      const b = (n: string) => body.getObjectByName(n);
+      const [upper, fore, hand, head] = [b('UpperArmR'), b('LowerArmR'), b('WristR'), b('Head')];
+      if (upper && fore && hand && head) this.eating = { food: food.clone(), upper, fore, hand, head, t: Math.random() * EAT_BITE };
+    }
     if (!this.pose) {
       this.animator.play(this.moveClip, { fade: 0 });
       this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
@@ -143,6 +154,19 @@ export class Npc {
   /** Free to start a conversation (not mid-reaction). */
   get canTalk() {
     return this.busy <= 0;
+  }
+
+  /** Eating at a table: the right hand goes from the plate to the mouth, bite after bite (IK over the seated pose). */
+  private bite(dt: number) {
+    const e = this.eating!;
+    e.t = (e.t + dt) % EAT_BITE;
+    this.root.updateMatrixWorld(true);
+    const mouth = e.head.getWorldPosition(EAT_MOUTH);
+    const s = this.root.scale.x;
+    mouth.x += Math.sin(this.root.rotation.y) * 0.12 * s;
+    mouth.z += Math.cos(this.root.rotation.y) * 0.12 * s;
+    mouth.y -= 0.05 * s;
+    reachCCD(e.upper, e.fore, e.hand, mouth.lerp(e.food, 1 - biteCurve(e.t / EAT_BITE)), 3);
   }
 
   /** A shopkeeper or someone sitting: stays in one spot. */
@@ -240,6 +264,7 @@ export class Npc {
 
     this.root.rotation.y += angleDelta(this.root.rotation.y, this.yaw) * (1 - Math.exp(-TURN_RATE * dt));
     if (drawn) this.animator.update(dt);
+    if (drawn && this.eating && this.busy <= 0) this.bite(dt);
     const p = this.root.position;
     this.body.setNextKinematicTranslation({ x: p.x, y: p.y + this.colliderLift, z: p.z });
     return damage;

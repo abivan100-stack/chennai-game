@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { biteCurve, reachCCD } from '../characters/ik';
 import type { Input } from '../core/input';
 import type { Eatery } from '../world/eateries';
 import type { FoodItem } from '../world/food';
@@ -25,13 +26,6 @@ const smooth = (t: number) => {
 };
 const lerpAngle = (a: number, b: number, t: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
-/** Hand path through one bite: 0 = at the food, 1 = at the mouth. */
-function biteCurve(u: number) {
-  if (u < 0.2) return 0; // scoop
-  if (u < 0.45) return smooth((u - 0.2) / 0.25); // up
-  if (u < 0.65) return 1; // chew
-  return 1 - smooth((u - 0.65) / 0.35); // back down
-}
 
 /**
  * Eating, simulated. Hotel: walk to the stool, turn, sit ("Stand To Sit", hips pinned on the
@@ -74,11 +68,7 @@ export class Meal {
   private readonly b = new THREE.Vector3();
   private readonly goal = new THREE.Vector3();
   private readonly v1 = new THREE.Vector3();
-  private readonly v2 = new THREE.Vector3();
-  private readonly pq = new THREE.Quaternion();
-  private readonly pqi = new THREE.Quaternion();
   private readonly handFoodScale: number;
-  private readonly dq = new THREE.Quaternion();
 
   constructor(player: PlayerController, scene: THREE.Scene) {
     this.player = player;
@@ -292,20 +282,7 @@ export class Meal {
     this.reach(this.goal);
   }
 
-  /** CCD: turn forearm then upper arm so the hand points at the goal; a few passes converge. */
   private reach(goal: THREE.Vector3) {
-    for (let pass = 0; pass < 4; pass++) {
-      for (const bone of [this.fore, this.arm]) {
-        bone.getWorldPosition(this.a);
-        this.hand.getWorldPosition(this.b);
-        this.v1.subVectors(this.b, this.a).normalize();
-        this.v2.subVectors(goal, this.a).normalize();
-        this.dq.setFromUnitVectors(this.v1, this.v2);
-        bone.parent!.getWorldQuaternion(this.pq);
-        // world delta -> bone-local: parent^-1 * delta * parent
-        bone.quaternion.premultiply(this.pqi.copy(this.pq).invert().multiply(this.dq).multiply(this.pq));
-        bone.updateMatrixWorld(true);
-      }
-    }
+    reachCCD(this.arm, this.fore, this.hand, goal);
   }
 }

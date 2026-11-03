@@ -236,13 +236,13 @@ export class Crowd {
    * People who stay in one place: shopkeepers at their stalls, people sitting on benches.
    * Added once the places that need them exist; they follow the same hours / drawing rules.
    */
-  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][] }[]) {
+  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][]; eat?: THREE.Vector3 }[]) {
     const models: NpcModelId[] = ['man-casual', 'woman-casual', 'man-farmer', 'woman-formal', 'man-worker', 'woman-suit'];
     const tints = [undefined, 0xffe0b2, 0xd0e8ff, 0xc8e6c9, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
     people.forEach((p, i) => {
       const position = new THREE.Vector3(p.x, p.y, p.z);
       const npc = new Npc(this.scene, this.world, this.assets.get(models[(i * 7 + p.name.length) % models.length])!, {
-        name: p.name, position, path: [position.clone()], pose: { clip: p.clip, yaw: p.yaw },
+        name: p.name, position, path: [position.clone()], pose: { clip: p.clip, yaw: p.yaw, eat: p.eat },
         height: 1.55 + ((i * 13) % 20) / 100, tint: tints[(i * 5 + p.name.length) % tints.length],
       });
       this.npcs.push(npc);
