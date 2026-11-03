@@ -245,7 +245,7 @@ async function main() {
   let redLatch = 0; // s since the vehicle was at a stop line on red
   const finedAt = new Set<number>(); // junctions already fined for (until you leave them)
   const soundKind = (k: Vehicle['kind']) =>
-    k === 'bus' ? 'bus' : k === 'lorry' || k === 'tempo' ? 'truck' : k === 'bike' ? 'bike' : k === 'scooter' ? 'scooter' : k === 'auto' ? 'auto' : 'car';
+    k === 'bus' ? 'bus' : k === 'lorry' || k === 'tempo' || k === 'tanker' ? 'truck' : k === 'bike' ? 'bike' : k === 'scooter' || k === 'delivery' ? 'scooter' : k === 'auto' || k === 'shareauto' ? 'auto' : 'car';
   // Bike / scooter riders sit astride: knees swung out around the tank (world-space turn of each thigh).
   const up = new THREE.Vector3(0, 1, 0);
   const legQ = new THREE.Quaternion();
@@ -955,7 +955,7 @@ async function main() {
       cam.shake(struck.move === 'punch' ? 0.05 : 0.09);
     }
     if (stolen) pinHips(stolen.group, DRIVER_SEAT[stolen.kind]);
-    if (stolen && (stolen.kind === 'bike' || stolen.kind === 'scooter')) straddle(stolen.kind === 'bike' ? 0.32 : 0.12);
+    if (stolen && (stolen.kind === 'bike' || stolen.kind === 'scooter' || stolen.kind === 'delivery')) straddle(stolen.kind === 'bike' ? 0.32 : 0.12);
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     meal.lateUpdate(); // seated hips + hand-to-mouth
     jobs.update(dt, ride.driving);
@@ -995,6 +995,7 @@ async function main() {
     const inAuto = !player.onFoot;
     markets.update(dt, player.position);
     camera.getWorldDirection(viewDir).setY(0).normalize();
+    traffic.recycle(dt, player.position, viewDir);
     crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto, istTime(dayNight.timeMs).hours, viewDir);
 
     // Police: chase, arrest, shoot. Wanted level fades when they lose you.

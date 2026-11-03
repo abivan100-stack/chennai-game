@@ -367,3 +367,75 @@ export function lorryModel(group: THREE.Group, colour: number, plate = randomPla
     lights: [hl, tl],
   };
 }
+
+/** Seven-seater MPV / SUV (Innova-style): tall, long, roof rails. */
+export function suvModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
+  add(group, [
+    rbox(1.8, 0.8, 4.55, 0.16, 0, 0.78, 0), // body
+    rbox(1.66, 0.12, 2.9, 0.05, 0, 1.78, -0.35), // roof
+    box(0.09, 0.62, 0.09, 0.8, 1.42, 1.0), box(0.09, 0.62, 0.09, -0.8, 1.42, 1.0),
+    box(0.09, 0.62, 0.09, 0.8, 1.42, -1.75), box(0.09, 0.62, 0.09, -0.8, 1.42, -1.75),
+  ], paintMat(colour));
+  add(group, [
+    box(1.86, 0.22, 0.18, 0, 0.5, 2.28), box(1.86, 0.22, 0.18, 0, 0.5, -2.28), // bumpers
+    box(1.2, 0.3, 0.04, 0, 0.88, 2.29), // grille
+    box(0.05, 0.05, 2.7, 0.62, 1.88, -0.35), box(0.05, 0.05, 2.7, -0.62, 1.88, -0.35), // roof rails
+    box(0.2, 0.12, 0.07, 0.98, 1.25, 1.0), box(0.2, 0.12, 0.07, -0.98, 1.25, 1.0), // mirrors
+    box(1.9, 0.12, 4.1, 0, 0.42, 0), // black cladding
+  ], trim());
+  add(group, [rbox(1.64, 0.6, 2.95, 0.12, 0, 1.42, -0.33)], glass(), false);
+  const hl = headlight();
+  const tl = taillight();
+  add(group, [box(0.4, 0.15, 0.05, 0.6, 0.98, 2.28), box(0.4, 0.15, 0.05, -0.6, 0.98, 2.28)], hl, false);
+  add(group, [box(0.12, 0.45, 0.05, 0.82, 1.1, -2.28), box(0.12, 0.45, 0.05, -0.82, 1.1, -2.28)], tl, false);
+  addPlates(group, plate, 'private', { y: 0.5, z: 2.38 }, { y: 0.72, z: -2.38 }, 0.5);
+  return { wheels: wheels(group, 0.34, [[0.82, 1.5], [-0.82, 1.5], [0.82, -1.45], [-0.82, -1.45]], 0.26), wheelR: 0.34, lights: [hl, tl] };
+}
+
+/** Small hatchback (a little city car): short, tall, rounded. */
+export function hatchModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
+  add(group, [
+    rbox(1.6, 0.66, 3.5, 0.2, 0, 0.66, 0),
+    rbox(1.42, 0.1, 1.9, 0.05, 0, 1.6, -0.3),
+  ], paintMat(colour));
+  add(group, [
+    box(1.66, 0.18, 0.15, 0, 0.44, 1.74), box(1.66, 0.18, 0.15, 0, 0.44, -1.74),
+    box(0.9, 0.18, 0.04, 0, 0.7, 1.76),
+    box(0.16, 0.1, 0.06, 0.88, 1.12, 0.62), box(0.16, 0.1, 0.06, -0.88, 1.12, 0.62),
+  ], trim());
+  add(group, [rbox(1.4, 0.6, 2.0, 0.14, 0, 1.25, -0.28)], glass(), false);
+  const hl = headlight();
+  const tl = taillight();
+  add(group, [box(0.32, 0.18, 0.05, 0.52, 0.82, 1.74), box(0.32, 0.18, 0.05, -0.52, 0.82, 1.74)], hl, false);
+  add(group, [box(0.18, 0.28, 0.05, 0.64, 0.96, -1.76), box(0.18, 0.28, 0.05, -0.64, 0.96, -1.76)], tl, false);
+  addPlates(group, plate, 'private', { y: 0.44, z: 1.83 }, { y: 0.66, z: -1.83 }, 0.46);
+  return { wheels: wheels(group, 0.28, [[0.72, 1.15], [-0.72, 1.15], [0.72, -1.15], [-0.72, -1.15]], 0.22), wheelR: 0.28, lights: [hl, tl] };
+}
+
+/** Water tanker lorry: blue cab and a big tank ("drinking water"). */
+export function tankerModel(group: THREE.Group, plate = randomPlate('commercial')): VehicleModel {
+  add(group, [rbox(2.3, 1.55, 1.7, 0.12, 0, 1.9, 2.75), box(2.35, 0.25, 0.1, 0, 2.85, 3.62)], paintMat(0x1565c0));
+  add(group, [box(1.95, 0.7, 0.05, 0, 2.15, 3.61)], glass(), false);
+  add(group, [new THREE.CylinderGeometry(1.1, 1.1, 5.0, 16).rotateX(Math.PI / 2).translate(0, 2.25, -0.85)].map(flat), new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.5 }));
+  add(group, [
+    box(2.25, 0.25, 0.25, 0, 2.25, 1.65), box(0.2, 0.2, 5.1, 1.1, 2.25, -0.85), box(0.2, 0.2, 5.1, -1.1, 2.25, -0.85), // blue bands
+  ], new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.5 }));
+  add(group, [
+    box(1.0, 0.25, 7.0, 0, 0.75, 0), box(2.4, 0.3, 0.2, 0, 0.75, 3.65),
+    box(0.2, 0.18, 0.08, 1.3, 2.3, 3.4), box(0.2, 0.18, 0.08, -1.3, 2.3, 3.4),
+    box(0.3, 0.3, 0.6, 0, 1.3, -3.4), // tap
+  ], trim());
+  const hl = headlight();
+  const tl = taillight();
+  add(group, [box(0.3, 0.2, 0.05, 0.85, 1.25, 3.62), box(0.3, 0.2, 0.05, -0.85, 1.25, 3.62)], hl, false);
+  add(group, [box(0.2, 0.2, 0.05, 1.0, 0.95, -3.4), box(0.2, 0.2, 0.05, -1.0, 0.95, -3.4)], tl, false);
+  addPlates(group, plate, 'commercial', { y: 0.95, z: 3.77 }, { y: 1.3, z: -3.5 }, 0.55);
+  return { wheels: wheels(group, 0.5, [[1.0, 2.6], [-1.0, 2.6], [1.0, -1.6], [-1.0, -1.6], [1.0, -2.65], [-1.0, -2.65]], 0.3), wheelR: 0.5, lights: [hl, tl] };
+}
+
+/** Food delivery scooter: a scooter with a big orange insulated box on the back. */
+export function deliveryModel(group: THREE.Group, plate = randomPlate('private')): VehicleModel {
+  const m = scooterModel(group, 0x37474f, plate);
+  add(group, [rbox(0.5, 0.5, 0.5, 0.05, 0, 1.15, -0.6)], new THREE.MeshStandardMaterial({ color: 0xff6f00, roughness: 0.6 }));
+  return m;
+}

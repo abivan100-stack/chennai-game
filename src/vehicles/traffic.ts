@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Animator } from '../characters/animator';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
-import { block, SETBACK } from '../world/layout';
+import { RIVER, block, blocks, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
-import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel } from './models';
+import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel, suvModel, hatchModel, tankerModel, deliveryModel } from './models';
 import { randomPlate } from './plates';
 
 const LANE = SETBACK - 2.5; // lane centre: 2.5 m left of the road centre line (we drive on the left)
@@ -15,14 +15,28 @@ const LOOKAHEAD = 7; // m along the path to judge an upcoming turn
 const HONK_AFTER = 2.5; // s blocked before honking
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
-const DETAIL_DIST = 40; // ...and beyond this they drop wheels and driver (5 draw calls each)
+const DETAIL_DIST = 32; // ...and beyond this they drop wheels and driver (5 draw calls each)
 const MAX_DRAWN = 12; // at most this many vehicles drawn (nearest first)
+/** Ambient traffic: a pool that keeps the roads round the player busy wherever they go. */
+const AMBIENT_RECYCLE = 140; // m: a pool vehicle this far away gets moved...
+const AMBIENT_RING: [number, number] = [45, 120]; // ...onto a road loop this far from the player
+const AMBIENT_HIDDEN_WITHIN = 80; // closer than this, only where the camera isn't looking
+const AMBIENT_GAP = 14; // m clear of any other vehicle when placed
+const AMBIENT_FLEET: [Kind, number?][] = [
+  ['auto'], ['auto'], ['auto'], ['shareauto'], ['shareauto'],
+  ['hatch', 0xe53935], ['hatch', 0xf4f4f4], ['hatch', 0x1e88e5], ['hatch', 0x9e9e9e], ['hatch', 0xfdd835],
+  ['suv', 0xf4f4f4], ['suv', 0x263238], ['suv', 0x8d6e63],
+  ['car', 0xb0bec5], ['car', 0x1a237e], ['taxi', 0xf4f1e6],
+  ['scooter', 0x90caf9], ['scooter', 0xf48fb1], ['bike', 0x212121], ['bike', 0xb71c1c],
+  ['delivery'], ['delivery'], ['bus'], ['bus'], ['tanker'], ['tempo', 0x43a047], ['van', 0xfafafa], ['lorry', 0xf57c00],
+];
 const SIGNAL_LOOK = 25; // m: start slowing for a red this far before the stop line
 
-export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry';
+export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry' | 'suv' | 'hatch' | 'shareauto' | 'tanker' | 'delivery';
 /** What the prompt calls each kind ("F - Steal the ..."). */
 export const VEHICLE_NAMES: Record<Kind, string> = {
   auto: 'auto', car: 'car', bus: 'bus', scooter: 'scooter', bike: 'bike', taxi: 'Ambassador taxi', van: 'van', tempo: 'mini truck', lorry: 'lorry',
+  suv: 'SUV', hatch: 'hatchback', shareauto: 'share auto', tanker: 'water tanker', delivery: 'delivery scooter',
 };
 export const SPEC: Record<Kind, { speed: number; length: number; width: number; height: number; mass: number }> = {
   auto: { speed: 10, length: 2.6, width: 1.3, height: 1.9, mass: 350 },
@@ -34,6 +48,11 @@ export const SPEC: Record<Kind, { speed: number; length: number; width: number; 
   van: { speed: 11, length: 3.5, width: 1.5, height: 1.75, mass: 800 },
   tempo: { speed: 10, length: 4.0, width: 1.6, height: 1.8, mass: 1200 },
   lorry: { speed: 8, length: 7.5, width: 2.45, height: 3.0, mass: 9000 },
+  suv: { speed: 13, length: 4.6, width: 1.85, height: 1.9, mass: 1700 },
+  hatch: { speed: 12, length: 3.5, width: 1.6, height: 1.6, mass: 850 },
+  shareauto: { speed: 9, length: 3.6, width: 1.55, height: 2.2, mass: 600 },
+  tanker: { speed: 7.5, length: 7.5, width: 2.4, height: 3.3, mass: 11000 },
+  delivery: { speed: 11, length: 1.8, width: 0.7, height: 1.6, mass: 160 },
 };
 /** After a shove, a vehicle goes limp (pure physics) this long, then steers back to its lane. */
 const KNOCK_SECONDS = 2.5;
@@ -51,6 +70,11 @@ const HANDLING: Record<Kind, { top: number; accel: number; turn: number }> = {
   van: { top: 22, accel: 7, turn: 1.7 },
   tempo: { top: 19, accel: 5, turn: 1.5 },
   lorry: { top: 14, accel: 2.2, turn: 0.7 },
+  suv: { top: 27, accel: 8, turn: 1.4 },
+  hatch: { top: 25, accel: 9, turn: 1.7 },
+  shareauto: { top: 15, accel: 4, turn: 1.4 },
+  tanker: { top: 13, accel: 2, turn: 0.7 },
+  delivery: { top: 20, accel: 8, turn: 2.4 },
 };
 /** Driver's hip position per vehicle (model space). India drives right-hand: driver on the right (-x). */
 export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
@@ -63,6 +87,11 @@ export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
   van: new THREE.Vector3(-0.36, 0.88, 0.85),
   tempo: new THREE.Vector3(-0.36, 0.98, 1.1),
   lorry: new THREE.Vector3(-0.55, 1.75, 2.7),
+  suv: new THREE.Vector3(-0.4, 0.95, 0.3),
+  hatch: new THREE.Vector3(-0.36, 0.78, 0.1),
+  shareauto: new THREE.Vector3(SEAT.x * 1.2, SEAT.y * 1.15, SEAT.z * 1.45),
+  tanker: new THREE.Vector3(-0.55, 1.75, 2.7),
+  delivery: new THREE.Vector3(0, 0.9, -0.2),
 };
 const FLEE_SECONDS = 6;
 const FLEE_SPEED = 3.5;
@@ -190,7 +219,7 @@ export class Traffic {
 
   constructor(scene: THREE.Scene, world: RAPIER.World, npcs: Map<NpcModelId, CharacterAsset>) {
     this.scene = scene;
-    const driverModels = [...npcs.entries()].filter(([id]) => id !== 'police').map(([, a]) => a);
+    this.driverModels = [...npcs.entries()].filter(([id]) => id !== 'police').map(([, a]) => a);
     const fleet: [Kind, number, number, number, number?][] = [
       // kind, block i, j, start fraction, colour
       ['bus', 1, 2, 0.1],
@@ -243,52 +272,116 @@ export class Traffic {
       ['car', 2, 10, 0.5, 0xb0bec5],
       ['auto', 1, 10, 0.2],
     ];
-    for (const [kind, i, j, start, colour] of fleet) {
-      const group = new THREE.Group();
-      let wheelMeshes: THREE.Object3D[];
-      let wheelR = 0.21;
-      let lights: THREE.MeshStandardMaterial[] = [];
-      if (kind === 'auto') {
-        const m = buildAutoModel(group, randomPlate('commercial'));
-        wheelMeshes = m.wheels;
-        lights = [m.headlight, m.tail];
-      } else {
-        const c = colour ?? 0xcccccc;
-        const m = kind === 'car' ? carModel(group, c) : kind === 'bus' ? busModel(group)
-          : kind === 'scooter' ? scooterModel(group, c) : kind === 'bike' ? bikeModel(group, c)
-          : kind === 'taxi' ? taxiModel(group, c) : kind === 'van' ? vanModel(group, c)
-          : kind === 'tempo' ? tempoModel(group, c) : lorryModel(group, c);
-        wheelMeshes = m.wheels;
-        wheelR = m.wheelR;
-        lights = m.lights;
+    for (const [kind, i, j, start, colour] of fleet) this.spawn(world, kind, blockRoute(i, j), start, colour);
+    // The ambient pool starts spread over the street blocks (it follows the player from then on).
+    AMBIENT_FLEET.forEach(([kind, colour], n) => {
+      const b = this.streetBlocks[(n * 11) % this.streetBlocks.length];
+      this.ambient.push(this.spawn(world, kind, blockRoute(b.i, b.j), (n * 0.37) % 1, colour));
+    });
+  }
+
+  private readonly driverModels: CharacterAsset[];
+  private readonly ambient: Vehicle[] = [];
+  private ambientCheck = 0;
+  /** Blocks with a road on every side, away from the river: loops traffic can drive round. */
+  private readonly streetBlocks = blocks().filter((b) => b.kind !== 'beach' && b.road.w && b.road.e && b.road.n && b.road.s && !(b.z0 < RIVER.z1 + 10 && b.z1 > RIVER.z0 - 10));
+
+  /** Build one AI vehicle on `path`, `start` of the way round. */
+  private spawn(world: RAPIER.World, kind: Kind, path: Path, start: number, colour?: number) {
+    const group = new THREE.Group();
+    let wheelMeshes: THREE.Object3D[];
+    let wheelR = 0.21;
+    let lights: THREE.MeshStandardMaterial[] = [];
+    if (kind === 'auto' || kind === 'shareauto') {
+      // A share auto is the big Ape-style one: the same auto, scaled up.
+      const holder = kind === 'shareauto' ? new THREE.Group() : group;
+      if (holder !== group) {
+        holder.scale.set(1.2, 1.15, 1.45);
+        group.add(holder);
       }
-      scene.add(group);
-      const driver = seatDriver(driverModels[Math.floor(Math.random() * driverModels.length)], group, DRIVER_SEAT[kind]);
-      const sp = SPEC[kind];
-      // Dynamic body with real mass, kept upright: it can be shoved; it drives by velocity control.
-      const path = blockRoute(i, j);
-      const s0 = start * path.length;
-      path.at(s0, this.pos, this.dir);
-      const rot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(this.dir.x, this.dir.z));
-      const body = world.createRigidBody(
-        RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(this.pos.x, 0.02, this.pos.z)
-          .setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w })
-          .enabledRotations(false, true, false)
-          .setLinearDamping(0.6)
-          .setAngularDamping(2)
-          .setCanSleep(false),
-      );
-      const collider = world.createCollider(
-        RAPIER.ColliderDesc.cuboid(sp.width / 2, sp.height / 2, sp.length / 2).setTranslation(0, sp.height / 2 + 0.03, 0).setMass(sp.mass).setFriction(0.3),
-        body,
-      );
-      this.vehicles.push({
-        kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
-        group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
-        collider, target: sp.speed, knocked: 0,
-        prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
-      });
+      const m = buildAutoModel(holder, randomPlate('commercial'));
+      wheelMeshes = m.wheels;
+      if (holder !== group) wheelR *= 1.15;
+      lights = [m.headlight, m.tail];
+    } else {
+      const c = colour ?? 0xcccccc;
+      const m = kind === 'car' ? carModel(group, c) : kind === 'bus' ? busModel(group)
+        : kind === 'scooter' ? scooterModel(group, c) : kind === 'bike' ? bikeModel(group, c)
+        : kind === 'taxi' ? taxiModel(group, c) : kind === 'van' ? vanModel(group, c)
+        : kind === 'tempo' ? tempoModel(group, c) : kind === 'suv' ? suvModel(group, c)
+        : kind === 'hatch' ? hatchModel(group, c) : kind === 'tanker' ? tankerModel(group)
+        : kind === 'delivery' ? deliveryModel(group) : lorryModel(group, c);
+      wheelMeshes = m.wheels;
+      wheelR = m.wheelR;
+      lights = m.lights;
+    }
+    this.scene.add(group);
+    const driver = seatDriver(this.driverModels[Math.floor(Math.random() * this.driverModels.length)], group, DRIVER_SEAT[kind]);
+    const sp = SPEC[kind];
+    // Dynamic body with real mass, kept upright: it can be shoved; it drives by velocity control.
+    const s0 = start * path.length;
+    path.at(s0, this.pos, this.dir);
+    const rot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(this.dir.x, this.dir.z));
+    const body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(this.pos.x, 0.02, this.pos.z)
+        .setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w })
+        .enabledRotations(false, true, false)
+        .setLinearDamping(0.6)
+        .setAngularDamping(2)
+        .setCanSleep(false),
+    );
+    const collider = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(sp.width / 2, sp.height / 2, sp.length / 2).setTranslation(0, sp.height / 2 + 0.03, 0).setMass(sp.mass).setFriction(0.3),
+      body,
+    );
+    const veh: Vehicle = {
+      kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
+      group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
+      collider, target: sp.speed, knocked: 0,
+      prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
+    };
+    this.vehicles.push(veh);
+    return veh;
+  }
+
+  /**
+   * Every half second: any pool vehicle that has fallen far behind is moved onto a block loop
+   * round the player (out of the camera's view when close), so every road has traffic.
+   * view = the camera's forward on the ground.
+   */
+  recycle(dt: number, player: THREE.Vector3, view: THREE.Vector3) {
+    this.ambientCheck -= dt;
+    if (this.ambientCheck > 0) return;
+    this.ambientCheck = 0.5;
+    for (const veh of this.ambient) {
+      if (veh.mode !== 'ai' || !veh.driver) continue; // stolen / abandoned: leave it where it is
+      if (Math.hypot(veh.currPos.x - player.x, veh.currPos.z - player.z) < AMBIENT_RECYCLE) continue;
+      for (let tries = 0; tries < 10; tries++) {
+        const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
+        if (Math.hypot((b.x0 + b.x1) / 2 - player.x, (b.z0 + b.z1) / 2 - player.z) > AMBIENT_RING[1] + 40) continue;
+        const path = blockRoute(b.i, b.j);
+        const s0 = Math.random() * path.length;
+        path.at(s0, this.pos, this.dir);
+        const d = Math.hypot(this.pos.x - player.x, this.pos.z - player.z);
+        if (d < AMBIENT_RING[0] || d > AMBIENT_RING[1]) continue;
+        if (d < AMBIENT_HIDDEN_WITHIN && ((this.pos.x - player.x) * view.x + (this.pos.z - player.z) * view.z) / d > 0.2) continue;
+        if (this.vehicles.some((o) => o !== veh && Math.hypot(o.currPos.x - this.pos.x, o.currPos.z - this.pos.z) < AMBIENT_GAP)) continue;
+        const rot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(this.dir.x, this.dir.z));
+        veh.path = path;
+        veh.s = s0;
+        veh.knocked = 0;
+        veh.v = 0;
+        veh.body.setTranslation({ x: this.pos.x, y: 0.02, z: this.pos.z }, true);
+        veh.body.setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w }, true);
+        veh.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        veh.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        veh.prevPos.copy(this.pos);
+        veh.currPos.copy(this.pos);
+        veh.prevRot.copy(rot);
+        veh.currRot.copy(rot);
+        break;
+      }
     }
   }
 
