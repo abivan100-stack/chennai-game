@@ -21,11 +21,6 @@ const TALK_SECONDS = 4.5;
 const SCOLD_SECONDS = 3.2;
 // Getting hit
 const KNOCKDOWN_SECONDS = 3.5;
-const FIGHT_BACK_CHANCE = 0.6; // after the second blow
-const COMBO_SECONDS = 4.7; // Mixamo "Fist Fight A", retargeted
-const COMBO_HITS = [0.95, 2.23, 3.45]; // s into the combo where punches land
-const COMBO_REACH = 1.7;
-const COMBO_DAMAGE = 7;
 const SCOLD_COOLDOWN = 4;
 const KNOCK = { punch: 2.4, swing: 4.5, kick: 7 }; // m/s right after the blow
 const KNOCK_DECAY = 8;
@@ -71,7 +66,6 @@ export class Npc {
   private home: THREE.Vector3;
   private scoldCooldown = 0;
   private hits = 0; // times the player has hit us recently
-  private fightT = -1; // seconds into a fight-back combo, -1 = not fighting
   private downT = 0; // knocked down
   private readonly knock = new THREE.Vector3(); // knock-back velocity, decays fast
   private lineIndex = Math.floor(Math.random() * GREETINGS.length);
@@ -159,7 +153,9 @@ export class Npc {
   /** Player pressed E: stop, face them, talk. Returns the line. */
   talk() {
     this.busy = TALK_SECONDS;
-    this.animator.play(this.seated ? 'sit_talk' : 'talk', { fade: 0.3 });
+    // Their own rig's clips: a wave, then standing at ease (the borrowed Mixamo talk looked odd on these bodies).
+    if (this.seated) this.animator.play('sit_talk', { fade: 0.3 });
+    else this.animator.play('wave', { once: true, then: this.animator.has('idle2') ? 'idle2' : 'idle', fade: 0.3 });
     this.animator.setSpeed(1);
     return nextLine(GREETINGS, this.lineIndex++);
   }
@@ -170,19 +166,18 @@ export class Npc {
     this.scoldCooldown = SCOLD_COOLDOWN;
     this.busy = SCOLD_SECONDS;
     if (this.seated) this.animator.play('sit_talk', { fade: 0.2 }); // tells you off without getting up
-    else this.animator.play('hit', { once: true, then: 'yell', fade: 0.1 });
+    else this.animator.play('hit', { once: true, then: 'idle', fade: 0.1 });
     this.animator.setSpeed(1);
     return nextLine(lines, Math.floor(Math.random() * lines.length));
   }
 
   /** active = false freezes the NPC completely (pose, position, collider) to save CPU. */
   /**
-   * Hit by the player. Kick = knocked down. Punch / lathi = flinch and yell; hit again and they
-   * may fight back. Returns a line to show, or null.
+   * Hit by the player. Kick = knocked down. Punch / lathi = flinch and shout (they never fight
+   * back). Returns a line to show, or null.
    */
   struck(move: 'punch' | 'swing' | 'kick', lines: readonly string[]) {
     this.hits++;
-    this.fightT = -1;
     const away = this.toPlayer.lengthSq() > 0 ? this.toPlayer.clone().normalize().negate() : new THREE.Vector3();
     if (this.seated) {
       // Hit while sitting: no knock-back, no getting up to fight; they just shout from the seat.
@@ -197,12 +192,6 @@ export class Npc {
       return nextLine(lines, Math.floor(Math.random() * lines.length));
     }
     this.knock.copy(away).multiplyScalar(KNOCK[move]);
-    if (this.hits >= 2 && Math.random() < FIGHT_BACK_CHANCE) {
-      this.fightT = 0;
-      this.busy = COMBO_SECONDS;
-      this.animator.play('hit', { once: true, then: 'combo', fade: 0.08 });
-      return nextLine(FIGHT_LINES, Math.floor(Math.random() * FIGHT_LINES.length));
-    }
     this.scoldCooldown = 0;
     return this.scold(lines);
   }
@@ -215,18 +204,7 @@ export class Npc {
     this.root.position.addScaledVector(this.knock, dt);
     this.knock.multiplyScalar(Math.exp(-KNOCK_DECAY * dt));
     this.toPlayer.subVectors(playerPos, this.root.position).setY(0);
-    let damage = 0;
-    if (this.fightT >= 0) {
-      const before = this.fightT;
-      this.fightT += dt;
-      for (const t of COMBO_HITS) {
-        if (before < t && this.fightT >= t && this.toPlayer.length() < COMBO_REACH) damage += COMBO_DAMAGE;
-      }
-      // Step in to stay at punching distance.
-      const d = this.toPlayer.length();
-      if (d > 1.1) this.root.position.addScaledVector(this.toPlayer, Math.min(1, (1.6 * dt) / d));
-      if (this.fightT > COMBO_SECONDS) this.fightT = -1;
-    }
+    const damage = 0; // bystanders never hit back
     if (this.downT > 0) {
       this.downT -= dt;
       if (this.downT <= 0) this.animator.play('idle', { fade: 0.4 }); // back on their feet
@@ -238,7 +216,7 @@ export class Npc {
     }
     if (this.busy <= 0 && this.hits > 0) this.hits = Math.max(0, this.hits - dt * 0.1);
 
-    if (this.pose && this.fightT < 0 && this.downT <= 0) {
+    if (this.pose && this.downT <= 0) {
       // People who stay put drift back to their spot after being shoved.
       this.root.position.lerp(this.home, 1 - Math.exp(-3 * dt));
     }
@@ -313,4 +291,3 @@ export class Npc {
   }
 }
 
-const FIGHT_LINES = ['Ennada adikkura?! Vaa da, paapom!', 'Dei! Thirumbi adippen!', 'Ennai adichaa summa viduvena?!'];

@@ -74,6 +74,7 @@ export class Melee {
   toggleStick() {
     this.stickOut = !this.stickOut;
     this.stick.visible = this.stickOut;
+    this.player.idleClip = this.stickOut ? 'idle_stick' : 'idle';
   }
 
   /** Start an attack, turning towards the nearest target. Mid-move: queue it for after the blow. */

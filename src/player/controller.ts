@@ -123,6 +123,8 @@ export class PlayerController {
    * to how fast you're actually moving, so standing still holds the pose.
    */
   pose: { clip: string; yaw: number; clipSpeed: number } | null = null;
+  /** Standing still: the ready stance with the lathi out, the relaxed idle otherwise (set by Melee). */
+  idleClip = 'idle';
 
   get onFoot() {
     return !this.away;
@@ -324,7 +326,7 @@ export class PlayerController {
     } else if (this.talkTime > 0) {
       this.animator.play('talk');
     } else {
-      this.animator.play('idle');
+      this.animator.play(this.idleClip);
     }
     this.animator.update(dt);
     this.lookAround(dt, speed);

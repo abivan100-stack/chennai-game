@@ -14,12 +14,10 @@ export interface CharacterAsset {
 /** Hero (Mixamo): one model file + one file per clip (clip name = file name). */
 const HERO = {
   model: 'hero.glb',
-  clips: ['idle', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive', 'swing', 'punch', 'combo', 'kick', 'block', 'death', 'kneel', 'kneel_idle', 'hit_react', 'sit_idle', 'push', 'hook', 'sit_talk', 'fall'].map((c) => `${c}.glb`),
+  clips: ['idle', 'idle_stick', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive', 'swing', 'punch', 'combo', 'kick', 'block', 'death', 'kneel', 'kneel_idle', 'hit_react', 'sit_idle', 'push', 'hook', 'sit_talk', 'fall'].map((c) => `${c}.glb`),
 };
-/** Hero clips baked onto every NPC rig at load (Quaternius has no talking clips). */
-/** Standing clips shared upper body only (NPCs keep straight legs; see retargetClip). */
-const UPPER_ONLY = ['talk', 'yell'];
-const SHARED_WITH_NPCS = ['talk', 'yell', 'sit_down', 'drive', 'combo', 'punch', 'sit_idle', 'sit_talk', 'hook'];
+/** Hero clips baked onto every NPC rig at load: seated / driving poses and the police jab + hook. */
+const SHARED_WITH_NPCS = ['sit_down', 'drive', 'punch', 'sit_idle', 'sit_talk', 'hook'];
 
 /**
  * Background NPCs (Quaternius, CC0). `rig` = skeleton family: models of the same rig share
@@ -72,7 +70,7 @@ export async function loadCharacters() {
     if (!npcGltfs[i].animations.length) return;
     const extra = hero.clips
       .filter((c) => SHARED_WITH_NPCS.includes(c.name))
-      .map((c) => retargetClip(hero.scene, npcs.get(id)!.scene, c, QUATERNIUS_FROM_MIXAMO, 30, UPPER_ONLY.includes(c.name)));
+      .map((c) => retargetClip(hero.scene, npcs.get(id)!.scene, c, QUATERNIUS_FROM_MIXAMO));
     rigClips.set(rig, [...npcGltfs[i].animations, ...extra]);
   });
   for (const id of npcIds) npcs.get(id)!.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
