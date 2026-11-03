@@ -145,6 +145,11 @@ export class Npc {
     return this.busy <= 0;
   }
 
+  /** A shopkeeper or someone sitting: stays in one spot. */
+  get staysPut() {
+    return !!this.pose;
+  }
+
   /** Sitting on a bench / chair: reactions stay seated (standing clips would sink into the seat). */
   get seated() {
     return !!this.pose && this.pose.clip !== 'idle';

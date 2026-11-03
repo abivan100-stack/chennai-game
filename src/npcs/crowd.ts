@@ -11,6 +11,9 @@ const ACTIVE_RADIUS = 40;
 const DRAW_RADIUS = 90;
 /** At most this many people drawn at once (nearest first): each costs a draw call + a shadow. */
 const MAX_DRAWN = 20;
+/** People who stay put (stall keepers, sitters) get their own quota so walkers don't crowd them out. */
+const MAX_POSED_DRAWN = 16;
+const POSED_DRAW_RADIUS = 60;
 /** ...and only the nearest few cast a shadow. */
 const MAX_SHADOWS = 10;
 /** How close (m) the player must be to talk (E). */
@@ -293,9 +296,15 @@ export class Crowd {
     // Draw only the nearest MAX_DRAWN (within DRAW_RADIUS); the rest are too far to notice.
     for (let i = 0; i < this.order.length; i++) this.order[i] = i;
     this.order.sort((a, b) => this.dist[a] - this.dist[b]);
+    let walkers = 0;
+    let posed = 0;
     this.order.forEach((idx, rank) => {
       const npc = this.npcs[idx];
-      npc.root.visible = this.present[idx] && rank < MAX_DRAWN && this.dist[idx] !== Infinity;
+      const d = this.dist[idx];
+      let show = this.present[idx] && d !== Infinity;
+      if (show && npc.staysPut) show = d < POSED_DRAW_RADIUS && posed++ < MAX_POSED_DRAWN;
+      else if (show) show = walkers++ < MAX_DRAWN;
+      npc.root.visible = show;
       npc.root.matrixWorldAutoUpdate = npc.root.visible; // hidden: skip their bone matrices too
       npc.setShadow(rank < MAX_SHADOWS);
     });

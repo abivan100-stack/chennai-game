@@ -83,6 +83,9 @@ function wheelGeometry(r: number) {
   return g.build();
 }
 
+/** Stall keepers mind their stalls from early morning until the late crowd goes home (1 am). */
+const KEEPER_HOURS: [number, number][] = [[6, 24], [0, 1]];
+
 export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacles: { x: number; z: number; r: number }[]) {
   const signs: SignDef[] = [...DESSERTS.map((d): SignDef => [d.ta, d.name.replace('Moving: ', '').toUpperCase(), d.bg, d.fg]), ['இசை இரவு · எலியட்ஸ் கடற்கரை', 'BEACH MUSIC NIGHT · LIVE', '#14213d', '#fca311']];
   const k = createKit(world, signs);
@@ -97,7 +100,7 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
   const keeper = (f: Frame, u: number, v: number, y: number) => {
     const at = f.at(u, v);
     const front = f.at(0, -1).sub(f.at(0, 0));
-    posed.push({ name: `Stall ${KEEPER_NAMES[posed.length % KEEPER_NAMES.length]}`, x: at.x, y, z: at.z, yaw: Math.atan2(front.x, front.z), clip: 'idle', hours: [[7, 23]] });
+    posed.push({ name: `Stall ${KEEPER_NAMES[posed.length % KEEPER_NAMES.length]}`, x: at.x, y, z: at.z, yaw: Math.atan2(front.x, front.z), clip: 'idle', hours: KEEPER_HOURS });
   };
   const rand = seeded(SEED);
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)];
