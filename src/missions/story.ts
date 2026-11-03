@@ -1,3 +1,5 @@
+import { STORY_ORDER } from './storyMissions.ts';
+
 /**
  * The story, chapter by chapter (see CLAUDE.md "Story roadmap"). Pure logic (no DOM / three.js)
  * so scripts/check.ts can test it: which chapter you're in, its goals, and when it's finished.
@@ -53,7 +55,7 @@ export const CHAPTERS: Chapter[] = [
       { text: 'Save ₹50,000 in the bank', done: (s) => s.savings >= 50000, progress: (s) => `${rupees(s.savings)} / ₹50,000` },
       { text: 'Buy your own home', done: (s) => s.homesBought > 0 },
       { text: 'Give 100 rides', done: (s) => s.rides >= 100, progress: (s) => `${Math.min(s.rides, 100)}/100` },
-      { text: 'Story rides: wedding, hospital, exam', done: (s) => s.storyRides >= 3, progress: (s) => `${Math.min(s.storyRides, 3)}/3` },
+      { text: 'Story missions (Phone > Orders / messages)', done: (s) => s.storyRides >= STORY_ORDER.length, progress: (s) => `${Math.min(s.storyRides, STORY_ORDER.length)}/${STORY_ORDER.length}` },
     ],
     needed: [0, 1],
   },

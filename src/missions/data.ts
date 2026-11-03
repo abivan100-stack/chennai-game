@@ -63,7 +63,7 @@ export const STOPS: Stop[] = [
   { name: 'Madras Boat Club', axis: 'z', line: 300, along: 47.5, side: 1 },
   { name: 'Greenways Road', axis: 'z', line: 300, along: -170, side: -1 },
   { name: 'Adyar Banyan Campus', axis: 'z', line: 390, along: 0, side: -1 },
-  { name: 'Adyar signal', axis: 'z', line: 390, along: 70, side: -1 },
+  { name: 'Adyar signal', axis: 'z', line: 390, along: 92, side: -1 },
   // Landmarks (world/landmarks.ts)
   { name: 'Music Academy', axis: 'x', line: -145, along: -108, side: -1 },
   { name: 'Narada Gana Sabha', axis: 'x', line: -145, along: 43, side: -1 },

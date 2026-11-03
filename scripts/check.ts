@@ -216,3 +216,36 @@ console.log('check: story passed');
   assert(nextMission([])?.id === STORY_MISSIONS[0].id && nextMission(STORY_MISSIONS.map((m) => m.id)) === null, 'story rides come in order, then stop');
 }
 console.log('check: rent + story rides passed');
+
+// --- Every stop's passenger waits on a pavement: not in any road, not inside a block ---
+{
+  const { X_LINES, Z_LINES, roadHalf, BEACH_ROAD, blocks } = await import('../src/world/layout.ts');
+  const bl = blocks();
+  for (const s of STOPS) {
+    const p = stopPoint(s, 'sidewalk');
+    assert(!X_LINES.some((c) => Math.abs(p.x - c) < roadHalf('z', c)), `stop "${s.name}": waits in a north-south road`);
+    assert(!(p.x < BEACH_ROAD + 5 && Z_LINES.some((c) => Math.abs(p.z - c) < roadHalf('x', c))), `stop "${s.name}": waits in an east-west road`);
+    assert(!bl.some((b) => p.x > b.x0 + 0.3 && p.x < b.x1 - 0.3 && p.z > b.z0 + 0.3 && p.z < b.z1 - 0.3), `stop "${s.name}": waits inside a block`);
+  }
+}
+console.log('check: stops on pavements passed');
+
+// --- Story quests: ids resolve, steps name real people, nobody stands inside a block ---
+{
+  const { QUESTS } = await import('../src/missions/quests.ts');
+  const { STORY_ORDER, nextStory } = await import('../src/missions/storyMissions.ts');
+  const { blocks } = await import('../src/world/layout.ts');
+  const solid = blocks().filter((b) => b.kind !== 'beach');
+  const inside = (p: { x: number; z: number }) => solid.some((b) => p.x > b.x0 + 0.3 && p.x < b.x1 - 0.3 && p.z > b.z0 + 0.3 && p.z < b.z1 - 0.3);
+  for (let i = 0; i < STORY_ORDER.length; i++) assert(nextStory(STORY_ORDER.slice(0, i)) !== null, `story mission "${STORY_ORDER[i]}" exists`);
+  assert(nextStory(STORY_ORDER) === null, 'no story missions after the last');
+  for (const q of QUESTS) {
+    assert(STORY_ORDER.includes(q.id), `quest ${q.id} is in STORY_ORDER`);
+    for (const st of q.steps) {
+      if ('who' in st) assert(st.who in q.people, `quest ${q.id}: step names a real person (${st.who})`);
+      if (st.kind === 'search') for (const c of st.clues) assert(c.who in q.people, `quest ${q.id}: clue person ${c.who}`);
+    }
+    for (const [id, p] of Object.entries(q.people)) if (!p.hidden) assert(!inside(p.at), `quest ${q.id}: ${id} stands inside a block`);
+  }
+}
+console.log('check: quests passed');

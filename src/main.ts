@@ -31,7 +31,8 @@ import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
 import { RENT, Rent } from './missions/rent';
-import { STORY_MISSIONS, nextMission } from './missions/storyMissions';
+import { nextStory, storyTitle } from './missions/storyMissions';
+import { QuestRunner } from './missions/questRunner';
 import { Sound } from './audio/sound';
 import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
@@ -96,6 +97,8 @@ const STORY_LINES: Record<number, [string, string][]> = {
   ],
 };
 /** House owner's messages about the rent (Chapter 2). */
+/** m/s lost in one frame while driving that counts as a crash for fragile cargo. */
+const JOLT_DROP = 4;
 const LANDLORD = 'Rajeswari amma (veetu owner)';
 const RENT_LINES = {
   start: 'Thambi, kadan mudinjudhu-nu kelvi patten, santhosham! Ini veedu vaadagai ₹{rent} vaaram vaaram kattanum. (Phone > Wallet)',
@@ -521,13 +524,34 @@ async function main() {
     if (o.story) phone.notify(o.story.lines.offer);
     else if (!jobs.busy) phone.notify(`🛺 New order: ${o.from.name} → ${o.to.name} · ₹${o.fare}`);
   };
-  jobs.onStory = (id, passed) => {
-    const m = STORY_MISSIONS.find((s) => s.id === id);
+  /** A story mission (ride or quest) ended. */
+  const storyFinished = (id: string, passed: boolean) => {
     if (passed && !storyDone.includes(id)) storyDone.push(id);
     storyRideIn = 90;
-    const line = (passed ? STORY_RIDE_LINES.passed : STORY_RIDE_LINES.failed).replace('{title}', m ? m.title : id);
-    phone.addMessage('Auto Anna', line);
+    phone.addMessage('Auto Anna', (passed ? STORY_RIDE_LINES.passed : STORY_RIDE_LINES.failed).replace('{title}', storyTitle(id)));
     saveNow();
+  };
+  jobs.onStory = storyFinished;
+  const quests = new QuestRunner(scene, world, characters.npcs);
+  quests.onSay = (name, line) => hud.say(name, line);
+  const heroFeet = new THREE.Vector3();
+  let lastVSpeed = 0;
+  /** What the quest runner needs to know about the player this frame. */
+  const questCtx = (jolt = false) => ({
+    hero: heroFeet.copy(player.position).setY(player.position.y - CAPSULE_LIFT),
+    heroYaw: player.mesh.rotation.y,
+    onFoot: player.onFoot && !stolen && ride.phase === 'onFoot',
+    vehicle: stolen ? stolen.group.position : ride.driving ? auto.group.position : null,
+    jolt,
+  });
+  quests.onDone = (id, passed, reward) => {
+    if (reward) {
+      economy.cash += reward;
+      economy.earnedToday += reward;
+      showMoney();
+      sound.coin();
+    }
+    storyFinished(id, passed);
   };
   let online = false;
   // Road route from the auto (or the player on foot) to the job target; refreshed a few times a second.
@@ -575,7 +599,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -900,7 +924,9 @@ async function main() {
       energy.spend(ATTACK_COST);
     }
     player.blocking = onFootFree && input.isDown('Mouse2') && !player.acting;
-    if (talkTo && input.wasPressed('KeyE')) {
+    // Story quest: E for its prompt comes first.
+    const questE = !!quests.prompt && free && input.wasPressed('KeyE') && quests.interact(questCtx());
+    if (talkTo && !questE && input.wasPressed('KeyE')) {
       const p = talkTo.root.position;
       player.talk(Math.atan2(p.x - player.position.x, p.z - player.position.z), 4.5);
       hud.say(talkTo.name, talkTo.talk());
@@ -908,6 +934,7 @@ async function main() {
     const otherName = other ? VEHICLE_NAMES[other.kind] : '';
     hud.setPrompt(
       !free ? null
+        : quests.prompt && player.onFoot && !stolen ? quests.prompt
         : stolen ? (Math.abs(stolenSpeed) < 3 ? 'F - Get out' : null)
         : pushing ? 'W/S - Push · A/D - Steer · G - Let go · F - Get in'
         : nearAuto ? (upkeep.fuel <= 0 ? 'F - Get in · G - Push the auto (no petrol)' : 'F - Get in · G - Push')
@@ -1127,6 +1154,9 @@ async function main() {
     const drivingAny = ride.driving || !!stolen;
     const vPos = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
     const vSpeed = stolen ? Math.abs(stolenSpeed) : ride.driving ? Math.abs(auto.speed) : player.speed;
+    // Story quests: a sudden loss of speed while driving = a hard knock (fragile cargo minds).
+    quests.update(dt, questCtx(drivingAny && lastVSpeed - vSpeed > JOLT_DROP));
+    lastVSpeed = drivingAny ? vSpeed : 0;
     auto.speedLimit = flood.slowAt(auto.group.position.x, auto.group.position.z) * upkeep.speedFactor;
     crashCooldown -= dt;
     if (ride.driving && upkeep.fuel < 1 && !fuelWarned) {
@@ -1259,6 +1289,7 @@ async function main() {
     hud.setEnergy(energy.value, energy.low);
     if (input.wasPressed('F3')) debug.toggle();
     if (economy.seized) hud.setMission(MISSION_SEIZED.replace('{cost}', economy.redeemCost.toLocaleString('en-IN')));
+    else if (quests.active && !jobs.busy) hud.setMission(quests.mission);
     else if (jobs.phase !== 'off') {
       hud.setMission(jobs.rides === 0 ? `${jobs.mission}  ·  W/S drive, A/D steer, Space brake` : jobs.mission);
     }
@@ -1271,20 +1302,20 @@ async function main() {
         phone.notify(`📍 Vandhaachu! ${nav.name}`);
         nav = null;
       }
-      const t = nav ?? jobs.target;
+      const t = nav ?? (quests.active && !jobs.busy ? quests.target : jobs.target);
       guide = t ? route({ x: from.x, z: from.z }, t, X_LINES, Z_LINES) : null;
       navLeft = guide ? routeLength(guide) : 0;
       const turn = guide ? nextTurn(guide) : null;
       navInfo = null;
       if (turn && t) {
-        const name = nav ? nav.name : jobs.target?.kind === 'pickup' ? 'Pickup' : 'Drop-off';
+        const name = nav ? nav.name : 'kind' in t && t.kind === 'pickup' ? 'Pickup' : 'Drop-off';
         const road = turn.next ? roadName(turn.at, turn.next) : undefined;
         const mins = Math.max(1, Math.round(navLeft / (player.onFoot ? 1.8 : 9) / 60));
         navInfo = {
           arrow: turn.kind === 'left' ? '↰' : turn.kind === 'right' ? '↱' : '📍',
           dist: fmtDist(turn.dist),
           line: turn.kind === 'arrive' ? `${name}${turn.side ? ` on your ${turn.side}` : ''}` : `Turn ${turn.kind}${road ? ` onto ${road}` : ''}`,
-          sub: `${fmtDist(navLeft)} · ~${mins} min${nav ? '' : ` · ${jobs.mission}`}`,
+          sub: `${fmtDist(navLeft)} · ~${mins} min${nav ? '' : ` · ${quests.active && !jobs.busy ? quests.mission : jobs.mission}`}`,
         };
       }
       hud.setNav(navInfo);
@@ -1294,10 +1325,16 @@ async function main() {
     const mapAt = insideHall >= 0 ? hotels.doors[insideHall].at : pp;
     // Story rides: from Chapter 2, one at a time on the phone while you're online.
     storyRideIn -= dt;
-    if (story.chapter >= 2 && storyRideIn <= 0 && jobs.phase !== 'off' && !jobs.storyOpen) {
+    // Rides need the ride app online (you're in the auto); quests start wherever you are.
+    if (story.chapter >= 2 && storyRideIn <= 0 && !jobs.storyOpen && !quests.active && downFor <= 0) {
       storyRideIn = 30;
-      const m = nextMission(storyDone);
-      if (m) jobs.addStory(m);
+      const next = nextStory(storyDone);
+      if (next && 'ride' in next && jobs.phase !== 'off') jobs.addStory(next.ride);
+      if (next && 'quest' in next) {
+        quests.start(next.quest);
+        phone.notify(next.quest.offer);
+        phone.addMessage('Auto Anna', next.quest.offer);
+      }
     }
     // Story: once a second, see if this chapter is finished; the next one opens with its card.
     storyCheck -= dt;
@@ -1316,7 +1353,7 @@ async function main() {
       player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
       view: cam.yaw,
       auto: auto.group.position,
-      marker: jobs.target,
+      marker: quests.active && !jobs.busy ? quests.target : jobs.target,
       guide,
       police: police.blips(),
       dest: nav,
@@ -1324,7 +1361,7 @@ async function main() {
     bigMap.update(dt, input, {
       player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
       auto: auto.group.visible ? auto.group.position : null,
-      marker: jobs.target,
+      marker: quests.active && !jobs.busy ? quests.target : jobs.target,
       guide,
       police: police.blips(),
       dest: nav,

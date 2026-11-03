@@ -4,6 +4,8 @@
  * Pure data + the pass / fail judge (scripts/check.ts tests it); missions/jobs.ts runs them.
  */
 
+import { QUESTS, type Quest } from './quests.ts';
+
 export interface StoryMission {
   id: string;
   title: string;
@@ -101,7 +103,23 @@ export function judge(m: StoryMission, r: { onTime: boolean; bumps: number; reds
   return r.onTime && r.bumps <= (m.maxBumps ?? Infinity) && r.reds <= (m.maxReds ?? Infinity);
 }
 
-/** The next mission not done yet (in order), or null when all are done. */
+/** The next ride not done yet (in order), or null when all are done. */
 export function nextMission(done: readonly string[]) {
   return STORY_MISSIONS.find((m) => !done.includes(m.id)) ?? null;
 }
+
+/** Chapter 2's story missions in the order they come up: auto rides and quests (missions/quests.ts) mixed. */
+export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 'film', 'flowers'];
+
+/** The next story mission to hand out: a ride (phone order) or a quest (started straight away). */
+export function nextStory(done: readonly string[]): { ride: StoryMission } | { quest: Quest } | null {
+  const id = STORY_ORDER.find((i) => !done.includes(i));
+  if (!id) return null;
+  const ride = STORY_MISSIONS.find((m) => m.id === id);
+  if (ride) return { ride };
+  const quest = QUESTS.find((q) => q.id === id);
+  return quest ? { quest } : null;
+}
+
+/** A story mission's title (rides and quests). */
+export const storyTitle = (id: string) => STORY_MISSIONS.find((m) => m.id === id)?.title ?? QUESTS.find((q) => q.id === id)?.title ?? id;

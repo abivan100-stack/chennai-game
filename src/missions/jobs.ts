@@ -51,7 +51,7 @@ const smooth = (t: number) => {
 };
 
 /** Glowing beam + ground ring marking a pickup or drop-off. */
-class Marker {
+export class Marker {
   readonly group = new THREE.Group();
   private readonly mat: THREE.MeshBasicMaterial;
   private t = 0;
