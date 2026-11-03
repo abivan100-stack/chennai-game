@@ -38,6 +38,42 @@ export const PLACE_MENUS = {
       { name: 'Nethili fry', price: 60, energy: 22, seconds: 6, color: '#c98a3c' },
     ],
   },
+  seafood: {
+    kind: 'shop', greet: 'Welcome! Today catch: seer fish, prawns, crab. Enna venum?',
+    items: [
+      { name: 'Seer fish tawa fry', price: 320, energy: 45, seconds: 8, color: '#b5652b' },
+      { name: 'Prawn biryani', price: 280, energy: 60, seconds: 9, color: '#d9a441' },
+      { name: 'Crab masala + appam', price: 360, energy: 55, seconds: 9, color: '#c0442a' },
+      { name: 'Fresh lime soda', price: 70, energy: 8, seconds: 4, color: '#c8e6a0' },
+    ],
+  },
+  biryani: {
+    kind: 'shop', greet: 'Dum biryani ready sir! Chicken-a mutton-a?',
+    items: [
+      { name: 'Chicken dum biryani', price: 220, energy: 60, seconds: 9, color: '#d9a441' },
+      { name: 'Mutton biryani', price: 310, energy: 65, seconds: 9, color: '#c8742a' },
+      { name: 'Chicken 65', price: 180, energy: 35, seconds: 6, color: '#c0392b' },
+      { name: 'Bread halwa', price: 90, energy: 20, seconds: 4, color: '#8d3b1f' },
+    ],
+  },
+  chettinad: {
+    kind: 'shop', greet: 'Vaanga! Chettinad meals, kaaram konjam jaasthi.',
+    items: [
+      { name: 'Chettinad meals', price: 240, energy: 65, seconds: 9, color: '#e0a040' },
+      { name: 'Pepper chicken + parotta', price: 260, energy: 60, seconds: 8, color: '#7a3b1f' },
+      { name: 'Kothu parotta', price: 160, energy: 45, seconds: 7, color: '#c98a3c' },
+      { name: 'Paneer butter masala', price: 220, energy: 45, seconds: 7, color: '#e07a3c' },
+    ],
+  },
+  icecream: {
+    kind: 'shop', greet: 'Hi! Sundae, shake, kulfi, ellam irukku!',
+    items: [
+      { name: 'Hot chocolate fudge', price: 190, energy: 25, seconds: 5, color: '#5a3a22' },
+      { name: 'Death by chocolate', price: 240, energy: 30, seconds: 6, color: '#3e2415' },
+      { name: 'Mango milkshake', price: 140, energy: 22, seconds: 4, color: '#ffb300' },
+      { name: 'Belgian waffle', price: 160, energy: 25, seconds: 5, color: '#d9a441' },
+    ],
+  },
   cafe: {
     kind: 'shop', greet: 'Hi! Welcome. Enna order pannuveenga? Filter coffee is our special.',
     items: [

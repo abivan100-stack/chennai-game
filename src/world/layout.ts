@@ -447,3 +447,13 @@ export const HOTEL_LOTS = (): Lot[] => [
   sideLot(-1, 5, 'e', 0, 40, 40),
   sideLot(-2, 9, 'w', 6, 64, 42),
 ];
+
+/** Beachfront shops / restaurants on the Beach Road's west side, facing the sand (world/beachfront.ts). */
+export const BEACHFRONT_LOTS = (): Lot[] => [
+  sideLot(4, 10, 'e', 56, 22, 20),
+  sideLot(4, 10, 'e', 80, 22, 20),
+  sideLot(4, 11, 'e', 2, 22, 20),
+  sideLot(4, 11, 'e', 26, 22, 20),
+  sideLot(4, 6, 'e', 1, 21, 20),
+  sideLot(4, 6, 'e', 23.5, 21, 20),
+];

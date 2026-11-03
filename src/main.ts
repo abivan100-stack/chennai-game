@@ -41,6 +41,7 @@ import { createServiceHubs } from './world/serviceHubs';
 import { createShowrooms } from './world/showrooms';
 import { createHotels } from './world/hotels';
 import { createHotelHalls } from './world/hotelHalls';
+import { createBeachfront } from './world/beachfront';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
@@ -151,11 +152,13 @@ async function main() {
   crowd.addPosed(beachLife.posed); // stall keepers + moon-watchers on the benches
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
   crowd.addPosed(hotels.posed); // doormen, guards and guests at the hotels
+  const beachfront = createBeachfront(scene, world); // big shops + restaurants facing the beach
   const halls = createHotelHalls(scene, world); // the dining halls you enter through the hotel lobbies
   crowd.addPosed(halls.posed); // diners, waiters, chef, musician
   crowd.addAmbient(); // everyday people on whatever street you're on
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
+  eateries.list.push(...beachfront.eateries);
   eateries.list.push(...halls.eateries); // hotel dining halls (fine dining, sit down)
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
   eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
@@ -994,6 +997,7 @@ async function main() {
     showrooms.setNight(dayNight.night);
     hotels.setNight(dayNight.night);
     halls.setNight(dayNight.night);
+    beachfront.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
