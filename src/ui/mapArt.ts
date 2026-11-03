@@ -4,8 +4,9 @@ import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
-import { BEACHFRONT_LOTS, HOTEL_LOTS, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
+import { BEACHFRONT_LOTS, HOME_LOTS, HOTEL_LOTS, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
 import { BEACHFRONT } from '../world/beachfront';
+import { HOMES } from '../world/homes';
 import { SHOWROOMS } from '../world/showrooms';
 import { HOTELS } from '../world/hotels';
 import { SHOP_SIGNS } from '../world/textures';
@@ -311,6 +312,12 @@ export function drawTownMap(data: MapData): TownMap {
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
     const b = BEACHFRONT[i % BEACHFRONT.length];
     poi(b.name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, b.menu ? '#ef6c00' : '#ad1457', b.menu ? '🍽' : '🛍', b.menu ? 'food' : 'shop', 2);
+  });
+  HOME_LOTS().forEach((lot, i) => {
+    g.fillStyle = '#e6f0d8';
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const h = HOMES[i];
+    poi(h.price ? `${h.name} (₹${(h.price / 100000).toFixed(1)} lakh)` : h.name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, h.price ? '#558b2f' : '#2e7d32', '⌂', 'place', h.price ? 2 : 1);
   });
   HOTEL_LOTS().forEach((lot, i) => {
     g.fillStyle = '#e8dcc0';

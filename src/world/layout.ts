@@ -462,3 +462,11 @@ export const BEACHFRONT_LOTS = (): Lot[] => [
   sideLot(4, 0, 'e', 2, 12, 14),
   sideLot(4, 0, 'e', 30, 12, 14),
 ];
+
+/** Homes (world/homes.ts): 12 x 13 m plots. Index order = HOMES data order (0 = the rented house you start in). */
+export const HOME_LOTS = (): Lot[] => [
+  sideLot(3, 5, 'w', 20, 12, 13), // Mandaveli: your rented house
+  sideLot(1, 6, 's', 9, 12, 13), // R.A. Puram
+  sideLot(2, 7, 's', 20, 12, 13), // R.A. Puram, Greenways side
+  sideLot(-1, 3, 'w', 9, 12, 13), // Alwarpet
+];

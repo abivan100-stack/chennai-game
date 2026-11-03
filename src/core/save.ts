@@ -19,6 +19,8 @@ export interface SaveData {
   health: number;
   player: { x: number; y: number; z: number; yaw: number };
   auto: { x: number; y: number; z: number; heading: number };
+  /** Homes you own (indices into world/homes.ts HOMES); older saves: just the rented one. */
+  homes?: number[];
 }
 
 export function loadSave(): SaveData | null {

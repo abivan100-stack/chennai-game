@@ -54,7 +54,68 @@ Step 11v done: hotel entrances are grand (brass-framed glass double doors, glass
 Step 11w done: police are Mixamo too (the last Quaternius model is gone): catalog 'police' loads the suited body separately and chennaiLook.applyPoliceLook repaints it in Tamil Nadu khaki (shirt / trousers by body part, black shoes, belt, peaked cap). Officers chase in Pistol Run, stagger with the 2nd Hit Reaction, punch / hook with the hero's clips; aiming and shooting = idle + right arm reached at the player by IK (left hand cups it, recoil kick per shot), since there's no Mixamo pistol idle / shoot clip.
 Step 11x done: beachfront shops + restaurants (world/beachfront.ts, layout.BEACHFRONT_LOTS: 6 big modern storefronts on the Beach Road facing Elliot's / Besant Nagar: grey cladding top, poster banner (code-drawn atlas), two-colour name board, glass ground floor + arched entrance; 4 restaurants with PLACE_MENUS seafood / biryani / chettinad / icecream, 2 shops). Step 11y: beachfront now has three looks so neighbours never match (banner storefront; tall 'tower' restaurant like the big family restaurants: jali screen texture + logo, window-band frame, canopy, palms; 'small' two-storey pastel shop with striped awning, flower boxes, string lights) and 10 lots (4 small shops added up the Beach Road at Santhome). Crowds spread out: crowdOf spaces a group evenly round its loop; ambient walkers: 32, max 3 per block, never placed within 6 m of anyone.
 Step 11z done: hero outfit = plain mustard t-shirt (short sleeves, untucked: hem 7 cm below the waist, split exactly per triangle with a hard gradient so it's straight) + ordinary charcoal cotton trousers (leg vertices nudged out 3-8 mm so they aren't skin-tight: chennaiLook.loosenTrousers), the model's own white sneakers, bare forearms repainted plain skin (no tattoos). No belt.
-Next: more mission types (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
+Step 12 done: homes (world/homes.ts, layout.HOME_LOTS): a standard house you walk into (compound wall + gate + kolam, hall with sofa / TV / coffee table / fan, kitchen with granite L-counter / gas stove + cylinder / fridge / sink / steel dabbas, bedroom with cot / almirah / mirror table, flat roof + water tank). Home 0 (Mandaveli) is your rented house; three more are for sale (R.A. Puram ₹1.5 / 1.8 lakh, Alwarpet ₹2.5 lakh): E at the FOR SALE board on the gate buys it (cash, then the bank). Homes you don't own are locked (invisible wall in the doorway). E at your own bed sleeps: to 6 am at night, a 3-hour nap in the day; full health. Owned homes are saved (SaveData.homes).
+Next: the story chapters (see Story roadmap below) (deliveries, VIP fares), traffic lights at the Mada Street junctions, flooding in heavy rain, sound.
+
+## Story roadmap (chapter by chapter)
+Decision: build the story systems on the CURRENT map first; expand the map in Chapter 4, when the
+business needs new districts. The map is already ~550 x 1060 m with 15+ areas; every system below
+(chapters, ownership, vehicles, homes, jobs, missions) works the same on a bigger map, and keeping
+the map fixed keeps the 330 draw-call budget safe while the systems are built.
+
+### Chapter 1 - "Chithappa's Auto" (now)
+Pay Kandasamy the ₹15,000 kadan (₹500 a day). Ends when the loan reaches 0:
+- Kandasamy hands over the RC book in a short scene: the auto is yours forever (no more daily due,
+  no seizure). Chapter card: "Chapter 2 - Sondha Kaal (On your own feet)".
+- Build: core/story.ts (chapter number + flags, pure, checked) saved in SaveData; a chapter-card
+  overlay in hud.ts; a Story app on the phone (current goal, progress, chapter list).
+
+### Chapter 2 - "Sondha Kaal" (On your own feet)
+Every rupee is yours now. Goals: rent, savings, a first owned home, a better auto, other vehicles.
+1. Rent: the Mandaveli house costs ₹3,000 a month (phone reminder; three missed months = evicted to
+   a lodge). Buying a home ends the rent.
+2. Second-hand vehicle dealer (R.K. Mutt Road) + a garage at your home: buy a bike / scooter / Omni van
+   / Ambassador; owned vehicles are kept (no police for driving your own).
+3. Auto upgrades at the mechanic: CNG kit (cheaper fuel), music system (passengers tip more), paint
+   jobs, seat covers, a "Rajini" sticker.
+4. Creative auto missions (data-driven in missions/data.ts, one at a time on the phone):
+   - Kalyanam rush: groom's party late for the muhurtham at a Mylapore kalyana mandapam (timer, garland on the auto).
+   - Labour pain: a pregnant passenger to Isabel Hospital, no bumps, every red light counts.
+   - Foreign tourist: a temple + Santhome + Marina tour with stops; tips for the stories you pick.
+   - "Follow that car!": a passenger chasing a cheating husband / a thief (keep distance, don't lose them).
+   - Film shoot: carry a JAILER 2 crew's camera box to Marina before the light goes.
+   - Exam day: a student late for Presidency College; the hall ticket is forgotten at home (detour).
+   - Lost child at the beach fair: find the parents (clues from stall keepers).
+   - Match night: two fans to Chepauk before the toss, through stadium traffic.
+   - Rain rescue: in heavy rain, ferry people out of flooded streets.
+   - Midnight passenger: the drunk / the ghost-story regular / the nurse after a night shift.
+   - Lost bag: a passenger leaves a bag full of cash. Return it (story) or keep it (wanted + bad karma).
+
+### Chapter 3 - "Muthal Mudhalaali" (The first boss)
+The trigger: the lost-bag passenger was Seshadri sir, a retired transport businessman. Impressed by
+your honesty, he offers to back you: "Anna Travels". The business path:
+1. A second auto + hiring drivers (NPC drivers on routes, a daily share; pick honest / fast ones).
+2. Running it: fuel, repairs, a driver who doesn't turn up, a breakdown in the rain, police checks.
+3. The office: rent the shed at the Mylapore auto stand; phone "Business" app (fleet, income, staff).
+4. The rival: Kandasamy's nephew Ganesh runs a competing fleet and plays dirty (slashed tyres,
+   stolen passengers, a fake complaint): missions to win drivers and customers back.
+5. Goal: 5 autos, ₹2 lakh in the bank, a bought home.
+(Other careers, if business isn't wanted: a beach dessert cart -> a juice bar -> a restaurant chain,
+or a mechanic shop -> a garage chain; same structure.)
+
+### Chapter 4 - "Anna Travels & Logistics" (map expansion here)
+New districts the business needs: T. Nagar (Ranganathan Street shopping crowds, Pondy Bazaar),
+Guindy (industrial estate, race course), Koyambedu (bus terminus + wholesale market), the airport.
+Business: cabs for Tidel shifts, delivery vans for the hotels / beach restaurants, a staff bus contract.
+
+### Chapter 5 - "Chennai Raja" (finale)
+The city transport tender against Ganesh; the final showdown; a bungalow in Alwarpet or a beach
+house; the auto stays in the garage, polished, the first thing you ever owned.
+
+### Build order
+A. Homes (done, step 12).  B. Chapter system + Chapter 1 ending.  C. Chapter 2: rent, dealer +
+garage, upgrades, the creative missions (2-3 at a time).  D. Chapter 3: fleet business.
+E. Map expansion + Chapter 4.  F. Chapter 5.
 
 ## Tech stack
 - Vite 8 + TypeScript 7 (strict, `erasableSyntaxOnly`), npm
@@ -142,6 +203,7 @@ src/
     hotels.ts          luxury hotels, palace or tower style (layout.HOTEL_LOTS); lobby doors into the dining halls
     hotelHalls.ts      the hotels' big dining halls (off the map, entered through the lobby doors)
     beachfront.ts      big shops + restaurants facing the beach (layout.BEACHFRONT_LOTS)
+    homes.ts           houses you can walk into, sleep in and buy (layout.HOME_LOTS)
     landmarks.ts       real landmarks per area (Music Academy, Ramakrishna Math, Ice House, ...)
     places.ts          park, Luz Church, market, auto stand, petrol bunk, mechanic, cinema, bank, pharmacy, fish market, beach fair; services + snack counters
     hospital.ts        Isabel Hospital (layout.HOSPITAL_LOT): respawn spot after fainting / being shot

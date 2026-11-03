@@ -42,6 +42,7 @@ import { createShowrooms } from './world/showrooms';
 import { createHotels } from './world/hotels';
 import { createHotelHalls } from './world/hotelHalls';
 import { createBeachfront } from './world/beachfront';
+import { createHomes } from './world/homes';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
@@ -79,6 +80,13 @@ const PUSH_CLIP_SPEED = 1.2; // m/s the Pushing clip's steps are made for
 const PUSH_LOSE = 3.5;
 /** Navigation ends this close to the destination (metres). */
 const ARRIVE_M = 14;
+/** Lines for buying a home and sleeping (Tanglish). */
+const HOME_LINES = {
+  cantAfford: 'Sir, ₹{price} venum. Konjam saerthu vachittu vaanga!',
+  bought: 'Congratulations! {area} veedu ippo ungaludhu. Saavi gate-la irukku.',
+  slept: 'Nalla thookam... kaalai aagiduchu!',
+  napped: 'Konjam rest edutthaachu. Fresh-aa irukku!',
+};
 /** How close to a hotel's lobby doors / a hall's door to go in / out (m). */
 const DOOR_RADIUS = 1.8;
 /** North of this z you're in one of the dining halls (built off the map, hotelHalls.ts). */
@@ -153,6 +161,7 @@ async function main() {
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
   crowd.addPosed(hotels.posed); // doormen, guards and guests at the hotels
   const beachfront = createBeachfront(scene, world); // big shops + restaurants facing the beach
+  const homes = createHomes(scene, world); // houses you can walk into, sleep in and buy
   const halls = createHotelHalls(scene, world); // the dining halls you enter through the hotel lobbies
   crowd.addPosed(halls.posed); // diners, waiters, chef, musician
   crowd.addAmbient(); // everyday people on whatever street you're on
@@ -197,6 +206,9 @@ async function main() {
   const melee = new Melee(player);
   const heroHips = player.model.getObjectByName('Hips')!;
   let health = 100;
+  // Homes you own: the rented one (0) from the start; bought ones from the save.
+  const owned = new Set<number>(saved?.homes ?? [0]);
+  homes.homes.forEach((h, i) => h.setOwned(owned.has(i)));
   if (saved) {
     economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false, savings: saved.economy.savings ?? 0 }); // older saves lack these
     energy.value = saved.energy;
@@ -614,6 +626,7 @@ async function main() {
       player: { x: p.x, y: p.y, z: p.z, yaw },
       auto: { x: a.x, y: a.y, z: a.z, heading: auto.heading },
       upkeep: { fuel: upkeep.fuel, condition: upkeep.condition },
+      homes: [...owned],
     });
   };
   window.setInterval(saveNow, AUTOSAVE_MS);
@@ -731,6 +744,34 @@ async function main() {
       }
     }
     // Lighthouse: E at the door takes you up to the gallery, E up there brings you back down.
+    // Homes: buy one at its gate (cash first, then the bank), sleep in your own bed.
+    const nearPt = (p: THREE.Vector3, r: number) => Math.hypot(player.position.x - p.x, player.position.z - p.z) < r && Math.abs(player.position.y - p.y) < 2;
+    const forSale = onFootFree ? homes.homes.findIndex((h, i) => !owned.has(i) && h.price > 0 && nearPt(h.sale, 2)) : -1;
+    const myBed = onFootFree ? homes.homes.findIndex((h, i) => owned.has(i) && nearPt(h.bed, 1.4)) : -1;
+    if (forSale >= 0 && input.wasPressed('KeyE')) {
+      const h = homes.homes[forSale];
+      if (economy.cash + economy.savings < h.price) hud.say('Owner', HOME_LINES.cantAfford.replace('{price}', h.price.toLocaleString('en-IN')));
+      else {
+        const fromCash = Math.min(economy.cash, h.price);
+        economy.cash -= fromCash;
+        economy.savings -= h.price - fromCash;
+        owned.add(forSale);
+        h.setOwned(true);
+        showMoney();
+        sound.coin();
+        phone.addMessage('Owner', HOME_LINES.bought.replace('{area}', h.area));
+        saveNow();
+      }
+    } else if (myBed >= 0 && input.wasPressed('KeyE')) {
+      // Sleep: through the night to 6 am, or a 3-hour nap in the day. Full health, a little hungry.
+      const now = istTime(dayNight.timeMs).hours;
+      const skip = now >= 20 || now < 5 ? ((30 - now) % 24) : 3;
+      dayNight.timeMs += skip * 3600 * 1000;
+      health = 100;
+      energy.spend(skip * 2);
+      hud.say('You', skip > 3 ? HOME_LINES.slept : HOME_LINES.napped);
+      saveNow();
+    }
     const lh = santhome.lighthouse;
     const atLighthouseDoor = onFootFree && Math.hypot(player.position.x - lh.door.x, player.position.z - lh.door.z) < 2.4 && player.position.y < lh.centre.y + 5;
     const onLighthouseTop = onFootFree && player.position.y > lh.centre.y + 20 && Math.hypot(player.position.x - lh.centre.x, player.position.z - lh.centre.z) < 4;
@@ -804,6 +845,8 @@ async function main() {
         : shelf ? (shelfOpen ? null : `E - ${shelf.name} (basket ${basket.length}/${BASKET_MAX})`)
         : counter ? (basket.length ? `E - Pay ₹${basketTotal()} at the counter` : 'Cashier: pick something from the shelves first')
         : store && basket.length && !meal.busy ? `Basket: ${basket.length} item(s), ₹${basketTotal()} - pay at the counter`
+        : forSale >= 0 ? `E - Buy this house in ${homes.homes[forSale].area} (₹${homes.homes[forSale].price.toLocaleString('en-IN')})`
+        : myBed >= 0 ? 'E - Sleep'
         : hotelDoor >= 0 ? `E - Enter ${hotels.doors[hotelDoor].hotel} (${hotels.doors[hotelDoor].name})`
         : hallExit >= 0 ? `E - Leave ${hotels.doors[hallExit].name}`
         : atLighthouseDoor ? 'E - Go up the lighthouse'
@@ -1001,6 +1044,7 @@ async function main() {
     hotels.setNight(dayNight.night);
     halls.setNight(dayNight.night);
     beachfront.setNight(dayNight.night);
+    homes.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
