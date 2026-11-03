@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
-import { BOUNDS, ROAD_HALF, SIDEWALK_HEIGHT, inWater, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads } from './layout';
+import { BOUNDS, ROAD_HALF, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads } from './layout';
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
@@ -104,16 +104,17 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
           // Lamp arm points over the road: local +x -> towards the road.
           const toRoad = axis === 'z' ? (side > 0 ? Math.PI : 0) : side > 0 ? Math.PI / 2 : -Math.PI / 2;
           const lampAlongs: number[] = [];
+          const onRail = (p: THREE.Vector3) => Math.abs(p.x - RAIL_X) < RAIL_HALF + 3;
           const start = a + (side > 0 ? 6 : 6 + LAMP_SPACING / 2);
           for (let s = start; s < b - 4; s += LAMP_SPACING) {
-            if (offEnd(s)) continue;
+            if (offEnd(s) || onRail(place(s))) continue;
             lampAlongs.push(s);
             lamps.push(new THREE.Matrix4().makeRotationY(toRoad).setPosition(place(s)));
           }
           for (let s = a + 4 + rand() * 4; s < b - 4; s += TREE_SPACING * (0.7 + rand() * 0.6)) {
             if (lampAlongs.some((l) => Math.abs(l - s) < 3) || offEnd(s)) continue;
             const at = place(s);
-            if (inWater(at.x, at.z, 4)) continue; // no trees on the bridges
+            if (inWater(at.x, at.z, 4) || onRail(at)) continue; // no trees on the bridges or the railway
             const scale = 0.8 + rand() * 0.5;
             trees.push(new THREE.Matrix4().makeRotationY(rand() * Math.PI * 2).scale(new THREE.Vector3(scale, scale, scale)).setPosition(place(s)));
           }

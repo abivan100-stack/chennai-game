@@ -21,6 +21,10 @@ export const SHOWROOMS: { en: string; ta: string; accent: number; letters: strin
   { en: 'thari', ta: 'தறி', accent: 0x6a2c91, letters: '#6a2c91' },
   { en: 'uduppu', ta: 'உடுப்பு', accent: 0xef6c00, letters: '#ef6c00' },
   { en: 'kolam', ta: 'கோலம்', accent: 0xc2185b, letters: '#c2185b' },
+  // T. Nagar silk houses (South Usman Road).
+  { en: 'GANGA SILKS', ta: 'கங்கா சில்க்ஸ்', accent: 0x8c1c2c, letters: '#8c1c2c' },
+  { en: 'Kanchi Pattu', ta: 'காஞ்சி பட்டு', accent: 0xb8860b, letters: '#9a6b00' },
+  { en: 'NAVARATNA', ta: 'நவரத்னா நகைகள்', accent: 0x1b5e20, letters: '#1b5e20' },
 ];
 
 const C = (hex: number) => new THREE.Color(hex);

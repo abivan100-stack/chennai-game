@@ -44,6 +44,7 @@ import { createHotelHalls } from './world/hotelHalls';
 import { createBeachfront } from './world/beachfront';
 import { createHomes } from './world/homes';
 import { createMedians } from './world/medians';
+import { createTNagar } from './world/tnagar';
 import { Story } from './missions/story';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
@@ -172,9 +173,12 @@ async function main() {
   crowd.addPosed(hotels.posed); // doormen, guards and guests at the hotels
   const beachfront = createBeachfront(scene, world); // big shops + restaurants facing the beach
   createMedians(scene, world); // divided big roads (Usman Road, Anna Salai)
+  const tnagar = createTNagar(scene, world); // Ranganathan Street, Mambalam station, Panagal Park, Pondy Bazaar
   const homes = createHomes(scene, world); // houses you can walk into, sleep in and buy
   const halls = createHotelHalls(scene, world); // the dining halls you enter through the hotel lobbies
   crowd.addPosed(halls.posed); // diners, waiters, chef, musician
+  crowd.addPosed(tnagar.posed); // shopkeepers on Ranganathan Street, commuters at Mambalam
+  crowd.addWalkers(tnagar.walkers); // shoppers in the lane, walkers in Panagal Park
   crowd.addAmbient(); // everyday people on whatever street you're on
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
@@ -1062,6 +1066,7 @@ async function main() {
     halls.setNight(dayNight.night);
     beachfront.setNight(dayNight.night);
     homes.setNight(dayNight.night);
+    tnagar.setNight(dayNight.night);
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);

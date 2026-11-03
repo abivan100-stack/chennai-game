@@ -468,6 +468,10 @@ export const SHOWROOM_LOTS = (): Lot[] => [
   sideLot(-1, -1, 'w', 39, 34, 22),
   sideLot(-2, -2, 'e', 20, 34, 22),
   sideLot(-1, -2, 'w', 20, 34, 22),
+  // T. Nagar: the big silk houses on South Usman Road.
+  sideLot(-5, 4, 'e', 3, 34, 22),
+  sideLot(-4, 4, 'w', 3, 34, 22),
+  sideLot(-4, 2, 'w', 1, 33, 22),
 ];
 
 /** Luxury hotels (world/hotels.ts): Anna Salai (Teynampet), TTK Road (Alwarpet), Anna Salai (Adyar end). */
@@ -499,3 +503,25 @@ export const HOME_LOTS = (): Lot[] => [
   sideLot(2, 7, 's', 20, 12, 13), // R.A. Puram, Greenways side
   sideLot(-1, 3, 'w', 9, 12, 13), // Alwarpet
 ];
+
+/**
+ * T. Nagar (world/tnagar.ts): Ranganathan Street is a pedestrian bazaar lane through the block
+ * west of Usman Road, running on past Duraisamy Road to Mambalam station on the suburban railway
+ * (a north-south line near the west edge). Panagal Park takes the block east of Usman Road at
+ * Venkatanarayana Road; Pondy Bazaar is the paved promenade along Sir Thyagaraya Road (z = -70).
+ */
+export const RAIL_X = -595; // suburban railway centre line (two tracks)
+export const RAIL_HALF = 10; // the rail corridor's half width (tracks, ballast, fences)
+export const TNAGAR = {
+  /** The whole block the lane runs through (shops face the lane). */
+  ranganathan: (): Lot => { const b = block(-5, 3); return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 'e' }; },
+  lane: { z0: 44.5, z1: 50.5 }, // the lane itself
+  /** The lane's continuation from Duraisamy Road to the station, and the station building. */
+  stationLane: { x0: -566, x1: -527.5, z0: 41.5, z1: 53.5, front: 'e' } as Lot,
+  station: { x0: RAIL_X + RAIL_HALF, x1: -566, z0: 33.5, z1: 61.5, front: 'e' } as Lot,
+  platform: { z0: 33, z1: 62 }, // between Bazullah Road and Burkit Road
+  panagal: (): Lot => { const b = block(-4, 1); return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 'w' }; },
+  pondy: { z: -70, x0: -512.5, x1: -272.5 },
+};
+/** The rail corridor through the west column of blocks (no buildings there). */
+export const RAIL_LOTS = (): Lot[] => blocks().filter((b) => b.x0 < RAIL_X + RAIL_HALF && b.x1 > RAIL_X - RAIL_HALF).map((b) => ({ x0: RAIL_X - RAIL_HALF, x1: RAIL_X + RAIL_HALF, z0: b.z0, z1: b.z1, front: 'e' as Front }));

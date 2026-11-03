@@ -4,7 +4,7 @@ import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, streetName, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
-import { BEACHFRONT_LOTS, HOME_LOTS, HOTEL_LOTS, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
+import { BEACHFRONT_LOTS, HOME_LOTS, HOTEL_LOTS, RAIL_HALF, RAIL_X, TNAGAR, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
 import { BEACHFRONT } from '../world/beachfront';
 import { HOMES } from '../world/homes';
 import { SHOWROOMS } from '../world/showrooms';
@@ -313,6 +313,30 @@ export function drawTownMap(data: MapData): TownMap {
     const b = BEACHFRONT[i % BEACHFRONT.length];
     poi(b.name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, b.menu ? '#ef6c00' : '#ad1457', b.menu ? '🍽' : '🛍', b.menu ? 'food' : 'shop', 2);
   });
+  // T. Nagar: the suburban railway, Ranganathan Street, Panagal Park, Pondy Bazaar.
+  g.fillStyle = '#b9b2a6';
+  g.fillRect(P(RAIL_X - RAIL_HALF), P(BOUNDS.z0), M(RAIL_HALF * 2), MAP_H);
+  g.fillStyle = '#7d756b';
+  for (const dx of [-3, 3]) g.fillRect(P(RAIL_X + dx - 0.8), P(BOUNDS.z0), M(1.6), MAP_H);
+  {
+    const rg = TNAGAR.ranganathan();
+    g.fillStyle = '#f6d7c0';
+    g.fillRect(P(rg.x0), P(rg.z0), M(rg.x1 - rg.x0), M(rg.z1 - rg.z0));
+    g.fillStyle = '#efe6d6';
+    g.fillRect(P(rg.x0), P(TNAGAR.lane.z0), M(rg.x1 - rg.x0), M(TNAGAR.lane.z1 - TNAGAR.lane.z0));
+    g.fillRect(P(TNAGAR.stationLane.x0), P(TNAGAR.stationLane.z0), M(TNAGAR.stationLane.x1 - TNAGAR.stationLane.x0), M(TNAGAR.stationLane.z1 - TNAGAR.stationLane.z0));
+    poi('Ranganathan Street', (rg.x0 + rg.x1) / 2, (TNAGAR.lane.z0 + TNAGAR.lane.z1) / 2, '#b71c1c', '🛍', 'shop', 1);
+    const pk = TNAGAR.panagal();
+    g.fillStyle = '#a5d6a7';
+    g.fillRect(P(pk.x0), P(pk.z0), M(pk.x1 - pk.x0), M(pk.z1 - pk.z0));
+    poi('Panagal Park', (pk.x0 + pk.x1) / 2, (pk.z0 + pk.z1) / 2, '#2e7d32', '❀', 'place', 1);
+    poi('Mambalam station', RAIL_X + 8, 47, '#f4a000', 'M', 'transport', 1);
+    poi('Pondy Bazaar', -390, TNAGAR.pondy.z - 7, '#0d3b66', '★', 'shop', 1);
+    labels.push({ text: 'T. NAGAR', x: -400, z: 100, kind: 'area' });
+    labels.push({ text: 'WEST MAMBALAM', x: -560, z: -100, kind: 'area' });
+    labels.push({ text: 'KODAMBAKKAM', x: -450, z: -270, kind: 'area' });
+    labels.push({ text: 'SAIDAPET', x: -450, z: 260, kind: 'area' });
+  }
   HOME_LOTS().forEach((lot, i) => {
     g.fillStyle = '#e6f0d8';
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
