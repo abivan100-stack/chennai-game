@@ -176,8 +176,8 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
           const seat = f.at(cu, tv, FLOOR_TOP + SEAT_TOP);
           if (t === 0 && sg < 0) {
             // Your table: the meal walks you here, sits you down and serves you.
-            const table = f.at(tu, tv, FLOOR_TOP + TABLE_TOP);
-            eateries.push({ name: `${title(HOTELS[i].diner[1].split(' ·')[0])}, ${title(HOTELS[i].en.split(' ·')[0])}`, menu: PLACE_MENUS.fine, spot, seat, seatYaw: eatYaw - Math.PI / 2, eatYaw, table });
+            const table = f.at(tu - 0.22, tv, FLOOR_TOP + TABLE_TOP); // your plate goes in front of you, not mid-table
+            eateries.push({ name: `${title(HOTELS[i].diner[1].split(' ·')[0])}, ${title(HOTELS[i].en.split(' ·')[0])}`, menu: PLACE_MENUS.fine, spot, seat, seatYaw: eatYaw - Math.PI / 2, eatYaw, table, china: true });
           } else if ((t + (sg > 0 ? 1 : 0)) % 3 !== 2) {
             // A plate in front of them, and they eat from it.
             const pu = tu + sg * 0.24;

@@ -23,6 +23,8 @@ export interface Eatery {
   seatYaw: number;
   eatYaw: number;
   table: THREE.Vector3;
+  /** Served on a white china plate instead of a banana leaf (the hotel restaurants). */
+  china?: boolean;
 }
 
 /**

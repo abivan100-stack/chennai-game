@@ -5,14 +5,38 @@ import type { CharacterAsset } from '../characters/catalog';
 /**
  * Makes each Mixamo NPC look like a different person, although only ~14 bodies exist:
  * - skin: a natural warmer / browner tone; hair: black or dark brown;
+ * - clothes: for some, coloured clothes change colour (see CLOTHES_GLSL: skin hues are never touched);
  * - build: slightly slimmer or broader (height comes from the spawn);
  * - face: glasses, a moustache (men) or a bindi (women), placed from the model's measured face.
  * Everything is picked from a seed (the NPC's name), so a person looks the same every visit.
  */
 
+/** Share of people whose clothes get a new colour. */
+const CLOTHES_CHANCE = 0.6;
 const SKIN = [0xf2dcc6, 0xe6c9ac, 0xdbb894, 0xcfa781, 0xc4996f, 0xfff4ea];
 const HAIR = [0x141010, 0x1c1410, 0x241a12, 0x30231a, 0x0d0d0d];
 const ACCESSORY = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
+
+/**
+ * Clothes recolour, safe for faces: only clearly non-skin hues (green, blue, purple, pink; HSV hue
+ * 0.2-0.9) that are well saturated get their hue turned. Reds, oranges, yellows (every skin tone,
+ * lips) and greys / blacks / whites are never touched.
+ */
+const CLOTHES_GLSL = /* glsl */ `
+{
+  vec3 c = diffuseColor.rgb;
+  vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  vec3 hsv = vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+  float w = smoothstep(0.2, 0.26, hsv.x) * (1.0 - smoothstep(0.86, 0.9, hsv.x)) * smoothstep(0.25, 0.4, hsv.y);
+  vec3 h2 = vec3(fract(hsv.x + uClothHue), hsv.y, hsv.z);
+  vec3 P = abs(fract(h2.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+  vec3 turned = h2.z * mix(vec3(1.0), clamp(P - 1.0, 0.0, 1.0), h2.y);
+  diffuseColor.rgb = mix(c, turned, w);
+}
+`;
 
 function hashString(s: string) {
   let h = 2166136261;
@@ -86,12 +110,23 @@ export function varyLook(body: THREE.Object3D, asset: CharacterAsset, seed: stri
   const rnd = () => (s = (s * 48271) % 2147483647) / 2147483647; // Park-Miller: 0 < r < 1
   const skin = SKIN[Math.floor(rnd() * SKIN.length)];
   const hair = HAIR[Math.floor(rnd() * HAIR.length)];
+  const newClothes = rnd() < CLOTHES_CHANCE;
+  const clothHue = 0.15 + rnd() * 0.7; // turn of the hue wheel for their clothes
   body.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const mat = (m.material as THREE.MeshStandardMaterial).clone();
     if (/hair/i.test(mat.name)) mat.color.set(hair);
-    else mat.color.set(skin); // a natural skin tone (multiplies the texture: no odd colours)
+    else {
+      mat.color.set(skin); // a natural skin tone (multiplies the texture: no odd colours)
+      if (newClothes) {
+        mat.onBeforeCompile = (sh) => {
+          sh.uniforms.uClothHue = { value: clothHue };
+          sh.fragmentShader = 'uniform float uClothHue;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n' + CLOTHES_GLSL);
+        };
+        mat.customProgramCacheKey = () => 'npc-clothes'; // one shader program for everyone recoloured
+      }
+    }
     m.material = mat;
   });
   const face = faceOf(asset, body);

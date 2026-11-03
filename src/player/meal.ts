@@ -50,6 +50,8 @@ export class Meal {
   private readonly head: THREE.Object3D;
   private readonly plate = new THREE.Group();
   private readonly plateFood: THREE.Mesh;
+  private readonly leaf: THREE.Mesh;
+  private readonly china: THREE.Group;
   private readonly handFood: THREE.Mesh;
   private eatery: Eatery | null = null;
   private item: FoodItem | null = null;
@@ -81,10 +83,16 @@ export class Meal {
     this.head = bone('Head');
 
     // Banana leaf + a heap of food (recoloured per dish).
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.006, 0.3), new THREE.MeshStandardMaterial({ color: 0x3d8b2f, roughness: 0.5 }));
+    this.leaf = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.006, 0.3), new THREE.MeshStandardMaterial({ color: 0x3d8b2f, roughness: 0.5 }));
+    // ...or, in the hotel restaurants, a white china plate with a gold rim.
+    this.china = new THREE.Group();
+    this.china.add(
+      new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.016, 20), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 })),
+      new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.005, 4, 24).rotateX(Math.PI / 2).translate(0, 0.009, 0), new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.4 })),
+    );
     this.plateFood = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8).scale(1, 0.4, 0.8), new THREE.MeshStandardMaterial({ roughness: 0.8 }));
     this.plateFood.position.y = 0.012;
-    this.plate.add(leaf, this.plateFood);
+    this.plate.add(this.leaf, this.china, this.plateFood);
     this.plate.visible = false;
     scene.add(this.plate);
 
@@ -199,6 +207,8 @@ export class Meal {
         if (this.t < SWIVEL_SECONDS) return;
         // Leaf goes on the table, food heaped on it.
         this.plate.position.copy(e.table);
+        this.leaf.visible = !e.china;
+        this.china.visible = !!e.china;
         this.plate.rotation.y = e.eatYaw;
         this.plateFood.scale.setScalar(1);
         this.plate.visible = true;
