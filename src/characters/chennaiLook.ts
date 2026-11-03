@@ -188,8 +188,10 @@ function recolourTexture(old: THREE.Texture, mesh: THREE.SkinnedMesh) {
         paint(i, TEE, shade * (0.96 + 0.06 * hash(x, Math.floor(i / 4 / w))));
         break;
       case 'pants': {
-        const weave = 0.94 + 0.08 * hash(x, Math.floor(i / 4 / w));
-        paint(i, TROUSERS, shade * weave);
+        // One even cloth from hip to ankle: the old texture's shading would keep the shorts'
+        // hem showing at the knee (denim above, bare shin below), so only a faint weave.
+        const weave = 0.95 + 0.07 * hash(x, Math.floor(i / 4 / w));
+        paint(i, TROUSERS, weave);
         break;
       }
       case 'shoes':
