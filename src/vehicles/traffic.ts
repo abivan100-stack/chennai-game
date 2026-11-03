@@ -13,6 +13,10 @@ const CORNER_R = 4;
 const CORNER_SPEED = 4;
 const LOOKAHEAD = 7; // m along the path to judge an upcoming turn
 const HONK_AFTER = 2.5; // s blocked before honking
+/** Gridlock breakers: after waiting this long behind other vehicles, nose through them for PUSH_ON s. */
+const PATIENCE = 4;
+const PUSH_ON = 2.5;
+const STUCK_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
 const DETAIL_DIST = 32; // ...and beyond this they drop wheels and driver (5 draw calls each)
@@ -181,6 +185,15 @@ export interface Vehicle {
   collider: RAPIER.Collider;
   target: number; // speed we want (set per frame from corners / obstacles)
   knocked: number; // s left of being pushed around
+  id: number;
+  /** Heading this frame (unit, on the ground). */
+  hx: number;
+  hz: number;
+  /** The vehicle it's waiting behind (last frame), s waited behind vehicles, s left ignoring them, s stuck. */
+  blocker: Vehicle | null;
+  waitVeh: number;
+  pushOn: number;
+  stuck: number;
   prevPos: THREE.Vector3;
   currPos: THREE.Vector3;
   prevRot: THREE.Quaternion;
@@ -338,7 +351,7 @@ export class Traffic {
     const veh: Vehicle = {
       kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
       group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
-      collider, target: sp.speed, knocked: 0,
+      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0,
       prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
     };
     this.vehicles.push(veh);
@@ -398,21 +411,43 @@ export class Traffic {
 
       // Stop for anything in the lane ahead.
       const reach = sp.length / 2 + 3 + Math.max(0, veh.v) * 1.2;
+      veh.hx = this.dir.x;
+      veh.hz = this.dir.z;
       let honkable = false;
       let blocked = false;
-      const check = (x: number, z: number, honk: boolean) => {
+      const inLane = (x: number, z: number) => {
         const rx = x - p.x;
         const rz = z - p.z;
         const along = rx * this.dir.x + rz * this.dir.z;
         const side = Math.abs(rx * this.dir.z - rz * this.dir.x);
-        if (along > 0 && along < reach && side < sp.width / 2 + 0.6) {
-          blocked = true;
-          honkable ||= honk;
-        }
+        return along > 0 && along < reach && side < sp.width / 2 + 0.6;
       };
-      for (const o of obstacles) check(o.x, o.z, o.honk);
-      for (const other of this.vehicles) if (other !== veh) check(other.currPos.x, other.currPos.z, false);
-      if (blocked) target = 0;
+      for (const o of obstacles) {
+        if (!inLane(o.x, o.z)) continue;
+        blocked = true;
+        honkable ||= o.honk;
+      }
+      // Other vehicles. Gridlock rules: never wait for one coming the other way (it's in its own
+      // lane), two waiting for each other -> the lower id goes first, and after PATIENCE s in a
+      // queue a vehicle noses through (physics shoves whatever is really there).
+      veh.pushOn = Math.max(0, veh.pushOn - dt);
+      let blocker: Vehicle | null = null;
+      if (veh.pushOn <= 0) {
+        for (const other of this.vehicles) {
+          if (other === veh || !inLane(other.currPos.x, other.currPos.z)) continue;
+          if (other.mode === 'ai' && other.hx * this.dir.x + other.hz * this.dir.z < -0.3) continue;
+          if (other.blocker === veh && veh.id < other.id) continue;
+          blocker = other;
+          break;
+        }
+      }
+      veh.blocker = blocker;
+      veh.waitVeh = blocker && veh.v < 0.5 ? veh.waitVeh + dt : 0;
+      if (veh.waitVeh > PATIENCE) {
+        veh.waitVeh = 0;
+        veh.pushOn = PUSH_ON;
+      }
+      if (blocked || blocker) target = 0;
       // Traffic lights: stop at the line on red, and on amber unless too close to stop.
       if (this.signals) {
         const fx = p.x + this.dir.x * sp.length / 2;
@@ -423,6 +458,16 @@ export class Traffic {
         }
       }
       veh.target = target * this.slowAt(p.x, p.z);
+      // Wedged (wants to go, isn't moving): put it back on its lane a little further on.
+      veh.stuck = veh.target > 1 && veh.v < 0.3 && veh.knocked <= 0 ? veh.stuck + dt : 0;
+      if (veh.stuck > STUCK_AFTER) {
+        veh.stuck = 0;
+        veh.s += 3;
+        veh.path.at(veh.s, this.pos, this.dir);
+        veh.body.setTranslation({ x: this.pos.x, y: 0.02, z: this.pos.z }, true);
+        veh.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(this.dir.x, this.dir.z)), true);
+        veh.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      }
 
       // Chennai rules: if you're in the way, they let you know.
       veh.blockedFor = blocked && veh.v < 0.5 ? veh.blockedFor + dt : 0;
