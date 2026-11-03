@@ -9,7 +9,13 @@ export const CHARACTER_HEIGHT = 1.7;
 export interface CharacterAsset {
   scene: THREE.Object3D;
   clips: THREE.AnimationClip[];
+  /** Ground speed (m/s) the walk / run cycles were made for (playback rate = speed / this). */
+  clipSpeed?: { walk: number; run: number };
+  /** Mixamo body (textured: hair + skin can be varied per person, see Npc). */
+  mixamo?: boolean;
 }
+/** The hero's Mixamo walk / run cover this much ground per second at 1x (as controller.ts CLIP_SPEED). */
+const MIXAMO_CLIP_SPEED = { walk: 1.63, run: 5.4 };
 
 /** Hero (Mixamo): one model file + one file per clip (clip name = file name). */
 const HERO = {
@@ -30,7 +36,22 @@ export const NPC_MODELS = {
   'woman-casual': { file: 'npc-woman-casual.glb', rig: 'qwomen' },
   'woman-formal': { file: 'npc-woman-formal.glb', rig: 'qwomen' },
   'woman-suit': { file: 'npc-woman-suit.glb', rig: 'qwomen' },
+  // Mixamo characters (same skeleton as the hero: they use the hero's clips, see MIXAMO_AS).
+  mx01: { file: 'npc-mx01.glb', rig: 'mixamo' },
+  mx02: { file: 'npc-mx02.glb', rig: 'mixamo' },
+  mx03: { file: 'npc-mx03.glb', rig: 'mixamo' },
+  mx04: { file: 'npc-mx04.glb', rig: 'mixamo' },
+  mx05: { file: 'npc-mx05.glb', rig: 'mixamo' },
+  mx06: { file: 'npc-mx06.glb', rig: 'mixamo' },
+  mx07: { file: 'npc-mx07.glb', rig: 'mixamo' },
+  mx08: { file: 'npc-mx08.glb', rig: 'mixamo' },
+  mx09: { file: 'npc-mx09.glb', rig: 'mixamo' },
+  mx10: { file: 'npc-mx10.glb', rig: 'mixamo' },
+  mx11: { file: 'npc-mx11.glb', rig: 'mixamo' },
+  mx12: { file: 'npc-mx12.glb', rig: 'mixamo' },
 } as const;
+/** Mixamo NPCs: hero clip -> the name NPC code plays (plus every hero clip under its own name). */
+const MIXAMO_AS: Record<string, string> = { hit_react: 'hit', death: 'fall', talk: 'wave', idle: 'idle2' };
 export type NpcModelId = keyof typeof NPC_MODELS;
 
 /** Scale to CHARACTER_HEIGHT, stand on y = 0, cast shadows, precompute bounds for culling. */
@@ -65,14 +86,20 @@ export async function loadCharacters() {
 
   // Clips per rig: the rig's own (from the one file that ships them) + hero clips retargeted once per rig.
   const rigClips = new Map<string, THREE.AnimationClip[]>();
+  const renamed = hero.clips.filter((c) => MIXAMO_AS[c.name]).map((c) => Object.assign(c.clone(), { name: MIXAMO_AS[c.name] }));
+  rigClips.set('mixamo', [...hero.clips, ...renamed]);
   npcIds.forEach((id, i) => {
     const rig = NPC_MODELS[id].rig;
-    if (!npcGltfs[i].animations.length) return;
+    if (rig === 'mixamo' || !npcGltfs[i].animations.length) return;
     const extra = hero.clips
       .filter((c) => SHARED_WITH_NPCS.includes(c.name))
       .map((c) => retargetClip(hero.scene, npcs.get(id)!.scene, c, QUATERNIUS_FROM_MIXAMO));
     rigClips.set(rig, [...npcGltfs[i].animations, ...extra]);
   });
-  for (const id of npcIds) npcs.get(id)!.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
+  for (const id of npcIds) {
+    const a = npcs.get(id)!;
+    a.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
+    if (NPC_MODELS[id].rig === 'mixamo') Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true });
+  }
   return { hero, npcs };
 }

@@ -14,6 +14,7 @@ const EAT_BITE = 3.2;
 const EAT_MOUTH = new THREE.Vector3();
 const SIT_DROP = 0.42; // m: lowers a seated NPC so the hips rest on a ~0.45 m seat
 const SPEED = { walk: 1.3, run: 3.4 }; // m/s; roughly matches the Quaternius cycles at 1x
+const HAIR = [0x1a1410, 0x241a12, 0x30231a, 0x111111];
 const TURN_RATE = 6;
 const ARRIVE_DIST = 0.25;
 const AVOID_AHEAD = 1.8; // start stepping around the player this far ahead
@@ -66,6 +67,7 @@ export class Npc {
   private target = 0;
   private busy = 0; // talking / scolding
   private readonly pose: NpcOptions['pose'];
+  private clipSpeed: { walk: number; run: number } = SPEED;
   private eating: { food: THREE.Vector3; upper: THREE.Object3D; fore: THREE.Object3D; hand: THREE.Object3D; head: THREE.Object3D; t: number } | null = null;
   /** Where a posed NPC stays (after the seated drop). */
   private home: THREE.Vector3;
@@ -79,11 +81,13 @@ export class Npc {
   constructor(scene: THREE.Scene, world: RAPIER.World, asset: CharacterAsset, opts: NpcOptions) {
     this.name = opts.name;
     const body = cloneSkinned(asset.scene);
-    if (opts.tint !== undefined || opts.map) {
+    if (opts.tint !== undefined || opts.map || asset.mixamo) {
       body.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return;
         const mat = (o.material as THREE.MeshStandardMaterial).clone(); // same shader, no extra compile
-        if (opts.tint !== undefined) mat.color.set(opts.tint);
+        // Mixamo bodies: hair goes dark (black / dark brown), the rest takes the person's tint (warmer skin tones).
+        if (asset.mixamo && /hair/i.test(mat.name)) mat.color.set(HAIR[Math.floor(Math.random() * HAIR.length)]);
+        else if (opts.tint !== undefined) mat.color.set(opts.tint);
         if (opts.map) mat.map = opts.map;
         o.material = mat;
       });
@@ -97,6 +101,7 @@ export class Npc {
     this.path = opts.path;
     this.target = this.closestWaypointAhead();
     this.moveClip = opts.pace ?? 'walk';
+    this.clipSpeed = asset.clipSpeed ?? SPEED;
     this.speed = SPEED[this.moveClip] * rand(0.9, 1.1);
     const first = this.path[this.target];
     this.yaw = this.root.rotation.y = Math.atan2(first.x - opts.position.x, first.z - opts.position.z);
@@ -126,7 +131,7 @@ export class Npc {
     }
     if (!this.pose) {
       this.animator.play(this.moveClip, { fade: 0 });
-      this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
+      this.animator.setSpeed(this.speed / this.clipSpeed[this.moveClip]);
     }
     this.animator.randomizePhase();
   }
@@ -254,7 +259,7 @@ export class Npc {
       this.busy -= dt;
       if (this.busy <= 0) {
         this.animator.play(this.pose ? this.pose.clip : this.moveClip, { fade: 0.4 });
-        this.animator.setSpeed(this.pose ? 1 : this.speed / SPEED[this.moveClip]);
+        this.animator.setSpeed(this.pose ? 1 : this.speed / this.clipSpeed[this.moveClip]);
       }
     } else if (this.pose) {
       this.yaw = this.pose.yaw; // back to watching the sea / minding the stall

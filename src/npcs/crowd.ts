@@ -49,6 +49,25 @@ const inHours = (h: number, ranges: [number, number][]) => ranges.some(([a, b]) 
 
 // Blocks: temple = [2, 2], tank = [1, 2]; [3, 2] is across East Mada Street, etc.
 /**
+ * Who you meet where: office wear round Tidel Park / Anna Salai / TTK Road, young casuals on the
+ * beaches and food streets, tracksuits at dawn, workers at the markets, delivery riders at night.
+ * 'mixed' (the default) is everyone else, with a few of the Mixamo faces mixed in.
+ */
+type Look = 'mixed' | 'office' | 'young' | 'sport' | 'worker' | 'delivery';
+const LOOKS: Record<Look, NpcModelId[]> = {
+  mixed: ['woman-casual', 'man-casual', 'woman-formal', 'man-worker', 'woman-suit', 'man-farmer', 'mx01', 'mx04', 'mx06', 'mx11'],
+  office: ['mx02', 'mx06', 'mx07', 'mx08', 'woman-suit', 'woman-formal'],
+  young: ['mx01', 'mx03', 'mx04', 'mx05', 'man-casual', 'woman-casual'],
+  sport: ['mx09', 'mx10', 'mx01', 'mx05'],
+  worker: ['mx11', 'man-worker', 'man-farmer', 'woman-formal'],
+  delivery: ['mx12'],
+};
+// Quaternius models: colour variants so the same six don't look like twins in a crowd.
+const TINTS = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0, 0xffe0b2, 0xc8e6c9, 0xbbdefb, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
+// Mixamo models (one texture for skin and clothes): warmer, browner skin tones instead.
+const SKIN_TINTS = [0xf2dcc6, 0xe6c9ac, 0xdbb894, 0xcfa781, 0xffffff];
+
+/**
  * The crowd: devotees circling the temple (pradakshinam), walkers round the tank and the
  * shopping blocks. `start` = how far along the loop (0..1) they begin.
  */
@@ -87,71 +106,71 @@ const SPAWNS: Spawn[] = [
   // Kapaleeshwarar temple: morning and evening pooja.
   ...crowdOf(['Kamala paati', 'Seshadri', 'Gowri', 'Balu', 'Revathi', 'Ganapathy'], { block: [2, 2], lane: LANE_B, hours: [[6, 9.5], [17, 20.5]] }),
   // Vegetable market by the tank: early morning shoppers.
-  ...crowdOf(['Saroja', 'Muthu', 'Valli', 'Anand'], { block: [1, 3], lane: LANE_A, hours: [[6, 11]] }),
+  ...crowdOf(['Saroja', 'Muthu', 'Valli', 'Anand'], { block: [1, 3], lane: LANE_A, look: 'worker', hours: [[6, 11]] }),
   // Santhome beach: evening walkers on the sand (Marina-style crowd).
   ...crowdOf(['Ravi & family', 'Priya', 'Karthik', 'Nisha', 'Selvi akka'], { loop: [[146, -40], [178, -40], [178, 40], [146, 40]], y: 0.1, hours: [[16.5, 21]] }),
   // Elliot's Beach, Besant Nagar: the big evening crowd.
-  ...crowdOf(['Arjun', 'Meera', 'Sanjay', 'Divya', 'Rohit', 'Lavanya', 'Hari', 'Ananya', 'Vikram', 'Sneha'], { loop: [[141, 395], [178, 395], [178, 585], [141, 585]], y: 0.1, hours: [[16.5, 21.5]] }),
+  ...crowdOf(['Arjun', 'Meera', 'Sanjay', 'Divya', 'Rohit', 'Lavanya', 'Hari', 'Ananya', 'Vikram', 'Sneha'], { loop: [[141, 395], [178, 395], [178, 585], [141, 585]], y: 0.1, look: 'young', hours: [[16.5, 21.5]] }),
   // Morning joggers on Elliot's Beach.
-  ...crowdOf(['Jogger Ramesh', 'Jogger Kavya'], { loop: [[142, 380], [150, 380], [150, 595], [142, 595]], y: 0.11, hours: [[5.5, 8]], pace: 'run' }),
+  ...crowdOf(['Jogger Ramesh', 'Jogger Kavya'], { loop: [[142, 380], [150, 380], [150, 595], [142, 595]], y: 0.11, look: 'sport', hours: [[5.5, 8]], pace: 'run' }),
   // Besant Nagar food street: late evening.
-  ...crowdOf(['Nikhil', 'Aishwarya', 'Farhan', 'Pooja'], { block: [4, 9], lane: LANE_B, hours: [[18, 23]] }),
+  ...crowdOf(['Delivery Sathish', 'Delivery Karan'], { block: [4, 9], lane: LANE_A, look: 'delivery', hours: [[11, 15], [18, 23.5]] }),
+  ...crowdOf(['Delivery Manoj'], { block: [-2, 6], lane: LANE_B, look: 'delivery', hours: [[11, 15], [18, 23.5]] }),
+  ...crowdOf(['Nikhil', 'Aishwarya', 'Farhan', 'Pooja'], { block: [4, 9], lane: LANE_B, look: 'young', hours: [[18, 23]] }),
   // Tidel Park: office-goers at shift change.
-  ...crowdOf(['Techie Arun', 'Techie Swathi', 'Techie Manoj', 'Techie Deepa', 'Techie Kiran'], { block: [2, 9], lane: LANE_A, hours: [[8.5, 10], [17.5, 19.5]] }),
+  ...crowdOf(['Techie Arun', 'Techie Swathi', 'Techie Manoj', 'Techie Deepa', 'Techie Kiran'], { block: [2, 9], lane: LANE_A, look: 'office', hours: [[8.5, 10], [17.5, 19.5]] }),
   // Vivekananda College: students before and after class.
-  ...crowdOf(['Student Gokul', 'Student Janani', 'Student Ashwin', 'Student Fathima'], { block: [2, 0], lane: LANE_B, hours: [[8.5, 9.5], [15.5, 16.5]] }),
+  ...crowdOf(['Student Gokul', 'Student Janani', 'Student Ashwin', 'Student Fathima'], { block: [2, 0], lane: LANE_B, look: 'young', hours: [[8.5, 9.5], [15.5, 16.5]] }),
   // Kamadhenu Cinemas: crowds round the show times.
-  ...crowdOf(['Rajini fan Senthil', 'Vijay fan Prakash', 'Moviegoer Latha'], { block: [3, 4], lane: LANE_A, hours: [[11.5, 12.5], [14.5, 15.5], [17.5, 18.5], [20.5, 21.5]] }),
+  ...crowdOf(['Rajini fan Senthil', 'Vijay fan Prakash', 'Moviegoer Latha'], { block: [3, 4], lane: LANE_A, look: 'young', hours: [[11.5, 12.5], [14.5, 15.5], [17.5, 18.5], [20.5, 21.5]] }),
   // Ashtalakshmi temple: evening devotees on the sand.
   ...crowdOf(['Bhavani', 'Krishnan'], { loop: [[154, 428], [184, 428], [184, 460], [154, 460]], y: 0.1, hours: [[17, 20.5]] }),
   // Nageswara Rao Park: morning and evening walkers on the path loop.
-  ...crowdOf(['Walker Rangan', 'Walker Uma', 'Walker Sekar', 'Walker Jaya', 'Walker Mani'], { loop: [[-59, -119], [-36, -119], [-36, -81], [-59, -81]], y: 0.05, hours: [[5.5, 9], [17, 20]] }),
+  ...crowdOf(['Walker Rangan', 'Walker Uma', 'Walker Sekar', 'Walker Jaya', 'Walker Mani'], { loop: [[-59, -119], [-36, -119], [-36, -81], [-59, -81]], y: 0.05, look: 'sport', hours: [[5.5, 9], [17, 20]] }),
   // San Thome Basilica: mass-goers.
   ...crowdOf(['Agnes', 'Thomas', 'Rosy'], { block: [4, 2], lane: LANE_A, hours: [[6, 9], [17, 19.5]] }),
   // Santhome fish market: before sunrise to mid-morning.
-  ...crowdOf(['Fisherman Kuppan', 'Meen vikkira Amma', 'Hotel buyer Raju', 'Selvi'], { loop: [[146, 58], [160, 58], [160, 78], [146, 78]], y: 0.11, hours: [[5, 9.5]] }),
+  ...crowdOf(['Fisherman Kuppan', 'Meen vikkira Amma', 'Hotel buyer Raju', 'Selvi'], { loop: [[146, 58], [160, 58], [160, 78], [146, 78]], y: 0.11, look: 'worker', hours: [[5, 9.5]] }),
   // Santhome beach fair: evening families.
-  ...crowdOf(['Family Suresh', 'Kutty Anu', 'Family Banu', 'Kutty Vishal', 'Balloon buyer Ravi', 'Couple Arun', 'Couple Divya'], { loop: [[148, 104], [182, 104], [182, 134], [148, 134]], y: 0.1, hours: [[17, 22]] }),
+  ...crowdOf(['Family Suresh', 'Kutty Anu', 'Family Banu', 'Kutty Vishal', 'Balloon buyer Ravi', 'Couple Arun', 'Couple Divya'], { loop: [[148, 104], [182, 104], [182, 134], [148, 134]], y: 0.1, look: 'young', hours: [[17, 22]] }),
   // Late-night tea at the auto stand.
   ...crowdOf(['Auto driver Pandi', 'Night watchman', 'Auto driver Babu'], { block: [1, 3], lane: LANE_B, hours: [[21, 1.5]] }),
   // Anna Salai / Teynampet shoppers and office crowd.
-  ...crowdOf(['Shopper Latha', 'Clerk Mohan', 'Shopper Ayesha', 'Sales Ravi'], { block: [-2, 2], lane: LANE_A, hours: [[9.5, 21.5]] }),
-  ...crowdOf(['Shopper Geetha', 'Peon Kannan', 'Shopper Rekha'], { block: [-2, 4], lane: LANE_B, hours: [[9.5, 21.5]] }),
+  ...crowdOf(['Shopper Latha', 'Clerk Mohan', 'Shopper Ayesha', 'Sales Ravi'], { block: [-2, 2], lane: LANE_A, look: 'office', hours: [[9.5, 21.5]] }),
+  ...crowdOf(['Shopper Geetha', 'Peon Kannan', 'Shopper Rekha'], { block: [-2, 4], lane: LANE_B, look: 'office', hours: [[9.5, 21.5]] }),
   // TTK Road / Alwarpet.
-  ...crowdOf(['Sabha rasika Mami', 'Cafe-goer Tara', 'Musician Hari'], { block: [-1, 2], lane: LANE_A, hours: [[8, 22]] }),
+  ...crowdOf(['Sabha rasika Mami', 'Cafe-goer Tara', 'Musician Hari'], { block: [-1, 2], lane: LANE_A, look: 'office', hours: [[8, 22]] }),
   // Mandaveli streets.
   ...crowdOf(['Milkman Velu', 'School kid Abi', 'Ammini', 'Tailor Bashir'], { block: [1, 4], lane: LANE_B, hours: [[6.5, 21]] }),
   ...crowdOf(['Kolam paati', 'Vendor Murugesan', 'Nurse Joyce'], { block: [3, 5], lane: LANE_A, hours: [[6.5, 21]] }),
   // R.A. Puram: evening walkers.
   ...crowdOf(['Retired Iyer', 'Lakshmi mami', 'Dog walker Neha'], { block: [2, 6], lane: LANE_B, hours: [[6, 8], [17, 20]] }),
   // Adyar Main Road shoppers.
-  ...crowdOf(['Shopper Kala', 'Student Rahul', 'Bank clerk Mary', 'Shopper Vinod'], { block: [1, 9], lane: LANE_A, hours: [[9, 22]] }),
+  ...crowdOf(['Shopper Kala', 'Student Rahul', 'Bank clerk Mary', 'Shopper Vinod'], { block: [1, 9], lane: LANE_A, look: 'young', hours: [[9, 22]] }),
   // Taramani office streets.
-  ...crowdOf(['Techie Sharmila', 'Techie Naveen', 'Delivery boy Imran'], { block: [3, 9], lane: LANE_B, hours: [[8, 20.5]] }),
+  ...crowdOf(['Techie Sharmila', 'Techie Naveen', 'Delivery boy Imran'], { block: [3, 9], lane: LANE_B, look: 'office', hours: [[8, 20.5]] }),
   // Velachery gated community residents.
   ...crowdOf(['Resident Anand', 'Resident Kavitha', 'Watchman Gurkha', 'Resident Sid'], { block: [-2, 10], lane: LANE_A, hours: [[6, 9], [16.5, 21.5]] }),
   // Beach events: the music night audience, a beach cricket game, kite flyers.
-  ...crowdOf(['Fan Deepak', 'Fan Swetha', 'Fan Karthi', 'Fan Monisha', 'Fan Ajay', 'Fan Ritu', 'Fan Gautham', 'Fan Leela'], { loop: [[152, 592], [162, 592], [162, 608], [152, 608]], y: 0.1, hours: [[18, 22]] }),
-  ...crowdOf(['Batsman Dinesh', 'Bowler Vicky', 'Fielder Sam', 'Fielder Bala', 'Keeper Ashok'], { loop: [[155, 196], [166, 196], [166, 224], [155, 224]], y: 0.1, hours: [[15, 18]], pace: 'run' }),
-  ...crowdOf(['Kite flyer Raja', 'Kite flyer Pavithra', 'Kite flyer Sundar'], { loop: [[150, -130], [172, -130], [172, -100], [150, -100]], y: 0.1, hours: [[15, 18.5]] }),
+  ...crowdOf(['Fan Deepak', 'Fan Swetha', 'Fan Karthi', 'Fan Monisha', 'Fan Ajay', 'Fan Ritu', 'Fan Gautham', 'Fan Leela'], { loop: [[152, 592], [162, 592], [162, 608], [152, 608]], y: 0.1, look: 'young', hours: [[18, 22]] }),
+  ...crowdOf(['Batsman Dinesh', 'Bowler Vicky', 'Fielder Sam', 'Fielder Bala', 'Keeper Ashok'], { loop: [[155, 196], [166, 196], [166, 224], [155, 224]], y: 0.1, look: 'sport', hours: [[15, 18]], pace: 'run' }),
+  ...crowdOf(['Kite flyer Raja', 'Kite flyer Pavithra', 'Kite flyer Sundar'], { loop: [[150, -130], [172, -130], [172, -100], [150, -100]], y: 0.1, look: 'young', hours: [[15, 18.5]] }),
   // Marina Beach: the big evening crowd, and dawn walkers.
-  ...crowdOf(['Marina Anitha', 'Marina Gopal', 'Marina Rekha', 'Marina Imran', 'Marina Kids 1', 'Marina Kids 2', 'Marina Selvam', 'Marina Jothi', 'Marina Prabhu', 'Marina Nandini', 'Marina Babu', 'Marina Zara'], { loop: [[141, -395], [185, -395], [185, -170], [141, -170]], y: 0.1, hours: [[16.5, 21.5]] }),
-  ...crowdOf(['Dawn walker Mohan', 'Dawn walker Saroja', 'Dawn jogger Kevin'], { loop: [[139, -390], [146, -390], [146, -100], [139, -100]], y: 0.12, hours: [[5.5, 8]], pace: 'walk' }),
+  ...crowdOf(['Marina Anitha', 'Marina Gopal', 'Marina Rekha', 'Marina Imran', 'Marina Kids 1', 'Marina Kids 2', 'Marina Selvam', 'Marina Jothi', 'Marina Prabhu', 'Marina Nandini', 'Marina Babu', 'Marina Zara'], { loop: [[141, -395], [185, -395], [185, -170], [141, -170]], y: 0.1, look: 'young', hours: [[16.5, 21.5]] }),
+  ...crowdOf(['Dawn walker Mohan', 'Dawn walker Saroja', 'Dawn jogger Kevin'], { loop: [[139, -390], [146, -390], [146, -100], [139, -100]], y: 0.12, look: 'sport', hours: [[5.5, 8]], pace: 'walk' }),
   // Chepauk: match crowds at the gates before and after the game.
-  ...crowdOf(['Fan Muthu', 'Fan Revathi', 'Fan Sam', 'Fan Kishore', 'Fan Divya', 'Fan Arvind', 'Ticket tout'], { block: [4, -2], lane: LANE_A, hours: [[17.5, 19.5], [22.5, 23.8]] }),
+  ...crowdOf(['Fan Muthu', 'Fan Revathi', 'Fan Sam', 'Fan Kishore', 'Fan Divya', 'Fan Arvind', 'Ticket tout'], { block: [4, -2], lane: LANE_A, look: 'young', hours: [[17.5, 19.5], [22.5, 23.8]] }),
   // Triplicane: busy old streets, mansions, students.
   ...crowdOf(['Mansion Ravi', 'Student Prem', 'Paati Kamakshi', 'Book seller Ali'], { block: [1, -1], lane: LANE_B, hours: [[6, 23]] }),
   ...crowdOf(['Temple-goer Vasu', 'Flower Amma', 'Student Nila'], { block: [2, -2], lane: LANE_A, hours: [[6, 22]] }),
-  ...crowdOf(['Presidency student Akash', 'Presidency student Mythili', 'Prof. Raghavan'], { block: [4, -1], lane: LANE_B, hours: [[8.5, 17.5]] }),
+  ...crowdOf(['Presidency student Akash', 'Presidency student Mythili', 'Prof. Raghavan'], { block: [4, -1], lane: LANE_B, look: 'young', hours: [[8.5, 17.5]] }),
   // Luz Church Road shoppers.
   ...crowdOf(['Shopper Indira', 'Flower seller Ponni'], { block: [1, 1], lane: LANE_B, hours: [[7, 21]] }),
 ];
 
 /** A group of people sharing a route and hours, spread out along it, with varied looks. */
-function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y' | 'hours' | 'pace'>): Spawn[] {
-  const models: NpcModelId[] = ['woman-casual', 'man-casual', 'woman-formal', 'man-worker', 'woman-suit', 'man-farmer'];
-  // Colour variants so the same six models don't look like twins in a crowd.
-  const tints = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0, 0xffe0b2, 0xc8e6c9, 0xbbdefb, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
+function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y' | 'hours' | 'pace'> & { look?: Look }): Spawn[] {
+  const models = LOOKS[o.look ?? 'mixed'];
   return names.map((name, i) => {
     // Everyone gets their own route, so a group spreads out instead of walking in single file.
     let h = 7;
@@ -179,11 +198,14 @@ function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y'
       loop,
       lane,
       name,
-      model: models[(name.length + i) % models.length],
+      model: models[(name.length * 3 + i) % models.length],
       start: rnd(),
       reverse: rnd() < 0.5,
       height: 1.55 + ((name.length * 7 + i * 3) % 20) / 100,
-      tint: tints[(i + name.length) % tints.length],
+      tint: (() => {
+        const m = models[(name.length * 3 + i) % models.length];
+        return m.startsWith('mx') ? SKIN_TINTS[(i + name.length) % SKIN_TINTS.length] : TINTS[(i + name.length) % TINTS.length];
+      })(),
     };
   });
 }

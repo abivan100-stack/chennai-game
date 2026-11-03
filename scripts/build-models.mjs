@@ -18,6 +18,9 @@ const OUT = 'public/models';
 const HERO_MAX_TRIS = 15000;
 const NPC_MAX_TRIS = 8000;
 const TEXTURE_SIZE = 1024;
+/** ONLY=regex: build just the outputs whose name matches (e.g. ONLY=^npc-mx to redo the Mixamo NPCs). */
+const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
+const want = (name) => !ONLY || ONLY.test(name);
 
 const WIN_BLENDER = 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe';
 const BLENDER = process.env.BLENDER ?? (existsSync(WIN_BLENDER) ? WIN_BLENDER : 'blender');
@@ -73,6 +76,9 @@ const NPCS = [
   { src: 'quaternius/women/Formal.gltf', out: 'npc-woman-formal', rig: 'qwomen' },
   { src: 'quaternius/women/Suit.gltf', out: 'npc-woman-suit', rig: 'qwomen' },
 ];
+/** Mixamo characters used as NPCs (assets-source/mixamo-npcs/<name>.fbx -> npc-<name>.glb). */
+const MIXAMO_NPCS = Array.from({ length: 12 }, (_, i) => `mx${String(i + 1).padStart(2, '0')}`);
+const NPC_TEXTURE_SIZE = 512;
 // source name -> game name
 const NPC_CLIPS = { Idle: 'idle', Idle_Neutral: 'idle2', Walk: 'walk', Run: 'run', Wave: 'wave', HitRecieve: 'hit', Idle_Gun_Pointing: 'aim', Idle_Gun_Shoot: 'shoot', Death: 'fall' };
 
@@ -196,7 +202,7 @@ async function finish(doc, name, srcBytes, before, limit) {
 }
 
 // ---- Hero -------------------------------------------------------------------------------
-{
+if (want('hero')) {
   const src = `${SRC}/${HERO.src}`;
   const tmp = `${TMP}/hero.glb`;
   blender(src, tmp);
@@ -216,6 +222,7 @@ async function finish(doc, name, srcBytes, before, limit) {
   await finish(doc, 'hero', statSync(src).size, before, HERO_MAX_TRIS);
 
   for (const clip of HERO.clips) {
+    if (!want(clip.name)) continue;
     const csrc = `${SRC}/mixamo/${clip.name}.fbx`;
     const ctmp = `${TMP}/${clip.name}.glb`;
     blender(csrc, ctmp, ['--anim', clip.name, ...(clip.inPlace ? ['--in-place'] : [])]);
@@ -226,9 +233,36 @@ async function finish(doc, name, srcBytes, before, limit) {
   }
 }
 
+// ---- Mixamo NPCs ------------------------------------------------------------------------
+// Characters downloaded from Mixamo with skin (assets-source/mixamo-npcs/mxNN.fbx). Same
+// skeleton as the hero, so the game gives them the hero's clips; no animation in the file.
+for (const name of MIXAMO_NPCS) {
+  const out = `npc-${name}`;
+  if (!want(out)) continue;
+  const src = `${SRC}/mixamo-npcs/${name}.fbx`;
+  const tmp = `${TMP}/${out}.glb`;
+  blender(src, tmp);
+  const doc = await io.read(tmp);
+  const before = stats(doc);
+  doc.createExtension(KHRMaterialsSpecular).dispose();
+  for (const m of doc.getRoot().listMaterials()) {
+    m.setMetallicFactor(0);
+    if (m.getAlphaMode() === 'BLEND') m.setAlphaMode('MASK').setAlphaCutoff(0.5).setRoughnessFactor(0.7);
+  }
+  for (const anim of doc.getRoot().listAnimations()) dropAnimation(anim);
+  mergeSkinnedMeshes(doc);
+  await doc.transform(
+    weld(),
+    simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, (NPC_MAX_TRIS * 0.85) / before.tris), error: 0.05 }),
+    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [NPC_TEXTURE_SIZE, NPC_TEXTURE_SIZE] }),
+  );
+  await finish(doc, out, statSync(src).size, before, NPC_MAX_TRIS);
+}
+
 // ---- NPCs -------------------------------------------------------------------------------
 const rigsWithClips = new Set();
 for (const npc of NPCS) {
+  if (!want(npc.out)) continue;
   const src = `${SRC}/${npc.src}`;
   const doc = await io.read(src);
   const before = stats(doc);
