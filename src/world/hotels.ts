@@ -28,7 +28,9 @@ const SIGNS: SignDef[] = [
 /** People at the other tables (crowd.addPosed). */
 const DINERS = ['Mr. Raghavan', 'Mrs. Raghavan', 'Anjali', 'Siddharth', 'Dr. Iyer', 'Farah', 'Kartik', 'Nandini', 'Joseph', 'Lakshmi'];
 const FOODS = [0xd9a441, 0xc8742a, 0xe07a4a, 0xf3e3b0].map((c) => new THREE.Color(c)); // biryani, curry, fry, appam
-const DINNER_HOURS: [number, number][] = [[12, 15.5], [19, 23.5]];
+const DINNER_HOURS: [number, number][] = [[7.5, 10.5], [12, 15.5], [19, 23.5]]; // breakfast, lunch, dinner
+const STAFF_HOURS: [number, number][] = [[6.5, 24]];
+const GUEST_HOURS: [number, number][] = [[8, 22.5]];
 const ROOM_D = 8; // restaurant room depth
 const ROOM_H = 4.4;
 const FLOOR_TOP = 0.06; // restaurant floor
@@ -57,6 +59,7 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
   const eateries: Eatery[] = [];
   const posed: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][]; eat?: THREE.Vector3 }[] = [];
   const glassGeo = new GeoBuilder(); // restaurant windows (one transparent draw call)
+  const walkers: { name: string; loop: [number, number][]; y: number; hours: [number, number][] }[] = [];
 
   const palm = (f: Frame, u: number, v: number, h = 6) => {
     shape(f, new THREE.CylinderGeometry(0.16, 0.26, h, 7).translate(0, h / 2, 0), u, 0, v, PALM_TRUNK);
@@ -245,10 +248,35 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
     }
 
     restaurant();
+
+    // ---- People about the hotel: doorman, gate guard, guests chatting by the lobby, guests
+    // strolling round the fountain, waiters walking between the tables ----
+    const toRoad = f.at(0, -1).sub(f.at(0, 0));
+    const roadYaw = Math.atan2(toRoad.x, toRoad.z);
+    const stand = (name: string, u: number, v: number, yaw: number, hours: [number, number][], y = 0) => {
+      const p = f.at(u, v);
+      posed.push({ name, x: p.x, y, z: p.z, yaw, clip: 'idle', hours });
+    };
+    stand('Doorman', -3.6, pv - 2, roadYaw, STAFF_HOURS);
+    stand('Security guard', gu + gate / 2 + 2, 3.2, roadYaw, [[0, 24]]);
+    const a = f.at(3.4, bv0 - 2.2);
+    const b = f.at(4.5, bv0 - 2.9);
+    posed.push({ name: `${DINERS[(i * 3 + 1) % DINERS.length]} (guest)`, x: a.x, y: 0, z: a.z, yaw: Math.atan2(b.x - a.x, b.z - a.z), clip: 'idle', hours: GUEST_HOURS });
+    posed.push({ name: `${DINERS[(i * 3 + 2) % DINERS.length]} (guest)`, x: b.x, y: 0, z: b.z, yaw: Math.atan2(a.x - b.x, a.z - b.z), clip: 'idle', hours: GUEST_HOURS });
+    const loop = (pts: [number, number][]) => pts.map(([u, v]): [number, number] => {
+      const p = f.at(u, v);
+      return [p.x, p.z];
+    });
+    walkers.push({ name: 'Guest strolling', loop: loop([[-4.2, 4.2], [4.2, 4.2], [4.2, 11.8], [-4.2, 11.8]]), y: 0, hours: GUEST_HOURS });
+    walkers.push({ name: 'Guest on a call', loop: loop([[4.2, 11.8], [-4.2, 11.8], [-4.2, 4.2], [4.2, 4.2]]), y: 0, hours: [[9, 21]] });
+    for (const [n, name] of ['Waiter Joseph', 'Waitress Priya'].entries()) {
+      const pts: [number, number][] = [[r0 + 0.75, bv0 + 2.4], [r1 - 2.5, bv0 + 2.4], [r1 - 2.5, bv0 + 6.8], [r0 + 0.75, bv0 + 6.8]];
+      walkers.push({ name, loop: loop(n ? pts.reverse() : pts), y: FLOOR_TOP, hours: STAFF_HOURS });
+    }
   });
 
   const glassMesh = new THREE.Mesh(glassGeo.build(), new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.25, roughness: 0.05, metalness: 0.4, depthWrite: false }));
   glassMesh.renderOrder = 1;
   scene.add(glassMesh);
-  return { eateries, posed, setNight: k.build(scene) };
+  return { eateries, posed, walkers, setNight: k.build(scene) };
 }

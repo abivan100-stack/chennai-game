@@ -96,6 +96,20 @@ function fitHipsTo(clips: THREE.AnimationClip[], from: THREE.Object3D, to: THREE
   });
 }
 
+/** No shine: Mixamo materials come out glossy (they mirrored the town's lights); make cloth and skin matte. */
+function matte(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    if (!m || !(o as THREE.Mesh).isMesh) return;
+    m.roughness = 1;
+    m.metalness = 0;
+    m.roughnessMap = null;
+    m.metalnessMap = null;
+    m.envMapIntensity = 0.5;
+    m.needsUpdate = true;
+  });
+}
+
 export async function loadCharacters() {
   const heroFiles = [HERO.model, ...HERO.clips].map(loadModel);
   const npcIds = Object.keys(NPC_MODELS) as NpcModelId[];
@@ -125,6 +139,7 @@ export async function loadCharacters() {
     a.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
     if (NPC_MODELS[id].rig === 'mixamo') {
       a.clips = fitHipsTo(a.clips, hero.scene, a.scene);
+      matte(a.scene);
       Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id) });
     }
   }

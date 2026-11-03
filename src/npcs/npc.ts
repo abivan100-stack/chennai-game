@@ -70,6 +70,7 @@ export class Npc {
   private busy = 0; // talking / scolding
   private readonly pose: NpcOptions['pose'];
   private clipSpeed: { walk: number; run: number } = SPEED;
+  private posedFrozen = false;
   private eating: { food: THREE.Vector3; upper: THREE.Object3D; fore: THREE.Object3D; hand: THREE.Object3D; head: THREE.Object3D; t: number } | null = null;
   /** Where a posed NPC stays (after the seated drop). */
   private home: THREE.Vector3;
@@ -260,7 +261,15 @@ export class Npc {
 
   /** Damage dealt to the player this frame (when fighting back). */
   update(dt: number, active: boolean, playerPos: THREE.Vector3, drawn = true) {
-    if (!active || (this.pose && !drawn)) return 0; // people who stay put and aren't drawn: nothing to do
+    if (!active || (this.pose && !drawn)) {
+      // Frozen (far away), but if drawn, hold a real pose: a Mixamo body's rest pose is a T-pose.
+      if (drawn && !this.posedFrozen) {
+        this.animator.update(0);
+        this.posedFrozen = true;
+      }
+      return 0;
+    }
+    this.posedFrozen = false;
     this.scoldCooldown -= dt;
     // Slide back from a blow (distance = speed / KNOCK_DECAY).
     this.root.position.addScaledVector(this.knock, dt);

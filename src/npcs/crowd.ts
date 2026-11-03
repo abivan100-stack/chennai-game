@@ -282,6 +282,24 @@ export class Crowd {
   /** Street blocks ambient walkers may use (not the beach, not the river blocks). */
   private readonly streetBlocks = blocks().filter((b) => (b.kind === 'shops' || b.kind === 'houses' || b.kind === 'temple' || b.kind === 'tank' || b.kind === 'church') && b.road.w && b.road.e && b.road.n && b.road.s && !(b.z0 < RIVER.z1 && b.z1 > RIVER.z0));
 
+  /** People walking their own loop of [x, z] points at height y (waiters between tables, guests round a fountain). */
+  addWalkers(people: { name: string; loop: [number, number][]; y: number; hours: [number, number][] }[]) {
+    const models: NpcModelId[] = ['mx02', 'mx06', 'mx07', 'mx08', 'mx04', 'mx13', 'mx14', 'mx03'];
+    people.forEach((p, k) => {
+      const path = p.loop.map(([x, z]) => new THREE.Vector3(x, p.y, z));
+      const npc = new Npc(this.scene, this.world, this.assets.get(models[(k * 3 + p.name.length) % models.length])!, {
+        name: p.name, path, position: along(path, (k * 0.29) % 1), height: 1.6 + ((k * 11) % 20) / 100,
+      });
+      this.npcs.push(npc);
+      this.hours.push(p.hours);
+      this.present.push(true);
+      this.order.push(this.order.length);
+    });
+    const d = new Float32Array(this.npcs.length).fill(Infinity);
+    d.set(this.dist);
+    this.dist = d;
+  }
+
   /** The ambient pool: everyday people, out from early morning till late (fewer at night). */
   addAmbient() {
     const models: NpcModelId[] = ['mx01', 'mx02', 'mx03', 'mx04', 'mx05', 'mx06', 'mx07', 'mx08', 'mx09', 'mx11', 'mx13', 'mx14'];

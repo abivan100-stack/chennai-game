@@ -145,7 +145,8 @@ async function main() {
   const chepauk = createChepauk(scene, world);
   crowd.addPosed(beachLife.posed); // stall keepers + moon-watchers on the benches
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
-  crowd.addPosed(hotels.posed); // diners and head waiters in the hotel restaurants
+  crowd.addPosed(hotels.posed); // diners, doormen, guards and guests at the hotels
+  crowd.addWalkers(hotels.walkers); // waiters between the tables, guests round the fountain
   crowd.addAmbient(); // everyday people on whatever street you're on
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
