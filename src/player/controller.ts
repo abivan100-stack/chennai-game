@@ -27,8 +27,11 @@ const HEAD_RATE = 5;
 const CLIP_SPEED = { walk: 1.63, run: 5.4 };
 const RUN_ABOVE = (WALK_SPEED + RUN_SPEED) / 2;
 const MOVE_ABOVE = 0.2;
-const JUMP_START = 0.45; // s into the Mixamo jump clip where the feet leave the ground
+const JUMP_START = 0.62; // s into the Mixamo Jump clip, just before the feet leave the ground
 const FALL_AFTER = 0.15; // s airborne (without jumping) before the fall pose kicks in
+const HARD_LANDING = 0.7; // s in the air before landing becomes a crouch (Jumping Down's landing)
+const FALL_LAND_AT = 1.6; // s into the Jumping Down clip where the feet hit the ground
+const LAND_TIME = 0.7; // s the landing crouch roots you to the spot
 
 /**
  * Third-person walker: Rapier kinematic capsule (invisible collider) + KinematicCharacterController
@@ -115,6 +118,12 @@ export class PlayerController {
   }
 
   /** True while the player can walk around (not in the auto or a cutscene). */
+  /**
+   * Hold a looping clip and face `yaw` (e.g. pushing the auto). The clip plays at a rate matched
+   * to how fast you're actually moving, so standing still holds the pose.
+   */
+  pose: { clip: string; yaw: number; clipSpeed: number } | null = null;
+
   get onFoot() {
     return !this.away;
   }
@@ -271,7 +280,8 @@ export class PlayerController {
 
     const speed = this.moveSpeed; // pressing into a wall = idle, not running on the spot
     let faceYaw: number | null = null;
-    if (this.speed > 0.3) faceYaw = Math.atan2(this.vel.x, this.vel.z);
+    if (this.pose) faceYaw = this.pose.yaw;
+    else if (this.speed > 0.3) faceYaw = Math.atan2(this.vel.x, this.vel.z);
     else if (this.talkTime > 0) faceYaw = this.talkYaw;
     let turnRate = 0;
     if (faceYaw !== null) {
@@ -286,6 +296,13 @@ export class PlayerController {
     this.model.rotation.z = this.actionT > 0 ? 0 : this.lean;
 
     this.talkTime -= dt;
+    if (this.grounded && this.airTime > HARD_LANDING && this.actionT <= 0) {
+      // Long drop: land in a crouch and get up (rooted for a moment).
+      this.actionT = LAND_TIME;
+      this.actionElapsed = 0;
+      this.lunge = null;
+      this.animator.play('fall', { once: true, startAt: FALL_LAND_AT, fade: 0.06 });
+    }
     this.airTime = this.grounded ? 0 : this.airTime + dt;
     if (this.grounded) this.jumped = false;
     if (this.actionT > 0) {
@@ -297,6 +314,9 @@ export class PlayerController {
       this.animator.play('block', { fade: 0.15 });
     } else if (this.jumped || this.airTime > FALL_AFTER) {
       this.animator.play('jump', { once: true, startAt: JUMP_START });
+    } else if (this.pose) {
+      this.animator.play(this.pose.clip, { fade: 0.25 });
+      this.animator.setSpeed(THREE.MathUtils.clamp(speed / this.pose.clipSpeed, 0.1, 1.5));
     } else if (speed > MOVE_ABOVE) {
       // Walk and run blended by speed (no pop between them), cycles matched to ground speed.
       const w = THREE.MathUtils.smoothstep(speed, WALK_SPEED * 1.05, RUN_ABOVE + 0.8);

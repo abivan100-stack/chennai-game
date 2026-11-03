@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { PlayerController } from '../player/controller';
 
 export type Move = 'punch' | 'swing' | 'kick';
+/** Moves the player can play: the hook is the second blow of a punch chain and lands as a punch. */
+type Spec = Move | 'hook';
 
 interface MoveSpec {
   clip: string;
@@ -11,14 +13,16 @@ interface MoveSpec {
   reach: number; // punch / kick: how far in front the blow lands (m)
   closeTo: number; // step in until the target is this close (m) during the wind-up
   lunge: { speed: number; from: number; to: number } | null; // real seconds
+  as?: Move; // reported to the game as this move (damage, sound)
 }
 
 /**
- * Mixamo clips: Punching, Stable Sword Outward Slash (lathi), Flying Kick. Hit windows were
- * measured from the clips (where the fist / foot / stick tip moves fastest).
+ * Mixamo clips: Punching, Hook Punch, Stable Sword Outward Slash (lathi), Flying Kick. Hit windows
+ * were measured from the clips (where the fist / foot / stick tip moves fastest).
  */
-export const MOVES: Record<Move, MoveSpec> = {
+export const MOVES: Record<Spec, MoveSpec> = {
   punch: { clip: 'punch', speed: 1.15, len: 0.85, hit: [0.4, 0.5], reach: 1.5, closeTo: 0.85, lunge: null },
+  hook: { clip: 'hook', speed: 1.3, len: 1.4, hit: [0.95, 1.08], reach: 1.5, closeTo: 0.85, lunge: null, as: 'punch' },
   swing: { clip: 'swing', speed: 1.3, len: 1.35, hit: [0.76, 1.05], reach: 0, closeTo: 0.95, lunge: null },
   kick: { clip: 'kick', speed: 1, len: 1.3, hit: [0.55, 0.7], reach: 1.9, closeTo: 0, lunge: { speed: 3.2, from: 0.15, to: 0.7 } },
 };
@@ -46,8 +50,8 @@ export class Melee {
   stickOut = false;
   private readonly player: PlayerController;
   private readonly stick: THREE.Mesh;
-  private pending: { move: Move; t: number; hit: Set<unknown> } | null = null;
-  private queued: Move | null = null;
+  private pending: { move: Spec; t: number; hit: Set<unknown> } | null = null;
+  private queued: Spec | null = null;
   private audio: AudioContext | null = null;
   private readonly sample = new THREE.Vector3();
 
@@ -73,9 +77,10 @@ export class Melee {
   }
 
   /** Start an attack, turning towards the nearest target. Mid-move: queue it for after the blow. */
-  attack(targets: () => Target[], move: Move = this.stickOut ? 'swing' : 'punch') {
+  attack(targets: () => Target[], move: Spec = this.stickOut ? 'swing' : 'punch') {
     if (this.pending) {
-      this.queued = move; // buffered: starts as soon as this move ends
+      // Buffered: starts as soon as this move ends. Punch, punch = jab then hook (then jab again).
+      this.queued = move === 'punch' && this.pending.move === 'punch' ? 'hook' : move;
       return;
     }
     const m = MOVES[move];
@@ -116,8 +121,9 @@ export class Melee {
       if (p.move !== 'swing') p.t = Math.max(p.t, m.hit[1] + 1e-3);
     }
     if (p.t >= m.len) this.pending = null;
-    if (hits.length) this.thwack(p.move);
-    return hits.length ? { move: p.move, hits } : null;
+    const move = m.as ?? (p.move as Move);
+    if (hits.length) this.thwack(move);
+    return hits.length ? { move, hits } : null;
   }
 
   private stickTouches(feet: THREE.Vector3) {

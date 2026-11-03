@@ -6,6 +6,7 @@ import { GeoBuilder } from './geo';
 import { createKit, type Frame, type SignDef } from './kit';
 import { BEACH_FAIR, BESANT, FISH_MARKET } from './layout';
 import { sandY } from './santhome';
+import type { PoseClip } from '../npcs/npc';
 
 /**
  * Life on Santhome beach and Elliot's Beach: ~70 stalls scattered at random (not in rows) -
@@ -88,7 +89,7 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
   const stageKit = createKit(world, signs);
   const eateries: Eatery[] = [];
   /** People who stay put: stall keepers (daytime to late), and moon-watchers on the benches at night. */
-  type Posed = { name: string; x: number; y: number; z: number; yaw: number; clip: 'idle' | 'sit_idle'; hours: [number, number][] };
+  type Posed = { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][] };
   const posed: Posed[] = [];
   const KEEPER_NAMES = ['Murugan', 'Selvi', 'Babu', 'Lakshmi', 'Kannan', 'Ponni', 'Raja', 'Meena', 'Anwar', 'Valli', 'Sekar', 'Jaya'];
   const MOON_NAMES = ['Couple', 'Friends', 'Family', 'Thatha', 'Paati', 'Students', 'Newly-weds', 'Cousins'];
@@ -218,7 +219,7 @@ export function createBeachLife(scene: THREE.Scene, world: RAPIER.World, obstacl
     for (const u of seats) {
       if (rand() < 0.15) continue;
       const at = f.at(u, 0.05);
-      posed.push({ name: `${MOON_NAMES[(b + seats.indexOf(u)) % MOON_NAMES.length]} watching the moon`, x: at.x, y: y + (log ? -0.02 : 0), z: at.z, yaw: Math.atan2(facing.x, facing.z), clip: 'sit_idle', hours: [[18.5, 23.5]] });
+      posed.push({ name: `${MOON_NAMES[(b + seats.indexOf(u)) % MOON_NAMES.length]} watching the moon`, x: at.x, y: y + (log ? -0.02 : 0), z: at.z, yaw: Math.atan2(facing.x, facing.z), clip: seats.indexOf(u) % 2 === 0 ? 'sit_talk' : 'sit_idle', hours: [[18.5, 23.5]] }); // friends chatting, others just watching
     }
   }
 

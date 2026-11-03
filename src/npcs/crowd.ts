@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, block } from '../world/layout';
 import { BUMPED, DRIVE_BUMPED } from './dialogue';
-import { Npc, type NpcOptions } from './npc';
+import { Npc, type NpcOptions, type PoseClip } from './npc';
 
 /** NPCs farther than this from the player are frozen (no animation, no movement). */
 const ACTIVE_RADIUS = 40;
@@ -233,7 +233,7 @@ export class Crowd {
    * People who stay in one place: shopkeepers at their stalls, people sitting on benches.
    * Added once the places that need them exist; they follow the same hours / drawing rules.
    */
-  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: 'idle' | 'sit_idle'; hours: [number, number][] }[]) {
+  addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][] }[]) {
     const models: NpcModelId[] = ['man-casual', 'woman-casual', 'man-farmer', 'woman-formal', 'man-worker', 'woman-suit'];
     const tints = [undefined, 0xffe0b2, 0xd0e8ff, 0xc8e6c9, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
     people.forEach((p, i) => {

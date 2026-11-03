@@ -5,6 +5,7 @@ import { PLACE_MENUS } from './food';
 import { createKit, frame, type Frame, type SignDef } from './kit';
 import { CAFE_LOTS } from './layout';
 import { CAFE_SPOTS as SPOTS, type Look } from './cafeSpots';
+import type { PoseClip } from '../npcs/npc';
 
 /**
  * Aesthetic cafes and boutiques, the kind that line TTK Road, Besant Nagar and Adyar: small
@@ -23,6 +24,11 @@ const GLOW = C(0x6b5a40); // interior panel: dark-ish by day, warm glow at night
 const POT = C(0xb5552f);
 const PLANT = C(0x3f7f35);
 const IRON = C(0x2b2b2b);
+/** People chatting at the outdoor tables (crowd.addPosed). */
+const CAFE_PEOPLE = ['Aditi', 'Rahul', 'Keerthi', 'Varun', 'Sana', 'Pranav', 'Ishita', 'Dev', 'Nila', 'Arvind', 'Meghna', 'Kabir'];
+const CAFE_HOURS: [number, number][] = [[8, 10.5], [16.5, 22.5]];
+const SEAT_TOP = 0.66; // chair seat height
+const BENCH_TOP = 0.5; // the seat height the sitting clips are dropped onto (npc.ts SIT_DROP)
 const BULBS = [C(0xfff1c1), C(0xffd27a), C(0xffe9a8)];
 const LOOK_WALL: Record<Look, THREE.Color[]> = {
   minimal: [C(0xf7f5f0), C(0xeeeae2)],
@@ -36,6 +42,7 @@ export function createCafes(scene: THREE.Scene, world: RAPIER.World) {
   const k = createKit(world, signs);
   const { box, board, shape } = k;
   const eateries: Eatery[] = [];
+  const posed: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][] }[] = [];
 
   const potted = (f: Frame, u: number, v: number, s = 1) => {
     shape(f, new THREE.CylinderGeometry(0.32 * s, 0.24 * s, 0.6 * s, 10).translate(0, 0.3 * s, 0), u, 0.15, v, POT);
@@ -75,6 +82,13 @@ export function createCafes(scene: THREE.Scene, world: RAPIER.World) {
       const umb = spot.look === 'pastel' ? C(0xf4a7b9) : spot.look === 'garden' ? null : spot.look === 'minimal' ? C(0xf4f1ea) : null;
       table(f, -4, 2.6, umb);
       table(f, 4, 2.6, umb);
+      // Customers on the chairs, facing the street, chatting.
+      const facing = f.at(0, -1).sub(f.at(0, 0));
+      for (const tu of [-4, 4]) for (const s of [-1, 1]) {
+        if ((i + tu + s) % 3 === 0) continue; // leave some chairs free
+        const at = f.at(tu + s * 0.75, 2.65);
+        posed.push({ name: `${CAFE_PEOPLE[posed.length % CAFE_PEOPLE.length]} at ${spot.name}`, x: at.x, y: SEAT_TOP - BENCH_TOP, z: at.z, yaw: Math.atan2(facing.x, facing.z), clip: 'sit_talk', hours: CAFE_HOURS });
+      }
     } else {
       potted(f, -4, 2.4, 1.3);
       potted(f, 4, 2.4, 1.3);
@@ -135,5 +149,5 @@ export function createCafes(scene: THREE.Scene, world: RAPIER.World) {
     }
   });
 
-  return { eateries, names: SPOTS.map((s) => s.name), setNight: k.build(scene) };
+  return { eateries, posed, names: SPOTS.map((s) => s.name), setNight: k.build(scene) };
 }

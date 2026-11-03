@@ -14,10 +14,10 @@ export interface CharacterAsset {
 /** Hero (Mixamo): one model file + one file per clip (clip name = file name). */
 const HERO = {
   model: 'hero.glb',
-  clips: ['idle', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive', 'swing', 'punch', 'combo', 'kick', 'block', 'death', 'kneel', 'kneel_idle', 'hit_react', 'sit_idle'].map((c) => `${c}.glb`),
+  clips: ['idle', 'walk', 'run', 'jump', 'talk', 'yell', 'sit_down', 'stand_up', 'drive', 'swing', 'punch', 'combo', 'kick', 'block', 'death', 'kneel', 'kneel_idle', 'hit_react', 'sit_idle', 'push', 'hook', 'sit_talk', 'fall'].map((c) => `${c}.glb`),
 };
 /** Hero clips baked onto every NPC rig at load (Quaternius has no talking clips). */
-const SHARED_WITH_NPCS = ['talk', 'yell', 'sit_down', 'drive', 'combo', 'punch', 'sit_idle'];
+const SHARED_WITH_NPCS = ['talk', 'yell', 'sit_down', 'drive', 'combo', 'punch', 'sit_idle', 'sit_talk', 'hook'];
 
 /**
  * Background NPCs (Quaternius, CC0). `rig` = skeleton family: models of the same rig share

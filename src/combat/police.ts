@@ -35,6 +35,7 @@ const MELEE_RANGE = 1.8; // closer than this they punch instead of shooting / ar
 const BRAWL_RANGE = 6; // on foot and this close: they rush in for a fist fight instead of shooting
 const MELEE_EVERY = 1.6;
 const MELEE_HIT_AT = 0.45; // s into their punch when it lands
+const HOOK_HIT_AT = 0.95; // ...and into the Hook Punch clip (every other blow)
 const MELEE_DAMAGE = 6;
 const LINES = {
   dismount: ['Nillu! Police!', 'Odaadha! Kai-ya thooku!', 'Vandi-la irundhu irangu!'],
@@ -80,6 +81,8 @@ interface Officer {
   /** Seconds into the current punch, -1 = not punching. */
   punchT: number;
   punchCooldown: number;
+  /** The next blow is a hook (they alternate jab, hook). */
+  hook: boolean;
 }
 
 /** One police jeep with two officers. */
@@ -167,7 +170,7 @@ function makeOfficer(scene: THREE.Scene, world: RAPIER.World, asset: CharacterAs
   const rb = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -50, 0));
   const collider = world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.3), rb);
   collider.setEnabled(false);
-  return { root, anim, gun, body: rb, collider, cooldown: 1, down: 0, hp: OFFICER_HP, punchT: -1, punchCooldown: 0 };
+  return { root, anim, gun, body: rb, collider, cooldown: 1, down: 0, hp: OFFICER_HP, punchT: -1, punchCooldown: 0, hook: false };
 }
 
 /**
@@ -494,7 +497,8 @@ export class Police {
       // Mid-punch: it lands once, if you're still in reach.
       const before = o.punchT;
       o.punchT += dt;
-      if (before < MELEE_HIT_AT && o.punchT >= MELEE_HIT_AT && d < MELEE_RANGE + 0.3 && !ctx.vehicle) {
+      const hitAt = o.hook ? HOOK_HIT_AT : MELEE_HIT_AT;
+      if (before < hitAt && o.punchT >= hitAt && d < MELEE_RANGE + 0.3 && !ctx.vehicle) {
         r.damage = MELEE_DAMAGE * (ctx.blocking ? 0.3 : 1);
       }
       if (o.punchT > MELEE_EVERY * 0.8) o.punchT = -1;
@@ -503,8 +507,9 @@ export class Police {
       if (o.punchCooldown <= 0) {
         o.punchCooldown = MELEE_EVERY;
         o.punchT = 0;
+        o.hook = !o.hook;
         o.anim.play('idle', { fade: 0 });
-        o.anim.play('punch', { once: true, fade: 0.08 });
+        o.anim.play(o.hook ? 'hook' : 'punch', { once: true, fade: 0.08 });
       }
     } else if (armed && d < BRAWL_RANGE && !ctx.vehicle) {
       o.anim.play('run');

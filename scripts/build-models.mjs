@@ -51,6 +51,10 @@ const HERO = {
     { name: 'kneel_idle', inPlace: true }, // Kneeling Idle: hands-on-knees while arrested
     { name: 'hit_react', inPlace: true }, // Hit Reaction: punched / shot
     { name: 'sit_idle', inPlace: true }, // Sitting: seated idle (hotel stool)
+    { name: 'push', inPlace: true }, // Pushing: pushing uncle's auto when the tank is empty
+    { name: 'hook', inPlace: true }, // Hook Punch: second punch in a chain
+    { name: 'sit_talk', inPlace: true }, // Sitting Talking: seated people chatting (NPCs too)
+    { name: 'fall', inPlace: true, capLift: true }, // Jumping Down: only its landing (from FALL_LAND_AT) is used, after a long fall
     // exit_car.fbx (Mixamo "Exiting Car") is in assets-source but unused: it's a 5.8 s car-door
     // swing; getting out of the auto mirrors getting in with stand_up instead.
   ],

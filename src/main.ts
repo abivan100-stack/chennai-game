@@ -69,8 +69,9 @@ import { createSupermarkets, type Store } from './world/supermarket';
 import { SEA_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
-/** Pushing the auto by hand: where you walk (auto's own frame: beside the driver's handlebar) and how far you can fall behind before you let go. */
-const PUSH_SPOT = new THREE.Vector3(0.95, 0, 0.55);
+/** Pushing the auto by hand: where you walk (auto's own frame: behind it, hands on the back) and how far you can fall behind before you let go. */
+const PUSH_SPOT = new THREE.Vector3(0, 0, -2.05);
+const PUSH_CLIP_SPEED = 1.2; // m/s the Pushing clip's steps are made for
 const PUSH_LOSE = 3.5;
 /** Navigation ends this close to the destination (metres). */
 const ARRIVE_M = 14;
@@ -130,6 +131,7 @@ async function main() {
   const beachLife = createBeachLife(scene, world, santhome.obstacles);
   const chepauk = createChepauk(scene, world);
   crowd.addPosed(beachLife.posed); // stall keepers + moon-watchers on the benches
+  crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...cafes.eateries); // aesthetic cafes: E to order
@@ -313,11 +315,13 @@ async function main() {
   let crashCooldown = 0;
   let fuelWarned = false;
   let pushing = false;
+  let pushT = 0; // seconds since you took hold (walking round to the back first)
   const pushAt = new THREE.Vector3();
   const stopPush = () => {
     pushing = false;
     auto.push = false;
     player.walkTo(null);
+    player.pose = null;
     if (ride.phase === 'onFoot') auto.park();
   };
   let lastShowHour = -1;
@@ -717,9 +721,12 @@ async function main() {
       else if (other) takeVehicle(other);
     }
     // Pushing uncle's auto (empty tank): G beside it; W/S push / pull, A/D steer, G to let go.
-    if (pushing && (!onFootFree || !nearAuto || input.wasPressed('KeyG') || player.position.distanceTo(auto.group.localToWorld(pushAt.copy(PUSH_SPOT))) > PUSH_LOSE)) stopPush();
+    if (pushing) pushT += dt;
+    const pushGap = pushing ? Math.hypot(player.position.x - auto.group.localToWorld(pushAt.copy(PUSH_SPOT)).x, player.position.z - pushAt.z) : 0;
+    if (pushing && (!onFootFree || (pushT > 3 && pushGap > PUSH_LOSE) || input.wasPressed('KeyG'))) stopPush();
     else if (!pushing && nearAuto && input.wasPressed('KeyG')) {
       pushing = true;
+      pushT = 0;
       auto.push = true;
       if (melee.stickOut) melee.toggleStick();
     }
@@ -761,8 +768,10 @@ async function main() {
     // --- Simulation: input once per frame, physics in fixed steps
     if (pushing) {
       const k = free ? input : NO_INPUT;
-      auto.control(Number(k.isDown('KeyW')) - Number(k.isDown('KeyS')), Number(k.isDown('KeyA')) - Number(k.isDown('KeyD')), false);
+      const hands = pushGap < 0.9; // only moves once you're at the back with your hands on it
+      auto.control(hands ? Number(k.isDown('KeyW')) - Number(k.isDown('KeyS')) : 0, hands ? Number(k.isDown('KeyA')) - Number(k.isDown('KeyD')) : 0, false);
       player.walkTo(auto.group.localToWorld(pushAt.copy(PUSH_SPOT)));
+      player.pose = { clip: 'push', yaw: auto.heading, clipSpeed: PUSH_CLIP_SPEED };
     }
     player.handleInput(free ? input : NO_INPUT, cam.yaw);
     ride.update(dt, free ? input : NO_INPUT);

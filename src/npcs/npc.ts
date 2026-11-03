@@ -6,6 +6,8 @@ import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { GREETINGS, nextLine } from './dialogue';
 
 // Movement
+/** Clips for people who stay put: standing, sitting quietly, sitting and chatting. */
+export type PoseClip = 'idle' | 'sit_idle' | 'sit_talk';
 const SIT_DROP = 0.42; // m: lowers a seated NPC so the hips rest on a ~0.45 m seat
 const SPEED = { walk: 1.3, run: 3.4 }; // m/s; roughly matches the Quaternius cycles at 1x
 const TURN_RATE = 6;
@@ -44,7 +46,7 @@ export interface NpcOptions {
   tint?: THREE.ColorRepresentation; // multiplies the material colour (variants of one model)
   map?: THREE.Texture; // swap the colour texture
   /** Stays put in this pose facing `yaw` (shopkeepers standing at a counter, people sitting on a bench). */
-  pose?: { clip: 'idle' | 'sit_idle'; yaw: number };
+  pose?: { clip: PoseClip; yaw: number };
 }
 
 /**
@@ -112,7 +114,7 @@ export class Npc {
       this.yaw = this.root.rotation.y = this.pose.yaw;
       this.animator.play(this.pose.clip, { fade: 0 });
       // The seated clip keeps the hips at standing-stool height: drop onto a bench / log seat.
-      if (this.pose.clip === 'sit_idle') this.root.position.y -= SIT_DROP * scale;
+      if (this.pose.clip.startsWith('sit_')) this.root.position.y -= SIT_DROP * scale;
     } else {
       this.animator.play(this.moveClip, { fade: 0 });
       this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
