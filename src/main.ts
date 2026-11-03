@@ -146,6 +146,7 @@ async function main() {
   crowd.addPosed(beachLife.posed); // stall keepers + moon-watchers on the benches
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
   crowd.addPosed(hotels.posed); // diners and head waiters in the hotel restaurants
+  crowd.addAmbient(); // everyday people on whatever street you're on
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...hotels.eateries); // hotel lobby restaurants (fine dining)
@@ -330,6 +331,7 @@ async function main() {
   let crashCooldown = 0;
   let fuelWarned = false;
   let pushing = false;
+  const viewDir = new THREE.Vector3(); // camera forward on the ground (ambient walkers spawn out of view)
   let pushT = 0; // seconds since you took hold (walking round to the back first)
   const pushAt = new THREE.Vector3();
   const stopPush = () => {
@@ -897,7 +899,8 @@ async function main() {
     temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
     markets.update(dt, player.position);
-    crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto, istTime(dayNight.timeMs).hours);
+    camera.getWorldDirection(viewDir).setY(0).normalize();
+    crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto, istTime(dayNight.timeMs).hours, viewDir);
 
     // Police: chase, arrest, shoot. Wanted level fades when they lose you.
     const vehicleCollider = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;

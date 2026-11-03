@@ -1,7 +1,7 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
-import { ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, block } from '../world/layout';
+import { RIVER, ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, block, blocks } from '../world/layout';
 import { BUMPED, DRIVE_BUMPED } from './dialogue';
 import { Npc, type NpcOptions, type PoseClip } from './npc';
 
@@ -10,7 +10,13 @@ const ACTIVE_RADIUS = 40;
 /** ...and beyond this they aren't drawn at all. */
 const DRAW_RADIUS = 90;
 /** At most this many people drawn at once (nearest first): each costs a draw call + a shadow. */
-const MAX_DRAWN = 20;
+const MAX_DRAWN = 24;
+/** Ambient pedestrians: a pool that keeps the streets round the player busy wherever they go. */
+const AMBIENT = 40;
+const AMBIENT_RECYCLE = 85; // m: a walker this far away gets moved...
+const AMBIENT_RING: [number, number] = [18, 60]; // ...onto a pavement this far from the player
+const AMBIENT_HIDDEN_WITHIN = 45; // closer than this, only where the camera isn't looking (no popping in)
+const AMBIENT_NAMES = ['Ramesh', 'Kala', 'Suresh', 'Bhuvana', 'Prakash', 'Jaya', 'Mohan', 'Deepa', 'Sathya', 'Anitha', 'Karthik', 'Malar', 'Ganesh', 'Revathi', 'Vinoth', 'Uma', 'Saravanan', 'Lalitha', 'Raja', 'Geetha'];
 /** People who stay put (stall keepers, sitters) get their own quota so walkers don't crowd them out. */
 const MAX_POSED_DRAWN = 16;
 const POSED_DRAW_RADIUS = 60;
@@ -271,15 +277,70 @@ export class Crowd {
 
   private readonly hours: [number, number][][];
   private readonly present: boolean[];
+  private readonly ambient: number[] = [];
+  private ambientCheck = 0;
+  /** Street blocks ambient walkers may use (not the beach, not the river blocks). */
+  private readonly streetBlocks = blocks().filter((b) => (b.kind === 'shops' || b.kind === 'houses' || b.kind === 'temple' || b.kind === 'tank' || b.kind === 'church') && b.road.w && b.road.e && b.road.n && b.road.s && !(b.z0 < RIVER.z1 && b.z1 > RIVER.z0));
+
+  /** The ambient pool: everyday people, out from early morning till late (fewer at night). */
+  addAmbient() {
+    const models: NpcModelId[] = ['mx01', 'mx02', 'mx03', 'mx04', 'mx05', 'mx06', 'mx07', 'mx08', 'mx09', 'mx11', 'mx13', 'mx14'];
+    for (let k = 0; k < AMBIENT; k++) {
+      const b = this.streetBlocks[(k * 7) % this.streetBlocks.length];
+      const path = blockLoop(b.i, b.j, 0.7 + ((k * 37) % 14) / 10, k % 2 === 1);
+      const name = `${AMBIENT_NAMES[k % AMBIENT_NAMES.length]}${k >= AMBIENT_NAMES.length ? ' ' + String.fromCharCode(65 + (k % 26)) + '.' : ''}`;
+      const npc = new Npc(this.scene, this.world, this.assets.get(models[(k * 5) % models.length])!, {
+        name, path, position: along(path, (k * 0.37) % 1), height: 1.58 + ((k * 13) % 25) / 100, pace: k % 11 === 5 ? 'run' : 'walk',
+      });
+      this.npcs.push(npc);
+      // Most are out 6:00-22:30; some stay till midnight; a few night owls.
+      this.hours.push(k % 10 < 7 ? [[6, 22.5]] : k % 10 < 9 ? [[6.5, 24]] : [[17, 2.5]]);
+      this.present.push(true);
+      this.order.push(this.order.length);
+      this.ambient.push(this.npcs.length - 1);
+    }
+    const d = new Float32Array(this.npcs.length).fill(Infinity);
+    d.set(this.dist);
+    this.dist = d;
+  }
+
+  /** Move far-away ambient walkers onto pavements round the player. */
+  private recycleAmbient(playerPos: THREE.Vector3, view: THREE.Vector3 | null) {
+    for (const idx of this.ambient) {
+      if (!this.present[idx]) continue;
+      const npc = this.npcs[idx];
+      const p = npc.root.position;
+      if (Math.hypot(p.x - playerPos.x, p.z - playerPos.z) < AMBIENT_RECYCLE) continue;
+      for (let tries = 0; tries < 8; tries++) {
+        const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
+        const cx = (b.x0 + b.x1) / 2;
+        const cz = (b.z0 + b.z1) / 2;
+        if (Math.hypot(cx - playerPos.x, cz - playerPos.z) > AMBIENT_RING[1] + 30) continue;
+        const path = blockLoop(b.i, b.j, 0.6 + Math.random() * 1.5, Math.random() < 0.5);
+        const at = along(path, Math.random());
+        const d = Math.hypot(at.x - playerPos.x, at.z - playerPos.z);
+        if (d < AMBIENT_RING[0] || d > AMBIENT_RING[1]) continue;
+        if (view && d < AMBIENT_HIDDEN_WITHIN && ((at.x - playerPos.x) * view.x + (at.z - playerPos.z) * view.z) / d > 0.2) continue; // in view
+        npc.reroute(path, at);
+        break;
+      }
+    }
+  }
 
   /** inAuto: the player is driving (bigger bump radius, different complaints, no chatting). */
   /** hour: IST game hour (0-24); NPCs only come out during their hours. */
-  update(dt: number, playerPos: THREE.Vector3, playerSpeed: number, inAuto: boolean, hour = 12) {
+  /** view: the camera's horizontal forward (ambient walkers never appear right in front of it). */
+  update(dt: number, playerPos: THREE.Vector3, playerSpeed: number, inAuto: boolean, hour = 12, view: THREE.Vector3 | null = null) {
     this.activeCount = 0;
     this.damageToPlayer = 0;
     this.nearest = null;
     let nearestDist = TALK_RADIUS;
     const bump = inAuto ? BUMP.auto : BUMP.foot;
+    this.ambientCheck -= dt;
+    if (this.ambientCheck <= 0) {
+      this.ambientCheck = 0.5;
+      this.recycleAmbient(playerPos, view);
+    }
     for (const [i, npc] of this.npcs.entries()) {
       const out = inHours(hour, this.hours[i]);
       if (out !== this.present[i]) {

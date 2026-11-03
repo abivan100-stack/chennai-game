@@ -62,7 +62,7 @@ export class Npc {
   private readonly animator: Animator;
   private readonly body: RAPIER.RigidBody;
   private readonly colliderLift: number;
-  private readonly path: THREE.Vector3[];
+  private path: THREE.Vector3[];
   private readonly moveClip: 'walk' | 'run';
   private readonly speed: number;
   private yaw = 0;
@@ -188,6 +188,18 @@ export class Npc {
     mouth.z += Math.cos(this.root.rotation.y) * 0.12 * s;
     mouth.y -= 0.05 * s;
     reachCCD(e.upper, e.fore, e.hand, mouth.lerp(e.food, 1 - biteCurve(e.t / EAT_BITE)), 3);
+  }
+
+  /** Move a walker onto a new loop at `position` (ambient pedestrians follow the player round the map). */
+  reroute(path: THREE.Vector3[], position: THREE.Vector3) {
+    this.path = path;
+    this.root.position.copy(position);
+    this.home.copy(position);
+    this.knock.set(0, 0, 0);
+    this.busy = 0;
+    this.downT = 0;
+    this.target = this.closestWaypointAhead();
+    this.body.setTranslation({ x: position.x, y: position.y + this.colliderLift, z: position.z }, true);
   }
 
   /** A shopkeeper or someone sitting: stays in one spot. */
