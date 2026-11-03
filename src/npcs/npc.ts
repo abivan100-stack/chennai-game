@@ -5,6 +5,7 @@ import { Animator } from '../characters/animator';
 import { biteCurve, reachCCD } from '../characters/ik';
 import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { GREETINGS, nextLine } from './dialogue';
+import { varyLook } from './look';
 
 // Movement
 /** Clips for people who stay put: standing, sitting quietly, sitting and chatting. */
@@ -12,9 +13,10 @@ export type PoseClip = 'idle' | 'sit_idle' | 'sit_talk';
 /** Seconds per bite for people eating at a table (plate -> mouth -> chew -> back). */
 const EAT_BITE = 3.2;
 const EAT_MOUTH = new THREE.Vector3();
-const SIT_DROP = 0.42; // m: lowers a seated NPC so the hips rest on a ~0.45 m seat
+const SIT_DROP = 0.42; // m: lowers a seated (Quaternius) NPC so the hips rest on a ~0.45 m seat
+const SEAT_ABOVE = 0.5; // posed sitters: seat top is this far above their position (crowd.addPosed convention)
+const HIPS_ABOVE_SEAT = 0.1; // Mixamo sitters: hip joint height over the seat (as the hero's meals)
 const SPEED = { walk: 1.3, run: 3.4 }; // m/s; roughly matches the Quaternius cycles at 1x
-const HAIR = [0x1a1410, 0x241a12, 0x30231a, 0x111111];
 const TURN_RATE = 6;
 const ARRIVE_DIST = 0.25;
 const AVOID_AHEAD = 1.8; // start stepping around the player this far ahead
@@ -81,20 +83,22 @@ export class Npc {
   constructor(scene: THREE.Scene, world: RAPIER.World, asset: CharacterAsset, opts: NpcOptions) {
     this.name = opts.name;
     const body = cloneSkinned(asset.scene);
-    if (opts.tint !== undefined || opts.map || asset.mixamo) {
+    // Mixamo bodies: their own clothes colours, skin, hair, build and face bits (look.ts).
+    const build = asset.mixamo ? varyLook(body, asset, opts.name, !!asset.female) : 1;
+    if (!asset.mixamo && (opts.tint !== undefined || opts.map)) {
       body.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return;
         const mat = (o.material as THREE.MeshStandardMaterial).clone(); // same shader, no extra compile
-        // Mixamo bodies: hair goes dark (black / dark brown), the rest takes the person's tint (warmer skin tones).
-        if (asset.mixamo && /hair/i.test(mat.name)) mat.color.set(HAIR[Math.floor(Math.random() * HAIR.length)]);
-        else if (opts.tint !== undefined) mat.color.set(opts.tint);
+        if (opts.tint !== undefined) mat.color.set(opts.tint);
         if (opts.map) mat.map = opts.map;
         o.material = mat;
       });
     }
-    const scale = (opts.height ?? CHARACTER_HEIGHT) / CHARACTER_HEIGHT;
+    // Women a little shorter, men a little taller (people vary 1.55-1.85 m).
+    const height = (opts.height ?? CHARACTER_HEIGHT) * (asset.mixamo ? (asset.female ? 0.96 : 1.03) : 1);
+    const scale = height / CHARACTER_HEIGHT;
     this.root.add(body);
-    this.root.scale.setScalar(scale);
+    this.root.scale.set(scale * build, scale, scale * build);
     this.root.position.copy(opts.position);
     scene.add(this.root);
 
@@ -119,14 +123,26 @@ export class Npc {
     if (this.pose) {
       this.yaw = this.root.rotation.y = this.pose.yaw;
       this.animator.play(this.pose.clip, { fade: 0 });
-      // The seated clip keeps the hips at standing-stool height: drop onto a bench / log seat.
-      if (this.pose.clip.startsWith('sit_')) this.root.position.y -= SIT_DROP * scale;
+      if (this.pose.clip.startsWith('sit_')) {
+        if (asset.mixamo) {
+          // The Mixamo sitting clips lower the hips themselves: put the hips on the seat.
+          this.animator.update(0);
+          this.root.updateMatrixWorld(true);
+          const hips = body.getObjectByName('Hips')!.getWorldPosition(new THREE.Vector3());
+          this.root.position.x += opts.position.x - hips.x;
+          this.root.position.z += opts.position.z - hips.z;
+          this.root.position.y += opts.position.y + SEAT_ABOVE + HIPS_ABOVE_SEAT * scale - hips.y;
+        } else {
+          // The retargeted seated clip keeps the hips at standing-stool height: drop onto the seat.
+          this.root.position.y -= SIT_DROP * scale;
+        }
+      }
     }
     this.home = this.root.position.clone();
     const food = this.pose?.eat;
     if (food) {
       const b = (n: string) => body.getObjectByName(n);
-      const [upper, fore, hand, head] = [b('UpperArmR'), b('LowerArmR'), b('WristR'), b('Head')];
+      const [upper, fore, hand, head] = asset.mixamo ? [b('RightArm'), b('RightForeArm'), b('RightHand'), b('Head')] : [b('UpperArmR'), b('LowerArmR'), b('WristR'), b('Head')];
       if (upper && fore && hand && head) this.eating = { food: food.clone(), upper, fore, hand, head, t: Math.random() * EAT_BITE };
     }
     if (!this.pose) {

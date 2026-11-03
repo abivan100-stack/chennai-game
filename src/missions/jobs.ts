@@ -411,7 +411,7 @@ export class TaxiJobs {
       return;
     }
 
-    const id = rand(Object.keys(NPC_MODELS) as NpcModelId[]);
+    const id = rand((Object.keys(NPC_MODELS) as NpcModelId[]).filter((m) => m !== 'police'));
     const asset = this.assets.get(id)!;
     const body = cloneSkinned(asset.scene);
     const root = new THREE.Group();

@@ -55,52 +55,48 @@ const inHours = (h: number, ranges: [number, number][]) => ranges.some(([a, b]) 
  */
 type Look = 'mixed' | 'office' | 'young' | 'sport' | 'worker' | 'delivery';
 const LOOKS: Record<Look, NpcModelId[]> = {
-  mixed: ['woman-casual', 'man-casual', 'woman-formal', 'man-worker', 'woman-suit', 'man-farmer', 'mx01', 'mx04', 'mx06', 'mx11'],
-  office: ['mx02', 'mx06', 'mx07', 'mx08', 'woman-suit', 'woman-formal'],
-  young: ['mx01', 'mx03', 'mx04', 'mx05', 'man-casual', 'woman-casual'],
+  mixed: ['mx01', 'mx02', 'mx03', 'mx04', 'mx05', 'mx06', 'mx07', 'mx08', 'mx11', 'mx13', 'mx14'],
+  office: ['mx02', 'mx06', 'mx07', 'mx08'],
+  young: ['mx01', 'mx03', 'mx04', 'mx05', 'mx13', 'mx14'],
   sport: ['mx09', 'mx10', 'mx01', 'mx05'],
-  worker: ['mx11', 'man-worker', 'man-farmer', 'woman-formal'],
+  worker: ['mx11', 'mx06', 'mx04'],
   delivery: ['mx12'],
 };
-// Quaternius models: colour variants so the same six don't look like twins in a crowd.
-const TINTS = [undefined, 0xd0e8ff, 0xffd0d0, 0xe0f0d0, 0xf0e0c0, 0xe8d0f0, 0xffe0b2, 0xc8e6c9, 0xbbdefb, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
-// Mixamo models (one texture for skin and clothes): warmer, browner skin tones instead.
-const SKIN_TINTS = [0xf2dcc6, 0xe6c9ac, 0xdbb894, 0xcfa781, 0xffffff];
 
 /**
  * The crowd: devotees circling the temple (pradakshinam), walkers round the tank and the
  * shopping blocks. `start` = how far along the loop (0..1) they begin.
  */
 const SPAWNS: Spawn[] = [
-  { name: 'Murugan anna', model: 'man-farmer', block: [2, 2], lane: LANE_B, start: 0.05, height: 1.66 },
-  { name: 'Lakshmi akka', model: 'woman-formal', block: [2, 2], lane: LANE_A, start: 0.3, height: 1.6 },
-  { name: 'Meena madam', model: 'woman-suit', block: [2, 2], lane: LANE_B, start: 0.55, height: 1.62 },
-  { name: 'Raman', model: 'man-farmer', block: [2, 2], lane: LANE_A, start: 0.8, height: 1.64, tint: 0xe0d8c0 },
-  { name: 'Kavitha', model: 'woman-casual', block: [1, 2], lane: LANE_B, reverse: true, start: 0.1, height: 1.58 },
-  { name: 'Arun', model: 'man-casual', block: [1, 2], lane: LANE_A, start: 0.6, pace: 'run', height: 1.7 },
-  { name: 'Selvam', model: 'man-worker', block: [3, 2], lane: LANE_A, start: 0.75, height: 1.72 },
-  { name: 'Divya', model: 'woman-formal', block: [3, 2], lane: LANE_B, reverse: true, start: 0.2, height: 1.6, tint: 0xd0e8ff },
-  { name: 'Ravi', model: 'man-casual', block: [2, 1], lane: LANE_A, start: 0.4, height: 1.75, tint: 0xd8c8b0 },
-  { name: 'Kumar', model: 'man-worker', block: [2, 3], lane: LANE_B, reverse: true, start: 0.6, height: 1.68, tint: 0xb8c8e0 },
-  { name: 'Priya', model: 'woman-casual', block: [3, 3], lane: LANE_A, start: 0.55, height: 1.6, tint: 0xffd0d0 },
-  { name: 'Babu', model: 'man-worker', block: [3, 1], lane: LANE_B, reverse: true, start: 0.85, height: 1.7, tint: 0xf0d0a0 },
+  { name: 'Murugan anna', model: 'mx11', block: [2, 2], lane: LANE_B, start: 0.05, height: 1.66 },
+  { name: 'Lakshmi akka', model: 'mx02', block: [2, 2], lane: LANE_A, start: 0.3, height: 1.6 },
+  { name: 'Meena madam', model: 'mx05', block: [2, 2], lane: LANE_B, start: 0.55, height: 1.62 },
+  { name: 'Raman', model: 'mx11', block: [2, 2], lane: LANE_A, start: 0.8, height: 1.64, tint: 0xe0d8c0 },
+  { name: 'Kavitha', model: 'mx04', block: [1, 2], lane: LANE_B, reverse: true, start: 0.1, height: 1.58 },
+  { name: 'Arun', model: 'mx03', block: [1, 2], lane: LANE_A, start: 0.6, pace: 'run', height: 1.7 },
+  { name: 'Selvam', model: 'mx06', block: [3, 2], lane: LANE_A, start: 0.75, height: 1.72 },
+  { name: 'Divya', model: 'mx02', block: [3, 2], lane: LANE_B, reverse: true, start: 0.2, height: 1.6, tint: 0xd0e8ff },
+  { name: 'Ravi', model: 'mx03', block: [2, 1], lane: LANE_A, start: 0.4, height: 1.75, tint: 0xd8c8b0 },
+  { name: 'Kumar', model: 'mx06', block: [2, 3], lane: LANE_B, reverse: true, start: 0.6, height: 1.68, tint: 0xb8c8e0 },
+  { name: 'Priya', model: 'mx04', block: [3, 3], lane: LANE_A, start: 0.55, height: 1.6, tint: 0xffd0d0 },
+  { name: 'Babu', model: 'mx06', block: [3, 1], lane: LANE_B, reverse: true, start: 0.85, height: 1.7, tint: 0xf0d0a0 },
   // Santhome: pilgrims round the basilica block, shoppers either side of it.
-  { name: 'Mary aunty', model: 'woman-formal', block: [4, 2], lane: LANE_B, start: 0.15, height: 1.58, tint: 0xf5f5f5 },
-  { name: 'Joseph', model: 'man-casual', block: [4, 2], lane: LANE_A, reverse: true, start: 0.6, height: 1.72 },
-  { name: 'Fathima', model: 'woman-casual', block: [4, 1], lane: LANE_A, start: 0.4, height: 1.6, tint: 0xd1c4e9 },
-  { name: 'Dhanush', model: 'man-worker', block: [4, 3], lane: LANE_B, start: 0.7, height: 1.68 },
+  { name: 'Mary aunty', model: 'mx02', block: [4, 2], lane: LANE_B, start: 0.15, height: 1.58, tint: 0xf5f5f5 },
+  { name: 'Joseph', model: 'mx03', block: [4, 2], lane: LANE_A, reverse: true, start: 0.6, height: 1.72 },
+  { name: 'Fathima', model: 'mx04', block: [4, 1], lane: LANE_A, start: 0.4, height: 1.6, tint: 0xd1c4e9 },
+  { name: 'Dhanush', model: 'mx06', block: [4, 3], lane: LANE_B, start: 0.7, height: 1.68 },
   // Mandaveli
-  { name: 'Sundari paati', model: 'woman-formal', block: [1, 5], lane: LANE_B, start: 0.3, height: 1.55, tint: 0xffe0b2 },
-  { name: 'Ganesan', model: 'man-farmer', block: [3, 5], lane: LANE_A, reverse: true, start: 0.5, height: 1.66 },
-  { name: 'Keerthana', model: 'woman-casual', block: [2, 4], lane: LANE_A, start: 0.8, height: 1.6, tint: 0xb2dfdb },
+  { name: 'Sundari paati', model: 'mx02', block: [1, 5], lane: LANE_B, start: 0.3, height: 1.55, tint: 0xffe0b2 },
+  { name: 'Ganesan', model: 'mx11', block: [3, 5], lane: LANE_A, reverse: true, start: 0.5, height: 1.66 },
+  { name: 'Keerthana', model: 'mx04', block: [2, 4], lane: LANE_A, start: 0.8, height: 1.6, tint: 0xb2dfdb },
   // Alwarpet / Teynampet
-  { name: 'Srinivasan sir', model: 'man-casual', block: [-1, 1], lane: LANE_A, start: 0.2, height: 1.7, tint: 0xeeeeee },
-  { name: 'Nithya', model: 'woman-suit', block: [-2, 2], lane: LANE_B, reverse: true, start: 0.5, height: 1.6 },
-  { name: 'Imran', model: 'man-worker', block: [0, 1], lane: LANE_A, start: 0.7, height: 1.72 },
+  { name: 'Srinivasan sir', model: 'mx03', block: [-1, 1], lane: LANE_A, start: 0.2, height: 1.7, tint: 0xeeeeee },
+  { name: 'Nithya', model: 'mx05', block: [-2, 2], lane: LANE_B, reverse: true, start: 0.5, height: 1.6 },
+  { name: 'Imran', model: 'mx06', block: [0, 1], lane: LANE_A, start: 0.7, height: 1.72 },
   // R.A. Puram / Adyar: evening walkers
-  { name: 'Padma maami', model: 'woman-formal', block: [1, 6], lane: LANE_B, start: 0.35, height: 1.56, tint: 0xf8bbd0 },
-  { name: 'Venkat', model: 'man-casual', block: [2, 7], lane: LANE_A, start: 0.6, pace: 'run', height: 1.74 },
-  { name: 'Shalini', model: 'woman-casual', block: [3, 8], lane: LANE_A, reverse: true, start: 0.15, height: 1.6 },
+  { name: 'Padma maami', model: 'mx02', block: [1, 6], lane: LANE_B, start: 0.35, height: 1.56, tint: 0xf8bbd0 },
+  { name: 'Venkat', model: 'mx03', block: [2, 7], lane: LANE_A, start: 0.6, pace: 'run', height: 1.74 },
+  { name: 'Shalini', model: 'mx04', block: [3, 8], lane: LANE_A, reverse: true, start: 0.15, height: 1.6 },
 
   // ---- Crowds that come out at the right time of day ----
   // Kapaleeshwarar temple: morning and evening pooja.
@@ -201,11 +197,7 @@ function crowdOf(names: string[], o: Pick<Spawn, 'block' | 'lane' | 'loop' | 'y'
       model: models[(name.length * 3 + i) % models.length],
       start: rnd(),
       reverse: rnd() < 0.5,
-      height: 1.55 + ((name.length * 7 + i * 3) % 20) / 100,
-      tint: (() => {
-        const m = models[(name.length * 3 + i) % models.length];
-        return m.startsWith('mx') ? SKIN_TINTS[(i + name.length) % SKIN_TINTS.length] : TINTS[(i + name.length) % TINTS.length];
-      })(),
+      height: 1.6 + rnd() * 0.18, // npc.ts nudges it for women / men
     };
   });
 }
@@ -259,7 +251,7 @@ export class Crowd {
    * Added once the places that need them exist; they follow the same hours / drawing rules.
    */
   addPosed(people: { name: string; x: number; y: number; z: number; yaw: number; clip: PoseClip; hours: [number, number][]; eat?: THREE.Vector3 }[]) {
-    const models: NpcModelId[] = ['man-casual', 'woman-casual', 'man-farmer', 'woman-formal', 'man-worker', 'woman-suit'];
+    const models: NpcModelId[] = ['mx01', 'mx02', 'mx03', 'mx04', 'mx05', 'mx06', 'mx07', 'mx08', 'mx11', 'mx13', 'mx14'];
     const tints = [undefined, 0xffe0b2, 0xd0e8ff, 0xc8e6c9, 0xf8bbd0, 0xd7ccc8, 0xfff59d];
     people.forEach((p, i) => {
       const position = new THREE.Vector3(p.x, p.y, p.z);

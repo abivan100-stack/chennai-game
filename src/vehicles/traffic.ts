@@ -190,7 +190,7 @@ export class Traffic {
 
   constructor(scene: THREE.Scene, world: RAPIER.World, npcs: Map<NpcModelId, CharacterAsset>) {
     this.scene = scene;
-    const driverModels = [...npcs.values()];
+    const driverModels = [...npcs.entries()].filter(([id]) => id !== 'police').map(([, a]) => a);
     const fleet: [Kind, number, number, number, number?][] = [
       // kind, block i, j, start fraction, colour
       ['bus', 1, 2, 0.1],

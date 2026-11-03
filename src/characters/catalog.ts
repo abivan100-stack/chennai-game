@@ -13,6 +13,8 @@ export interface CharacterAsset {
   clipSpeed?: { walk: number; run: number };
   /** Mixamo body (textured: hair + skin can be varied per person, see Npc). */
   mixamo?: boolean;
+  /** For face details (moustache vs bindi), see npcs/look.ts. */
+  female?: boolean;
 }
 /** The hero's Mixamo walk / run cover this much ground per second at 1x (as controller.ts CLIP_SPEED). */
 const MIXAMO_CLIP_SPEED = { walk: 1.63, run: 5.4 };
@@ -30,12 +32,8 @@ const SHARED_WITH_NPCS = ['sit_down', 'drive', 'punch', 'sit_idle', 'sit_talk', 
  * clips, and only one file per rig ships them (see scripts/build-models.mjs).
  */
 export const NPC_MODELS = {
-  'man-casual': { file: 'npc-man-casual.glb', rig: 'qmen' },
-  'man-farmer': { file: 'npc-man-farmer.glb', rig: 'qmen' },
-  'man-worker': { file: 'npc-man-worker.glb', rig: 'qmen' },
-  'woman-casual': { file: 'npc-woman-casual.glb', rig: 'qwomen' },
-  'woman-formal': { file: 'npc-woman-formal.glb', rig: 'qwomen' },
-  'woman-suit': { file: 'npc-woman-suit.glb', rig: 'qwomen' },
+  // Quaternius body kept only for the police (their aim / shoot gun clips belong to this rig).
+  police: { file: 'npc-man-casual.glb', rig: 'qmen' },
   // Mixamo characters (same skeleton as the hero: they use the hero's clips, see MIXAMO_AS).
   mx01: { file: 'npc-mx01.glb', rig: 'mixamo' },
   mx02: { file: 'npc-mx02.glb', rig: 'mixamo' },
@@ -49,7 +47,11 @@ export const NPC_MODELS = {
   mx10: { file: 'npc-mx10.glb', rig: 'mixamo' },
   mx11: { file: 'npc-mx11.glb', rig: 'mixamo' },
   mx12: { file: 'npc-mx12.glb', rig: 'mixamo' },
+  mx13: { file: 'npc-mx13.glb', rig: 'mixamo' },
+  mx14: { file: 'npc-mx14.glb', rig: 'mixamo' },
 } as const;
+/** Mixamo NPCs who are women (the rest are men). */
+const FEMALE: string[] = ['mx02', 'mx04', 'mx05', 'mx13'];
 /** Mixamo NPCs: hero clip -> the name NPC code plays (plus every hero clip under its own name). */
 const MIXAMO_AS: Record<string, string> = { hit_react: 'hit', death: 'fall', talk: 'wave', idle: 'idle2' };
 export type NpcModelId = keyof typeof NPC_MODELS;
@@ -99,7 +101,7 @@ export async function loadCharacters() {
   for (const id of npcIds) {
     const a = npcs.get(id)!;
     a.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
-    if (NPC_MODELS[id].rig === 'mixamo') Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true });
+    if (NPC_MODELS[id].rig === 'mixamo') Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id) });
   }
   return { hero, npcs };
 }

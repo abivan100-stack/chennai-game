@@ -70,14 +70,9 @@ const HERO = {
  */
 const NPCS = [
   { src: 'quaternius/men/Casual_2.gltf', out: 'npc-man-casual', rig: 'qmen' },
-  { src: 'quaternius/men/Farmer.gltf', out: 'npc-man-farmer', rig: 'qmen' },
-  { src: 'quaternius/men/Worker.gltf', out: 'npc-man-worker', rig: 'qmen' },
-  { src: 'quaternius/women/Casual.gltf', out: 'npc-woman-casual', rig: 'qwomen' },
-  { src: 'quaternius/women/Formal.gltf', out: 'npc-woman-formal', rig: 'qwomen' },
-  { src: 'quaternius/women/Suit.gltf', out: 'npc-woman-suit', rig: 'qwomen' },
 ];
 /** Mixamo characters used as NPCs (assets-source/mixamo-npcs/<name>.fbx -> npc-<name>.glb). */
-const MIXAMO_NPCS = Array.from({ length: 12 }, (_, i) => `mx${String(i + 1).padStart(2, '0')}`);
+const MIXAMO_NPCS = Array.from({ length: 14 }, (_, i) => `mx${String(i + 1).padStart(2, '0')}`);
 const NPC_TEXTURE_SIZE = 512;
 // source name -> game name
 const NPC_CLIPS = { Idle: 'idle', Idle_Neutral: 'idle2', Walk: 'walk', Run: 'run', Wave: 'wave', HitRecieve: 'hit', Idle_Gun_Pointing: 'aim', Idle_Gun_Shoot: 'shoot', Death: 'fall' };

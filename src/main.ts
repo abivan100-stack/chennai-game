@@ -118,7 +118,7 @@ async function main() {
   const traffic = new Traffic(scene, world, characters.npcs);
   traffic.onSay = (name, line) => hud.say(name, line);
   const station = createPoliceStation(scene, world);
-  const police = new Police(scene, world, characters.npcs.get('man-casual')!, station.jeepSpot, -Math.PI / 2);
+  const police = new Police(scene, world, characters.npcs.get('police')!, station.jeepSpot, -Math.PI / 2);
   police.onSay = (line) => hud.say('Police', line);
   const wanted = new Wanted();
   const economy = new Economy();
@@ -126,7 +126,7 @@ async function main() {
   const dayNight = new DayNight(scene);
   const crowd = new Crowd(scene, world, characters.npcs);
   const eateries = createEateries(scene, world, town.footprints);
-  const markets = createSupermarkets(scene, world, characters.npcs.get('woman-formal')!);
+  const markets = createSupermarkets(scene, world, characters.npcs.get('mx02')!);
   const santhome = createSanthome(scene, world);
   const mandaveli = createMandaveli(scene, world);
   const posters = createPosters(scene, town.footprints);
