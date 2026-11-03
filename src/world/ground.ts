@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { BEACH_ROAD, BEACH_X, BOUNDS, RIVER, ROAD_HALF, SETBACK, SIDEWALK_HEIGHT, roadSpans, roads, waterRects, type RoadLine } from './layout';
+import { BEACH_ROAD, BEACH_X, BOUNDS, RIVER, SIDEWALK_WIDTH, SIDEWALK_HEIGHT, roadHalf, roadSpans, roads, waterRects, type RoadLine } from './layout';
 import { tankRect } from './temple';
 import { asphaltTexture, curbTexture, pavingTexture } from './textures';
 
@@ -111,8 +111,9 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
   const curbs = new GeoBuilder();
   for (const r of roads()) {
     // Asphalt strip, UVs in metres / 4.
-    const a0 = r.c - ROAD_HALF;
-    const a1 = r.c + ROAD_HALF;
+    const half = roadHalf(r.axis, r.c);
+    const a0 = r.c - half;
+    const a1 = r.c + half;
     const corners = [at(r, a0, 0.01, r.from), at(r, a1, 0.01, r.from), at(r, a1, 0.01, r.to), at(r, a0, 0.01, r.to)];
     asphaltB.quad(corners[0], corners[1], corners[2], corners[3], corners.map((p) => [p.x / 4, p.z / 4]), WHITE, UP);
     // The Beach Road's sea side has no side streets: one unbroken promenade.
@@ -122,13 +123,15 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
       // Dashed centre line, stopping short of the zebra crossings.
       for (let z = s0 + 5; z + DASH < s1 - 5; z += DASH * 2) {
         stripe(marks, r, r.c, z + DASH / 2, 0.15, DASH);
+        // Wide roads: a lane line down the middle of each half too.
+        if (half > 6) for (const sd of [-1, 1]) stripe(marks, r, r.c + (sd * half) / 2, z + DASH / 2, 0.12, DASH);
       }
       // Zebra crossings at each end that meets a junction.
       for (const [end, inward] of [[s0, 1], [s1, -1]] as const) {
         if (end === r.from || end === r.to) continue; // road ends at the world edge, no crossing
         const centre = end + inward * 2;
         for (let i = 0; i < ZEBRA_STRIPES; i++) {
-          const across = a0 + ((i + 0.5) * (ROAD_HALF * 2)) / ZEBRA_STRIPES;
+          const across = a0 + ((i + 0.5) * (half * 2)) / ZEBRA_STRIPES;
           stripe(marks, r, across, centre, 0.5, 3);
         }
       }
@@ -222,8 +225,8 @@ function stripe(b: GeoBuilder, r: Road, across: number, along: number, w: number
 
 /** One raised sidewalk strip between `a` and `b` on one side of a road, plus its collider. */
 function sidewalk(paving: GeoBuilder, curbs: GeoBuilder, world: RAPIER.World, r: Road, side: number, a: number, b: number) {
-  const inner = r.c + side * ROAD_HALF; // curb line
-  const outer = r.c + side * SETBACK; // building line
+  const inner = r.c + side * roadHalf(r.axis, r.c); // curb line
+  const outer = inner + side * SIDEWALK_WIDTH; // building line
   const h = SIDEWALK_HEIGHT;
 
   const top = [at(r, inner, h, a), at(r, outer, h, a), at(r, outer, h, b), at(r, inner, h, b)];

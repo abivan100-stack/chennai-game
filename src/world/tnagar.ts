@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { PoseClip } from '../npcs/npc';
 import { GeoBuilder } from './geo';
 import { createKit, frame, type Frame, type SignDef } from './kit';
-import { BOUNDS, RAIL_HALF, RAIL_X, SETBACK, SIDEWALK_HEIGHT, TNAGAR, Z_LINES } from './layout';
+import { BOUNDS, RAIL_HALF, RAIL_X, setbackOf, SIDEWALK_HEIGHT, TNAGAR, Z_LINES } from './layout';
 
 /**
  * T. Nagar, stylised (invented shop names):
@@ -193,7 +193,7 @@ export function createTNagar(scene: THREE.Scene, world: RAPIER.World) {
   // at the level crossings, platforms with sheds at the station, a footbridge, an EMU train.
   const rail = new GeoBuilder();
   const tracks = [RAIL_X - 3, RAIL_X + 3];
-  const crossings = Z_LINES.map((z) => [z - SETBACK, z + SETBACK] as [number, number]);
+  const crossings = Z_LINES.map((z) => [z - setbackOf('x', z), z + setbackOf('x', z)] as [number, number]);
   const spans: [number, number][] = [];
   let zz = BOUNDS.z0;
   for (const [a, b] of crossings) {
@@ -292,7 +292,7 @@ export function createTNagar(scene: THREE.Scene, world: RAPIER.World) {
     for (const side of [-1, 1]) {
       const zc = p.z + side * 5.6;
       for (let x = p.x0 + 3; x < p.x1 - 3; x += 3) {
-        if ([-520, -440, -360, -265].some((c) => Math.abs(x - c) < SETBACK + 1.5)) continue;
+        if ([-520, -440, -360, -265].some((c) => Math.abs(x - c) < setbackOf('z', c) + 1.5)) continue;
         const f = frame({ x0: x - 0.5, x1: x + 0.5, z0: zc - 0.5, z1: zc + 0.5, front: side > 0 ? 'n' : 's' });
         box(f, 0.18, 0.75, 0.18, 0, y0, 0.5, DARK); // bollard
         if (mod(Math.round(x), 15) === 0) {

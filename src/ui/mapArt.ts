@@ -1,13 +1,14 @@
 import type { Footprint } from '../world/buildings';
 import { CAFE_SPOTS } from '../world/cafeSpots';
 import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
-import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, streetName, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
+import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, roadHalf, SIDEWALK_WIDTH, streetName, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
-import { BEACHFRONT_LOTS, HOME_LOTS, HOTEL_LOTS, RAIL_HALF, RAIL_X, TNAGAR, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
+import { BEACHFRONT_LOTS, STORE_LOTS, HOME_LOTS, HOTEL_LOTS, RAIL_HALF, RAIL_X, TNAGAR, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
 import { BEACHFRONT } from '../world/beachfront';
 import { HOMES } from '../world/homes';
 import { SHOWROOMS } from '../world/showrooms';
+import { STORES } from '../world/brandStores';
 import { HOTELS } from '../world/hotels';
 import { SHOP_SIGNS } from '../world/textures';
 
@@ -100,7 +101,7 @@ export interface Dest {
   z: number;
 }
 /** The outer roads and the Beach Road are the big ones (yellow, like a main road on a nav app). */
-const MAIN_ROADS = [-70, 70, BEACH_ROAD, -145, -265, -130, 300];
+const MAIN_ROADS = [-70, 70, BEACH_ROAD, -440, -145, -265, -130, 300, 390];
 const isMain = (r: RoadLine) => MAIN_ROADS.includes(r.c);
 
 /**
@@ -148,19 +149,20 @@ export function drawTownMap(data: MapData): TownMap {
   poi('Music stage (6-10 pm)', 170, 600, '#14213d', '♫', 'place', 2);
   labels.push({ text: 'VELACHERY', x: -205, z: 610, kind: 'area' });
 
-  /** A band `half` wide either side of each road's centre line, over the road's length. */
-  const bands = (half: number, colour: string, only?: boolean) => {
+  /** A band (road half-width + `extra`) either side of each road's centre line, over the road's length. */
+  const bands = (extra: number, colour: string, only?: boolean) => {
     g.fillStyle = colour;
     for (const r of roads()) {
       if (only !== undefined && isMain(r) !== only) continue;
+      const half = roadHalf(r.axis, r.c) + extra;
       if (r.axis === 'z') g.fillRect(P(r.c - half), P(r.from), M(half * 2), M(r.to - r.from));
       else g.fillRect(P(r.from), P(r.c - half), M(r.to - r.from), M(half * 2));
     }
   };
-  bands(SETBACK, C.sidewalk);
-  bands(ROAD_HALF + 0.5, C.roadEdge);
-  bands(ROAD_HALF, C.road, false);
-  bands(ROAD_HALF, C.mainRoad, true);
+  bands(SIDEWALK_WIDTH, C.sidewalk);
+  bands(0.5, C.roadEdge);
+  bands(0, C.road, false);
+  bands(0, C.mainRoad, true);
 
   // San Thome Basilica (built by world/santhome.ts on the church block) and the lighthouse.
   const ch = block(4, 2);
@@ -307,6 +309,13 @@ export function drawTownMap(data: MapData): TownMap {
     poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#ad1457', '👗', 'shop', 2);
   });
   labels.push({ text: 'Fashion street', x: -205, z: -185, kind: 'landmark' });
+  STORE_LOTS().forEach((lot, i) => {
+    const st = STORES[i % STORES.length];
+    g.fillStyle = '#f3d6e0';
+    g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
+    const name = st.look === 'mall' ? `${st.name} + ${st.cinema} Cinemas` : st.name;
+    poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#ad1457', st.look === 'mall' ? '🏬' : '👗', 'shop', st.look === 'mall' ? 1 : 2);
+  });
   BEACHFRONT_LOTS().forEach((lot, i) => {
     g.fillStyle = '#ffe3c8';
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));

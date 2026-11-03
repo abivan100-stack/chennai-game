@@ -42,7 +42,18 @@ export const BEACH_ROAD = X_LINES[X_LINES.length - 1];
 export const ROAD_HALF = 5;
 export const SIDEWALK_WIDTH = 2.5;
 export const SIDEWALK_HEIGHT = 0.15;
-export const SETBACK = ROAD_HALF + SIDEWALK_WIDTH; // road centre -> building front
+export const SETBACK = ROAD_HALF + SIDEWALK_WIDTH; // road centre -> building front (ordinary road)
+/**
+ * Main roads are wider: two lanes each way (Usman Road, Anna Salai, TTK Road north-south;
+ * Dr. Radhakrishnan Salai and Adyar Main Road east-west). Mylapore's old streets stay narrow.
+ */
+export const WIDE_HALF = 7.5;
+export const WIDE_X = [-440, -265, -145];
+export const WIDE_Z = [-130, 390];
+/** Half-width of the road on centre line c. axis = the way it runs ('z' = north-south, at x = c). */
+export const roadHalf = (axis: 'x' | 'z', c: number) => ((axis === 'z' ? WIDE_X : WIDE_Z).includes(c) ? WIDE_HALF : ROAD_HALF);
+/** Road centre -> building front for the road on line c. */
+export const setbackOf = (axis: 'x' | 'z', c: number) => roadHalf(axis, c) + SIDEWALK_WIDTH;
 export const WORLD_MARGIN = 2; // buildings stop this far from the world edge
 /** Sand starts at the Beach Road's east building line; the shoreline is at SEA_X. */
 export const BEACH_X = BEACH_ROAD + ROAD_HALF + 2.5;
@@ -127,8 +138,9 @@ export function roadSpans(r: RoadLine): [number, number][] {
   const spans: [number, number][] = [];
   const edges = [r.from, ...crossing, r.to];
   for (let i = 0; i < edges.length - 1; i++) {
-    const start = i === 0 ? r.from : edges[i] + ROAD_HALF;
-    const end = i === edges.length - 2 ? r.to : edges[i + 1] - ROAD_HALF;
+    const cross = r.axis === 'z' ? 'x' : 'z';
+    const start = i === 0 ? r.from : edges[i] + roadHalf(cross, edges[i]);
+    const end = i === edges.length - 2 ? r.to : edges[i + 1] - roadHalf(cross, edges[i + 1]);
     if (end > start) spans.push([start, end]);
   }
   return spans;
@@ -160,8 +172,9 @@ export function blocks(): Block[] {
   const ex = [BOUNDS.x0, ...X_LINES, BOUNDS.x1];
   const ez = [BOUNDS.z0, ...Z_LINES, BOUNDS.z1];
   const out: Block[] = [];
-  const lo = (e: number[], i: number) => (i === 0 ? e[0] + WORLD_MARGIN : e[i] + SETBACK);
-  const hi = (e: number[], i: number) => (i === e.length - 2 ? e[e.length - 1] - WORLD_MARGIN : e[i + 1] - SETBACK);
+  // ex holds north-south roads (they run along z), ez east-west ones.
+  const lo = (e: number[], i: number) => (i === 0 ? e[0] + WORLD_MARGIN : e[i] + setbackOf(e === ex ? 'z' : 'x', e[i]));
+  const hi = (e: number[], i: number) => (i === e.length - 2 ? e[e.length - 1] - WORLD_MARGIN : e[i + 1] - setbackOf(e === ex ? 'z' : 'x', e[i + 1]));
   for (let ii = 0; ii < ex.length - 1; ii++) {
     for (let jj = 0; jj < ez.length - 1; jj++) {
       const i = ii - I0;
@@ -255,12 +268,13 @@ export function waterRects() {
   const out: { x0: number; x1: number; z0: number; z1: number }[] = [];
   /** Split [a, b] around the road bands (centre lines `lines`, half-width SETBACK). */
   const gaps = (a: number, b: number, lines: number[]) => {
-    const cuts = lines.filter((c) => c + SETBACK > a && c - SETBACK < b).sort((m, n) => m - n);
+    const sb = (c: number) => setbackOf(lines === X_LINES ? 'z' : 'x', c);
+    const cuts = lines.filter((c) => c + sb(c) > a && c - sb(c) < b).sort((m, n) => m - n);
     const res: [number, number][] = [];
     let s = a;
     for (const c of cuts) {
-      if (c - SETBACK > s) res.push([s, c - SETBACK]);
-      s = Math.max(s, c + SETBACK);
+      if (c - sb(c) > s) res.push([s, c - sb(c)]);
+      s = Math.max(s, c + sb(c));
     }
     if (b > s) res.push([s, b]);
     return res;
@@ -463,9 +477,9 @@ const sideLot = (i: number, j: number, front: Front, along: number, w: number, d
  */
 export const SHOWROOM_LOTS = (): Lot[] => [
   sideLot(-2, -1, 'e', 3, 34, 22),
-  sideLot(-2, -1, 'e', 39, 34, 22),
+  sideLot(-2, -1, 'e', 38, 34, 22),
   sideLot(-1, -1, 'w', 3, 34, 22),
-  sideLot(-1, -1, 'w', 39, 34, 22),
+  sideLot(-1, -1, 'w', 38, 34, 22),
   sideLot(-2, -2, 'e', 20, 34, 22),
   sideLot(-1, -2, 'w', 20, 34, 22),
   // T. Nagar: the big silk houses on South Usman Road.
@@ -496,6 +510,27 @@ export const BEACHFRONT_LOTS = (): Lot[] => [
   sideLot(4, 0, 'e', 30, 12, 14),
 ];
 
+/**
+ * Brand stores (world/brandStores.ts) on the wide main roads: big department stores with a
+ * cinema on top, and medium boutiques / brand outlets. Index order = STORES data order.
+ */
+export const STORE_LOTS = (): Lot[] => [
+  sideLot(-3, 0, 'e', 1, 40, 32), // Anna Salai: big
+  sideLot(-4, 0, 'w', 1, 40, 30), // Usman Road: big
+  sideLot(-3, 9, 'n', 10, 44, 32), // Guindy Road: big
+  sideLot(-1, 2, 'e', 7, 16, 16), // TTK Road
+  sideLot(-1, 4, 'e', 22, 16, 16),
+  sideLot(-2, 5, 'w', 2, 16, 16), // Anna Salai
+  sideLot(-2, 5, 'w', 20, 16, 16),
+  sideLot(-3, 2, 'e', 2, 16, 16),
+  sideLot(-3, 2, 'e', 19, 16, 16),
+  sideLot(-5, 0, 'e', 2, 16, 16), // Usman Road
+  sideLot(-5, 0, 'e', 22, 16, 16),
+  sideLot(-3, 0, 'n', 2, 16, 16), // Dr. Radhakrishnan Salai (Kodambakkam end)
+  sideLot(1, 8, 's', 7, 16, 16), // Adyar Main Road
+  sideLot(-3, 8, 's', 20, 16, 16),
+];
+
 /** Homes (world/homes.ts): 12 x 13 m plots. Index order = HOMES data order (0 = the rented house you start in). */
 export const HOME_LOTS = (): Lot[] => [
   sideLot(3, 5, 'w', 20, 12, 13), // Mandaveli: your rented house
@@ -521,7 +556,7 @@ export const TNAGAR = {
   station: { x0: RAIL_X + RAIL_HALF, x1: -566, z0: 33.5, z1: 61.5, front: 'e' } as Lot,
   platform: { z0: 33, z1: 62 }, // between Bazullah Road and Burkit Road
   panagal: (): Lot => { const b = block(-4, 1); return { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, front: 'w' }; },
-  pondy: { z: -70, x0: -512.5, x1: -272.5 },
+  pondy: { z: -70, x0: -520 + SETBACK, x1: -265 - WIDE_HALF - SIDEWALK_WIDTH },
 };
 /** The rail corridor through the west column of blocks (no buildings there). */
 export const RAIL_LOTS = (): Lot[] => blocks().filter((b) => b.x0 < RAIL_X + RAIL_HALF && b.x1 > RAIL_X - RAIL_HALF).map((b) => ({ x0: RAIL_X - RAIL_HALF, x1: RAIL_X + RAIL_HALF, z0: b.z0, z1: b.z1, front: 'e' as Front }));

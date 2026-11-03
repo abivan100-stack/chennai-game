@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { busModel } from '../vehicles/models';
 import { GeoBuilder } from './geo';
-import { BEACH_X, BOUNDS, DEPOT_LOT, MRTS_STATIONS, MRTS_X, SETBACK, Z_LINES } from './layout';
+import { BEACH_X, BOUNDS, DEPOT_LOT, MRTS_STATIONS, MRTS_X, setbackOf, Z_LINES } from './layout';
 
 /**
  * Mandaveli and the MRTS. The MTC bus depot sits on Venkatakrishna Road. Like the real city, the
@@ -130,7 +130,7 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
   const lg = new GeoBuilder();
   const len = LINE_X[1] - LINE_X[0];
   const mid = (LINE_X[0] + LINE_X[1]) / 2;
-  const onBridge = (x: number) => Z_LINES.some((c) => Math.abs(x - c) < SETBACK + 1); // keep piers off the road bridges
+  const onBridge = (x: number) => Z_LINES.some((c) => Math.abs(x - c) < setbackOf('x', c) + 1); // keep piers off the road bridges
   for (let x = LINE_X[0]; x <= LINE_X[1]; x += SPAN) {
     if (onBridge(x)) continue;
     lg.box(1.4, DECK_Y - 0.6, 1.4, x, (DECK_Y - 0.6) / 2 + CANAL.y, RAIL_Z, CONCRETE); // piers standing in the canal

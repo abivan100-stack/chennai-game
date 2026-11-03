@@ -39,6 +39,7 @@ import { createHospital } from './world/hospital';
 import { createPlaces, type Service } from './world/places';
 import { createServiceHubs } from './world/serviceHubs';
 import { createShowrooms } from './world/showrooms';
+import { createBrandStores } from './world/brandStores';
 import { createHotels } from './world/hotels';
 import { createHotelHalls } from './world/hotelHalls';
 import { createBeachfront } from './world/beachfront';
@@ -159,6 +160,7 @@ async function main() {
   const places = createPlaces(scene, world);
   const hubs = createServiceHubs(scene, world);
   const showrooms = createShowrooms(scene, world);
+  const brandStores = createBrandStores(scene, world);
   const hotels = createHotels(scene, world);
   places.services.push(...hubs.services); // petrol / mechanic / ATM / medicals in every area
   const landmarks = createLandmarks(scene, world);
@@ -1063,6 +1065,7 @@ async function main() {
     places.setNight(dayNight.night);
     hubs.setNight(dayNight.night);
     showrooms.setNight(dayNight.night);
+    brandStores.setNight(dayNight.night);
     hotels.setNight(dayNight.night);
     halls.setNight(dayNight.night);
     beachfront.setNight(dayNight.night);

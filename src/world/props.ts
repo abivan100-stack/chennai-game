@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
-import { BOUNDS, ROAD_HALF, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads } from './layout';
+import { BOUNDS, roadHalf, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads } from './layout';
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
@@ -99,7 +99,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     {
       for (const [a, b] of roadSpans(r)) {
         for (const side of [-1, 1]) {
-          const across = c + side * (ROAD_HALF + CURB_OFFSET);
+          const across = c + side * (roadHalf(axis, c) + CURB_OFFSET);
           const place = (along: number) => (axis === 'z' ? new THREE.Vector3(across, y0, along) : new THREE.Vector3(along, y0, across));
           // Lamp arm points over the road: local +x -> towards the road.
           const toRoad = axis === 'z' ? (side > 0 ? Math.PI : 0) : side > 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -241,11 +241,10 @@ function streetSigns(world: RAPIER.World) {
     boards.quad(b, a, d, c, [[0, v0], [1, v0], [1, v1], [0, v1]], white, n.clone().negate()); // readable from behind too
   };
 
-  const corner = ROAD_HALF + 0.55;
   for (const [xi, x] of X_LINES.entries()) {
     for (const [zi, z] of Z_LINES.entries()) {
       for (const [sx, sz] of [[1, -1], [-1, 1]]) {
-        const p = new THREE.Vector3(x + sx * corner, SIDEWALK_HEIGHT, z + sz * corner);
+        const p = new THREE.Vector3(x + sx * (roadHalf('z', x) + 0.55), SIDEWALK_HEIGHT, z + sz * (roadHalf('x', z) + 0.55));
         posts.add(pole, new THREE.Matrix4().setPosition(p), grey);
         board(new THREE.Vector3(p.x, p.y + POLE_H - 0.55, p.z), 'z', xi); // names the north-south street
         board(new THREE.Vector3(p.x, p.y + POLE_H - 0.18, p.z), 'x', X_LINES.length + (p.x < TNAGAR_X ? Z_LINES.length : 0) + zi); // the east-west one
