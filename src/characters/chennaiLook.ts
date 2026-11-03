@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Dresses the Mixamo hero (red tee, denim shorts, white sneakers) as a Chennai guy in a
- * full-sleeve checked shirt, blue jeans and brown shoes, with browner skin, a moustache and
- * vibhuti + kumkum.
+ * Dresses the Mixamo hero (red tee, denim shorts, white sneakers) as a Chennai guy in a plain
+ * mustard t-shirt (untucked) and loose-fit charcoal cotton trousers, white sneakers, with browner
+ * skin, a moustache and vibhuti + kumkum.
  *
  * The model's forearms and shins are bare skin, so the texture is repainted per BODY PART: each
  * triangle's UVs are rasterised into a mask coloured by the bone that drives it (arm -> sleeve,
@@ -11,37 +11,28 @@ import * as THREE from 'three';
  * wrists and ankles. Done once at load; the mesh and animations are untouched.
  */
 
-// Checked shirt: maroon ground, navy bands, thin cream lines (one check every CHECK texels).
-const CHECK = { base: [128, 30, 44], band: [30, 42, 86], line: [226, 214, 188], period: 28 };
-const JEANS = [44, 68, 108]; // blue denim (mid-dark wash)
-const SHOES = [74, 44, 26]; // brown leather shoes
+// Hero outfit: a plain mustard t-shirt (short sleeves, untucked) and loose charcoal cotton trousers.
+const TEE = [206, 150, 48];
+const TROUSERS = [62, 64, 70];
+const ARM_SKIN = [150, 102, 74]; // bare forearms (matches the browned face / hands)
+const TEE_HEM_DROP = 0.07; // m below the waist line where the tee ends
+const LOOSE = { hip: 0.012, ankle: 0.045 }; // m the trouser legs stand off the body (baggier towards the ankle)
 const SKIN_TONE = [0.72, 0.58, 0.47]; // multiplies the (pale) source skin
 const WAIST_ABOVE_HIPS = 0.05; // m above the hip joint where the shirt meets the trousers (the belt line)
 const BELT_HEIGHT = 0.04;
 const HERO_HEIGHT = 1.7; // the model's height in metres (catalog fits every character to this)
 
-type Part = 'shirt' | 'pants' | 'shoes' | 'skin' | 'none';
-const MASK_COLOUR: Record<Part, string> = { shirt: '#f00', pants: '#0f0', shoes: '#00f', skin: '#ff0', none: '#000' };
+type Part = 'shirt' | 'pants' | 'shoes' | 'skin' | 'arm' | 'none';
+const MASK_COLOUR: Record<Part, string> = { shirt: '#f00', pants: '#0f0', shoes: '#00f', skin: '#ff0', arm: '#0ff', none: '#000' };
 
 /** Which garment covers a bone (Mixamo names, prefix already stripped by the pipeline). */
-function partOf(bone: string): Part {
+function partOf(bone: string, shortSleeves = false): Part {
   if (/Hand|Thumb|Index|Middle|Ring|Pinky/.test(bone)) return 'skin';
+  if (shortSleeves && /ForeArm/.test(bone)) return 'arm'; // bare forearm: repainted plain skin (the model has tattoos there)
   if (/Foot|Toe/.test(bone)) return 'shoes';
   if (/UpLeg|Leg/.test(bone) || bone === 'Hips') return 'pants';
   if (/Arm|Spine|Shoulder/.test(bone)) return 'shirt';
   return 'none'; // head, neck, eyes
-}
-
-/** Madras-style check at texel (x, y). */
-function check(x: number, y: number) {
-  const p = CHECK.period;
-  const u = x % p;
-  const v = y % p;
-  if (u === 0 || v === 0) return CHECK.line;
-  const bu = u > p * 0.55 && u < p * 0.85;
-  const bv = v > p * 0.55 && v < p * 0.85;
-  if (bu && bv) return [CHECK.band[0] * 0.75, CHECK.band[1] * 0.75, CHECK.band[2] * 0.75]; // where bands cross
-  return bu || bv ? CHECK.band : CHECK.base;
 }
 
 /** Cheap repeatable 0..1 noise per texel. */
@@ -67,7 +58,7 @@ function hsv(r: number, g: number, b: number) {
 }
 
 /** Paint every triangle's UV footprint in the colour of the garment its bones say it is. */
-function partMask(mesh: THREE.SkinnedMesh, w: number, h: number) {
+function partMask(mesh: THREE.SkinnedMesh, w: number, h: number, opts: { shortSleeves?: boolean; hemDrop?: number } = {}) {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -78,22 +69,24 @@ function partMask(mesh: THREE.SkinnedMesh, w: number, h: number) {
   const uv = geo.attributes.uv;
   const si = geo.attributes.skinIndex;
   const sw = geo.attributes.skinWeight;
-  const bones = mesh.skeleton.bones.map((b) => partOf(b.name));
+  const bones = mesh.skeleton.bones.map((b) => partOf(b.name, opts.shortSleeves));
   // Torso bones: around the waist the hem is decided by height, not by which bone wins.
   const torso = mesh.skeleton.bones.map((b) => b.name === 'Hips' || b.name.startsWith('Spine'));
   const index = geo.index ? Array.from(geo.index.array) : [...Array(uv.count).keys()];
   // Bind-pose world height of each vertex vs the waist line (the model is in its bind pose here).
   const bind = bindPose(mesh);
-  const waist = bind.waistY;
+  const waist = bind.waistY - (opts.hemDrop ?? 0) * bind.unit; // an untucked tee hangs below the waist
   const tmp = new THREE.Vector3();
   const vote = new Map<Part, number>();
   for (let t = 0; t < index.length; t += 3) {
     vote.clear();
     let torsoW = 0;
     let height = 0;
+    const hs = [0, 0, 0];
     for (let k = 0; k < 3; k++) {
       const v = index[t + k];
-      height += bind.at(v, tmp).y / 3; // rest pose: the same whatever the model is doing now
+      hs[k] = bind.at(v, tmp).y;
+      height += hs[k] / 3; // rest pose: the same whatever the model is doing now
       for (let j = 0; j < 4; j++) {
         const b = si.getComponent(v, j);
         const wt = sw.getComponent(v, j);
@@ -110,9 +103,34 @@ function partMask(mesh: THREE.SkinnedMesh, w: number, h: number) {
       }
     }
     // Mostly hips / spine: a straight hem at the waist instead of a zig-zag.
-    if ((best === 'shirt' || best === 'pants') && torsoW > 0.8) best = height > waist ? 'shirt' : 'pants';
+    if ((best === 'shirt' || best === 'pants') && (torsoW > 0.8 || Math.abs(height - waist) < 0.12 * bind.unit)) best = height > waist ? 'shirt' : 'pants';
     g.fillStyle = MASK_COLOUR[best];
     g.strokeStyle = MASK_COLOUR[best];
+    // A triangle the hem line crosses: split it exactly at the hem (a hard gradient across it).
+    if ((best === 'shirt' || best === 'pants') && Math.min(...hs) < waist && Math.max(...hs) > waist) {
+      const P = [0, 1, 2].map((k) => [uv.getX(index[t + k]) * w, uv.getY(index[t + k]) * h]);
+      const [du1, dv1, dh1] = [P[1][0] - P[0][0], P[1][1] - P[0][1], hs[1] - hs[0]];
+      const [du2, dv2, dh2] = [P[2][0] - P[0][0], P[2][1] - P[0][1], hs[2] - hs[0]];
+      const det = du1 * dv2 - du2 * dv1;
+      if (Math.abs(det) > 1e-6) {
+        const a = (dh1 * dv2 - dh2 * dv1) / det; // height per pixel along u
+        const b = (du1 * dh2 - du2 * dh1) / det; // ...along v
+        const g2 = a * a + b * b;
+        if (g2 > 1e-12) {
+          const tt = (waist - hs[0]) / g2;
+          const cx = P[0][0] + a * tt;
+          const cy = P[0][1] + b * tt;
+          const len = Math.sqrt(g2);
+          const grad = g.createLinearGradient(cx - a / len, cy - b / len, cx + a / len, cy + b / len);
+          grad.addColorStop(0, MASK_COLOUR.pants);
+          grad.addColorStop(0.5, MASK_COLOUR.pants);
+          grad.addColorStop(0.5, MASK_COLOUR.shirt);
+          grad.addColorStop(1, MASK_COLOUR.shirt);
+          g.fillStyle = grad;
+          g.strokeStyle = grad;
+        }
+      }
+    }
     g.lineWidth = 2; // grow islands a little so seams don't keep the old colour
     g.beginPath();
     for (let k = 0; k < 3; k++) {
@@ -134,6 +152,7 @@ function partAt(mask: Uint8ClampedArray, i: number): Part {
   const gr = mask[i + 1] > 128;
   const b = mask[i + 2] > 128;
   if (r && gr) return 'skin';
+  if (gr && b) return 'arm';
   if (r) return 'shirt';
   if (gr) return 'pants';
   if (b) return 'shoes';
@@ -151,7 +170,7 @@ function recolourTexture(old: THREE.Texture, mesh: THREE.SkinnedMesh) {
   g.drawImage(img, 0, 0);
   const data = g.getImageData(0, 0, w, h);
   const px = data.data;
-  const mask = partMask(mesh, w, h);
+  const mask = partMask(mesh, w, h, { shortSleeves: true, hemDrop: TEE_HEM_DROP });
   const paint = (i: number, rgb: number[], shade: number) => {
     px[i] = Math.min(255, rgb[0] * shade);
     px[i + 1] = Math.min(255, rgb[1] * shade);
@@ -165,18 +184,18 @@ function recolourTexture(old: THREE.Texture, mesh: THREE.SkinnedMesh) {
     const shade = THREE.MathUtils.clamp(0.78 + 0.3 * v, 0.86, 1.1);
     switch (partAt(mask, i)) {
       case 'shirt':
-        paint(i, check(x, Math.floor(i / 4 / w)), shade);
+        // Cotton tee: the old tee's folds give the shading, a faint knit noise on top.
+        paint(i, TEE, shade * (0.96 + 0.06 * hash(x, Math.floor(i / 4 / w))));
         break;
       case 'pants': {
-        // The shorts were denim already: keep their fabric shading; elsewhere (the shins) add a
-        // faint weave so the jeans don't look painted on.
-        const denim = hue > 185 && hue < 235 && s > 0.1;
         const weave = 0.94 + 0.08 * hash(x, Math.floor(i / 4 / w));
-        paint(i, JEANS, denim ? THREE.MathUtils.clamp(0.55 + 0.5 * v, 0.8, 1.05) : shade * weave);
+        paint(i, TROUSERS, shade * weave);
         break;
       }
       case 'shoes':
-        paint(i, SHOES, THREE.MathUtils.clamp(0.7 + 0.5 * v, 0.75, 1.15));
+        break; // keeps the model's own white sneakers
+      case 'arm':
+        paint(i, ARM_SKIN, THREE.MathUtils.clamp(0.75 + 0.35 * v, 0.85, 1.1));
         break;
       default:
         // Skin (hands, face, neck): deeper brown, keeping its shading.
@@ -280,6 +299,37 @@ function addBelt(mesh: THREE.SkinnedMesh) {
   hips.add(belt, buckle);
 }
 
+/**
+ * Loose-fit trousers: push the leg surface (vertices driven by the thigh / shin bones, below the
+ * hem) out along its normals, a little at the hip and more at the ankle, so the trousers hang
+ * off the legs instead of looking painted on. Done once, in the rest pose.
+ */
+function loosenTrousers(mesh: THREE.SkinnedMesh) {
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+  const si = geo.attributes.skinIndex;
+  const sw = geo.attributes.skinWeight;
+  const legs = mesh.skeleton.bones.map((b) => /UpLeg|Leg$/.test(b.name) && !/Foot|Toe/.test(b.name));
+  const bind = bindPose(mesh);
+  const hem = bind.waistY - TEE_HEM_DROP * bind.unit;
+  const tmp = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let v = 0; v < pos.count; v++) {
+    let legW = 0;
+    for (let j = 0; j < 4; j++) if (legs[si.getComponent(v, j)]) legW += sw.getComponent(v, j);
+    if (legW < 0.5) continue;
+    const y = bind.at(v, tmp).y;
+    if (y > hem) continue;
+    const t = THREE.MathUtils.clamp(1 - y / hem, 0, 1); // 0 at the hem, 1 at the floor
+    const off = (LOOSE.hip + (LOOSE.ankle - LOOSE.hip) * t) * bind.unit * legW;
+    n.fromBufferAttribute(nor, v);
+    pos.setXYZ(v, pos.getX(v) + n.x * off, pos.getY(v) + n.y * off, pos.getZ(v) + n.z * off);
+  }
+  pos.needsUpdate = true;
+  geo.computeBoundingSphere();
+}
+
 /** Apply the look to the hero model (once; measurements use the rest pose, so any time works). */
 export function applyChennaiLook(model: THREE.Object3D) {
   let body: THREE.SkinnedMesh | null = null;
@@ -298,7 +348,7 @@ export function applyChennaiLook(model: THREE.Object3D) {
     mat.needsUpdate = true;
     body = o;
   });
-  if (body) addBelt(body);
+  if (body) loosenTrousers(body);
 
   // Face details, relative to the head bone (base of the skull; the face is ~0.1 m in front).
   model.updateWorldMatrix(true, true);
