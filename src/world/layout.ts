@@ -26,9 +26,9 @@
  *   road (5 m) | curb | sidewalk (2.5 m, raised 0.15 m) | building frontage
  */
 /** World rectangle (metres). Mylapore is the square around the origin; Santhome extends it east. */
-export const BOUNDS = { x0: -300, x1: 250, z0: -400, z1: 660 };
+export const BOUNDS = { x0: -620, x1: 250, z0: -400, z1: 660 };
 /** Roads running north-south (centre line x = c). 125 = Kamarajar Salai (Beach Road). */
-export const X_LINES = [-265, -205, -145, -70, -25, 25, 70, 125];
+export const X_LINES = [-520, -440, -360, -265, -205, -145, -70, -25, 25, 70, 125];
 /** Roads running east-west (centre line z = c). They end at the Beach Road. */
 export const Z_LINES = [-310, -220, -130, -70, -25, 25, 70, 125, 180, 240, 300, 390, 480, 600];
 /** Water the roads cross on bridges: the canal (north-south strip) and the Adyar river (east-west). */
@@ -63,6 +63,9 @@ export function roads(): RoadLine[] {
 
 /** Street names (English, Tamil). X_ROADS run north-south at x = line; Z_ROADS run east-west at z = line. */
 export const X_ROADS: Record<number, [string, string]> = {
+  [-520]: ['Duraisamy Road (West Mambalam)', 'துரைசாமி சாலை'],
+  [-440]: ['Usman Road', 'உஸ்மான் சாலை'],
+  [-360]: ['Thanikachalam Road', 'தணிகாசலம் சாலை'],
   [-265]: ['Anna Salai (Mount Road)', 'அண்ணா சாலை'],
   [-205]: ['Eldams Road', 'எல்டாம்ஸ் சாலை'],
   [-145]: ['TTK Road', 'டி.டி.கே. சாலை'],
@@ -88,6 +91,32 @@ export const Z_ROADS: Record<number, [string, string]> = {
   [480]: ['Taramani Road (to OMR)', 'தரமணி சாலை'],
   [600]: ['Perungudi Main Road', 'பெருங்குடி பிரதான சாலை'],
 };
+
+/** T. Nagar side: west of Anna Salai the east-west roads have their own names. */
+export const TNAGAR_X = -265;
+export const Z_ROADS_WEST: Record<number, [string, string]> = {
+  [-310]: ['Kodambakkam High Road', 'கோடம்பாக்கம் நெடுஞ்சாலை'],
+  [-220]: ['Nungambakkam High Road', 'நுங்கம்பாக்கம் நெடுஞ்சாலை'],
+  [-130]: ['G.N. Chetty Road', 'ஜி.என். செட்டி சாலை'],
+  [-70]: ['Sir Thyagaraya Road (Pondy Bazaar)', 'தியாகராய சாலை'],
+  [-25]: ['Venkatanarayana Road', 'வெங்கடநாராயணா சாலை'],
+  [25]: ['Bazullah Road', 'பசுல்லா சாலை'],
+  [70]: ['Burkit Road', 'பர்கிட் சாலை'],
+  [125]: ['Habibullah Road', 'ஹபிபுல்லா சாலை'],
+  [180]: ['Jones Road (Saidapet)', 'ஜோன்ஸ் சாலை'],
+  [240]: ['C.I.T. Nagar Main Road', 'சி.ஐ.டி. நகர் பிரதான சாலை'],
+  [300]: ['Saidapet High Road', 'சைதாப்பேட்டை நெடுஞ்சாலை'],
+  [390]: ['Guindy Road', 'கிண்டி சாலை'],
+  [480]: ['Velachery Road', 'வேளச்சேரி சாலை'],
+  [600]: ['Velachery Main Road', 'வேளச்சேரி பிரதான சாலை'],
+};
+/** A road's name at a point along it (east-west roads change name west of Anna Salai). */
+export function streetName(axis: 'x' | 'z', c: number, along: number): [string, string] {
+  if (axis === 'z') return X_ROADS[c];
+  return along < TNAGAR_X && Z_ROADS_WEST[c] ? Z_ROADS_WEST[c] : Z_ROADS[c];
+}
+/** Big divided roads: a planted median down the middle (world/medians.ts). North-south lines. */
+export const MEDIAN_X = [-440, -265];
 
 /**
  * Stretches of a road between crossings: [start, end] pairs along it. A north-south road is

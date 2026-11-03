@@ -397,6 +397,9 @@ const TANK_GEO = new THREE.CylinderGeometry(0.55, 0.55, 1.1, 10);
  * Returns [kind, lowRise] (lowRise: a 2-4 floor showroom block rather than a 4-7 floor one).
  */
 function areaKind(i: number, j: number, f: Facing, r: number): [Kind, boolean] {
+  if (i <= -3 && j <= -2) return r < 0.5 ? ['flats', false] : ['old', false]; // Kodambakkam
+  if (i <= -3 && j >= 5) return r < 0.6 ? ['flats', false] : ['old', false]; // Saidapet, Guindy side
+  if (i <= -3) return r < 0.55 ? ['commercial', false] : r < 0.85 ? ['old', false] : ['commercial', true]; // T. Nagar: packed shops and showrooms
   if (i <= -2) return r < 0.7 ? ['commercial', false] : ['old', false]; // Teynampet, Anna Salai
   if ((j === -1 && f === 's') || (j === 0 && f === 'n')) return r < 0.6 ? ['commercial', false] : ['old', false]; // Dr. Radhakrishnan Salai
   if (j <= -1) return ['old', false]; // Triplicane: old shop-houses and mansions

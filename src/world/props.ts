@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
-import { BOUNDS, ROAD_HALF, SIDEWALK_HEIGHT, inWater, X_LINES, X_ROADS, Z_LINES, Z_ROADS, roadSpans, roads } from './layout';
+import { BOUNDS, ROAD_HALF, SIDEWALK_HEIGHT, inWater, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads } from './layout';
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
@@ -214,7 +214,8 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
  * street (each board runs parallel to the street it names). Two draw calls in total.
  */
 function streetSigns(world: RAPIER.World) {
-  const names = [...X_LINES.map((c) => X_ROADS[c]), ...Z_LINES.map((c) => Z_ROADS[c])];
+  // Rows: north-south names, east-west names, then the east-west names west of Anna Salai (T. Nagar).
+  const names = [...X_LINES.map((c) => X_ROADS[c]), ...Z_LINES.map((c) => Z_ROADS[c]), ...Z_LINES.map((c) => Z_ROADS_WEST[c] ?? Z_ROADS[c])];
   const tex = streetSignTextures(names);
   const posts = new GeoBuilder();
   const boards = new GeoBuilder();
@@ -246,7 +247,7 @@ function streetSigns(world: RAPIER.World) {
         const p = new THREE.Vector3(x + sx * corner, SIDEWALK_HEIGHT, z + sz * corner);
         posts.add(pole, new THREE.Matrix4().setPosition(p), grey);
         board(new THREE.Vector3(p.x, p.y + POLE_H - 0.55, p.z), 'z', xi); // names the north-south street
-        board(new THREE.Vector3(p.x, p.y + POLE_H - 0.18, p.z), 'x', X_LINES.length + zi); // the east-west one
+        board(new THREE.Vector3(p.x, p.y + POLE_H - 0.18, p.z), 'x', X_LINES.length + (p.x < TNAGAR_X ? Z_LINES.length : 0) + zi); // the east-west one
         world.createCollider(RAPIER.ColliderDesc.cylinder(POLE_H / 2, 0.06).setTranslation(p.x, p.y + POLE_H / 2, p.z));
       }
     }

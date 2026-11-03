@@ -1,7 +1,7 @@
 import type { Footprint } from '../world/buildings';
 import { CAFE_SPOTS } from '../world/cafeSpots';
 import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
-import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, Z_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
+import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, ROAD_HALF, streetName, SETBACK, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
 import { BEACHFRONT_LOTS, HOME_LOTS, HOTEL_LOTS, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
@@ -12,7 +12,7 @@ import { HOTELS } from '../world/hotels';
 import { SHOP_SIGNS } from '../world/textures';
 
 /** Pixels per metre of the pre-drawn town map. Minimap and phone map crop/scale from it. */
-export const MAP_PPM = 4;
+export const MAP_PPM = 3;
 
 export interface MapData {
   footprints: Footprint[];
@@ -369,7 +369,7 @@ export function drawTownMap(data: MapData): TownMap {
       if (b - a < 25) continue;
       const mid = (a + b) / 2;
       if (r.axis === 'z') labels.push({ text: X_ROADS[r.c][0], x: r.c, z: mid, kind: 'street' });
-      else labels.push({ text: Z_ROADS[r.c][0], x: mid, z: r.c, kind: 'street' });
+      else labels.push({ text: streetName('x', r.c, mid)[0], x: mid, z: r.c, kind: 'street' });
     }
   }
   return { canvas: c, labels, pois };

@@ -43,6 +43,7 @@ import { createHotels } from './world/hotels';
 import { createHotelHalls } from './world/hotelHalls';
 import { createBeachfront } from './world/beachfront';
 import { createHomes } from './world/homes';
+import { createMedians } from './world/medians';
 import { Story } from './missions/story';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
@@ -72,7 +73,7 @@ import { Meal } from './player/meal';
 import { createEateries, type Eatery } from './world/eateries';
 import { BASKET_FULL, BASKET_MAX, CASHIER, CASHIER_HELLO, CASHIER_THANKS, MEAL_DONE, NO_MONEY, SHOPLIFT_LINE, type FoodItem, type Shelf } from './world/food';
 import { createSupermarkets, type Store } from './world/supermarket';
-import { SEA_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS } from './world/layout';
+import { SEA_X, X_LINES, X_ROADS, Z_LINES, streetName } from './world/layout';
 
 const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 /** Pushing the auto by hand: where you walk (auto's own frame: behind it, hands on the back) and how far you can fall behind before you let go. */
@@ -170,6 +171,7 @@ async function main() {
   crowd.addPosed(cafes.posed); // customers chatting at the cafe tables
   crowd.addPosed(hotels.posed); // doormen, guards and guests at the hotels
   const beachfront = createBeachfront(scene, world); // big shops + restaurants facing the beach
+  createMedians(scene, world); // divided big roads (Usman Road, Anna Salai)
   const homes = createHomes(scene, world); // houses you can walk into, sleep in and buy
   const halls = createHotelHalls(scene, world); // the dining halls you enter through the hotel lobbies
   crowd.addPosed(halls.posed); // diners, waiters, chef, musician
@@ -493,7 +495,7 @@ async function main() {
     ...townMap.pois,
     ...eateries.list.filter((e) => !townMap.pois.some((p) => p.name === e.name)).map((e): Place => ({ name: e.name, x: e.spot.x, z: e.spot.z, cat: 'food', icon: '🍛', colour: '#ef6c00' })),
   ]);
-  const roadName = (a: Pt, b: Pt) => (Math.abs(b.x - a.x) < 0.5 ? X_ROADS[a.x]?.[0] : Z_ROADS[a.z]?.[0]);
+  const roadName = (a: Pt, b: Pt) => (Math.abs(b.x - a.x) < 0.5 ? X_ROADS[a.x]?.[0] : streetName('x', a.z, (a.x + b.x) / 2)?.[0]);
   ride.onDrivingChange = (driving) => {
     sound.door();
     if (driving && upkeep.fuel > 0) sound.autoStart(); // no petrol: it won't start
