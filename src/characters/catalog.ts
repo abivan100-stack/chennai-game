@@ -74,6 +74,28 @@ function fit(root: THREE.Object3D) {
   return root;
 }
 
+/**
+ * The hero's clips move the Hips to the hero's hip height. On a body with longer / shorter legs
+ * that sinks it into the ground / lifts it off. Scale each clip's Hips position track by the
+ * ratio of rest hip heights (other tracks are shared, not copied).
+ */
+function fitHipsTo(clips: THREE.AnimationClip[], from: THREE.Object3D, to: THREE.Object3D) {
+  const a = from.getObjectByName('Hips');
+  const b = to.getObjectByName('Hips');
+  if (!a || !b || !a.position.lengthSq()) return clips;
+  const k = b.position.length() / a.position.length(); // rest offsets point "up" in the armature's own axes
+  if (Math.abs(k - 1) < 0.01) return clips;
+  return clips.map((c) => {
+    const tracks = c.tracks.map((t) => {
+      if (t.name !== 'Hips.position') return t;
+      const scaled = t.clone();
+      for (let i = 0; i < scaled.values.length; i++) scaled.values[i] *= k;
+      return scaled;
+    });
+    return new THREE.AnimationClip(c.name, c.duration, tracks);
+  });
+}
+
 export async function loadCharacters() {
   const heroFiles = [HERO.model, ...HERO.clips].map(loadModel);
   const npcIds = Object.keys(NPC_MODELS) as NpcModelId[];
@@ -101,7 +123,10 @@ export async function loadCharacters() {
   for (const id of npcIds) {
     const a = npcs.get(id)!;
     a.clips = rigClips.get(NPC_MODELS[id].rig) ?? [];
-    if (NPC_MODELS[id].rig === 'mixamo') Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id) });
+    if (NPC_MODELS[id].rig === 'mixamo') {
+      a.clips = fitHipsTo(a.clips, hero.scene, a.scene);
+      Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id) });
+    }
   }
   return { hero, npcs };
 }
