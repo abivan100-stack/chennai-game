@@ -119,9 +119,31 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
     const baseBlock = (hb: number) => box(f, bw, hb, bd, 0, 0, bv0 + bd / 2, wall);
     const band = (u: number, y: number, v: number, width: number, lit: boolean) =>
       k.shape(f, new THREE.BoxGeometry(width, 2.1, 0.06).translate(0, 1.05, 0), u, y, v, lit ? glass : glass.clone().multiplyScalar(0.6), 0, lit ? k.bulbs : k.geo);
-    // Lobby: tall glass front with a warm glow, revolving door.
+    // Lobby: a tall glass front (brass mullions over the warm lit lobby).
     k.shape(f, new THREE.BoxGeometry(14, lobbyH - 0.4, 0.05).translate(0, (lobbyH - 0.4) / 2, 0), 0, 0, bv0 - 0.06, WARM, 0, k.bulbs);
-    box(f, 3, 3, 3, 0, 0, bv0 - 1.2, glass, false);
+    for (let u = -7; u <= 7.01; u += 1.75) box(f, 0.09, lobbyH - 0.4, 0.1, u, 0, bv0 - 0.12, GOLD, false);
+    box(f, 14.2, 0.18, 0.14, 0, lobbyH - 0.45, bv0 - 0.12, GOLD, false);
+    // Grand entrance: brass-framed glass double doors, a glass canopy with downlights, lanterns,
+    // potted palms, steps and a red carpet out to the drop-off, the hotel's name on the canopy.
+    for (const sg of [-1, 1]) {
+      box(f, 0.32, 3.5, 0.32, sg * 1.95, 0, bv0 - 0.3, GOLD);
+      box(f, 1.7, 3.2, 0.05, sg * 0.92, 0.2, bv0 - 0.28, C(0xbfe0ea), false); // glass leaf (light: the lobby shows through)
+      box(f, 1.7, 0.12, 0.08, sg * 0.92, 0.2, bv0 - 0.3, GOLD, false); // kick plate
+      box(f, 0.06, 1.2, 0.08, sg * 0.15, 1.1, bv0 - 0.36, GOLD, false); // long handles
+      box(f, 0.26, 0.5, 0.26, sg * 2.7, 2.3, bv0 - 0.3, GOLD, false); // lantern
+      k.shape(f, new THREE.BoxGeometry(0.18, 0.36, 0.18), sg * 2.7, 2.37, bv0 - 0.3, WARM, 0, k.bulbs);
+      shape(f, new THREE.CylinderGeometry(0.35, 0.28, 0.6, 12).translate(0, 0.3, 0), sg * 3.4, 0, bv0 - 0.9, C(0xe8dcc8)); // planter
+      palm(f, sg * 3.4, bv0 - 0.9, 2.4);
+    }
+    box(f, 4.2, 0.35, 0.34, 0, 3.5, bv0 - 0.3, GOLD, false); // lintel
+    box(f, 6.4, 0.14, 2.8, 0, 3.95, bv0 - 1.45, C(0xd8eef5), false); // glass canopy
+    box(f, 6.5, 0.32, 0.1, 0, 3.85, bv0 - 2.85, C(0x2b2b2b), false); // canopy fascia
+    for (const sg of [-1, 1]) box(f, 0.05, 0.05, 2.8, sg * 3, 3.9, bv0 - 1.45, GOLD, false);
+    for (const u of [-2, 0, 2]) k.shape(f, new THREE.CylinderGeometry(0.12, 0.12, 0.04, 10), u, 3.9, bv0 - 1.6, WARM, 0, k.bulbs);
+    board(f, i, 0, 4.03, bv0 - 2.92, 6, 0.75);
+    box(f, 6, 0.1, 1.4, 0, 0, bv0 - 1, C(0xd6cfc2), false); // steps
+    box(f, 4.6, 0.2, 0.7, 0, 0, bv0 - 0.65, C(0xd6cfc2), false);
+    box(f, 2.2, 0.02, 3.6, 0, 0.005, bv0 - 3.5, C(0x8a1c1c), false); // red carpet out to the drop-off
 
     if (h.style === 'palace') {
       // Sandstone wings with a colonnade, a raised centre with a big dome, corner chhatris.

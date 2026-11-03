@@ -45,6 +45,8 @@ const GOLD = C(0xc9a24a);
 const CLOTH = C(0xffffff);
 const CHAIR = C(0x7a1f1f);
 const LAWN = C(0x5d9440);
+const FLOWERS = [0xe53935, 0xffb300, 0xd81b60, 0xffffff, 0x8e24aa, 0xff7043].map((c) => C(c));
+const SKYLINE = [0x9aa9b8, 0xa8b4c2, 0x8f9fae, 0xb4bfcb].map((c) => C(c)); // far towers, hazy
 const WARM = C(0xfff1c8);
 
 export interface Hall {
@@ -119,7 +121,46 @@ export function createHotelHalls(scene: THREE.Scene, world: RAPIER.World) {
     shape(f, new THREE.CylinderGeometry(2, 2.1, 0.5, 20).translate(0, 0.25, 0), 0, 0, D + 6, CREAM);
     shape(f, new THREE.CylinderGeometry(1.8, 1.8, 0.05, 20), 0, 0.48, D + 6, C(0x5aa9d6));
     shape(f, new THREE.CylinderGeometry(0.2, 0.3, 1.3, 10).translate(0, 0.65, 0), 0, 0.5, D + 6, CREAM);
-    box(f, W, 1.6, 0.8, 0, 0, D + GARDEN - 0.4, C(0x2e6b2e));
+    // Stone path to the fountain, flower beds, garden lamps, benches, a pergola.
+    box(f, 2, 0.02, GARDEN - 1, 0, 0.05, D + GARDEN / 2, C(0xcfc6b4), false);
+    for (const [u, v] of [[-11, 3], [-4, 8.5], [4, 8.5], [11, 3], [-15, 8], [15, 8]] as const) {
+      box(f, 3.2, 0.25, 1.1, u, 0, D + v, C(0x6b4a2e), false);
+      for (let n = 0; n < 6; n++) shape(f, new THREE.IcosahedronGeometry(0.28, 0), u - 1.25 + n * 0.5, 0.35, D + v + ((n % 2) - 0.5) * 0.3, FLOWERS[(n + Math.abs(u)) % FLOWERS.length]);
+    }
+    for (const u of [-1.6, 1.6]) for (const v of [2, 5, 9]) {
+      box(f, 0.08, 1.4, 0.08, u, 0, D + v, C(0x2b2b2b), false);
+      k.shape(f, new THREE.SphereGeometry(0.16, 8, 6), u, 1.55, D + v, WARM, 0, k.bulbs);
+    }
+    for (const u of [-8, 8]) {
+      box(f, 1.8, 0.08, 0.5, u, 0.45, D + 5.5, WOOD, false); // bench seat
+      box(f, 1.8, 0.45, 0.08, u, 0.5, D + 5.75, WOOD, false);
+      for (const e of [-0.8, 0.8]) box(f, 0.08, 0.45, 0.45, u + e, 0, D + 5.5, C(0x2b2b2b), false);
+    }
+    for (const u of [12, 17]) for (const v of [2, 6]) box(f, 0.2, 2.8, 0.2, u, 0, D + v, CREAM, false); // pergola
+    for (let v = 1.8; v <= 6.2; v += 0.55) box(f, 5.6, 0.12, 0.12, 14.5, 2.8, D + v, WOOD, false);
+    for (let n = 0; n < 9; n++) shape(f, new THREE.IcosahedronGeometry(0.45, 0).scale(1, 0.5, 1), 12.2 + (n % 3) * 2.3, 3, D + 2 + Math.floor(n / 3) * 2, C(0x3f8a3a));
+
+    // A stone balustrade at the garden's edge, then a lake out to a far shore with a skyline and hills.
+    box(f, W, 0.25, 0.5, 0, 0, D + GARDEN - 0.3, CREAM);
+    box(f, W, 0.15, 0.55, 0, 0.95, D + GARDEN - 0.3, CREAM, false);
+    for (let u = -W / 2 + 0.3; u < W / 2; u += 0.45) shape(f, new THREE.CylinderGeometry(0.07, 0.1, 0.7, 6).translate(0, 0.35, 0), u, 0.25, D + GARDEN - 0.3, CREAM);
+    box(f, W + 6, 1.4, 0.4, 0, -1.4, D + GARDEN + 0.1, C(0xb8ad98), false); // retaining wall down to the water
+    // (Everything within ~120 m: the town's fog swallows anything further, see sky.ts.)
+    box(f, 360, 0.05, 140, 0, -1.2, D + GARDEN + 70, C(0x3f7fa8), false); // lake
+    box(f, 360, 0.6, 14, 0, -1.2, D + GARDEN + 100, C(0xc9b98f), false); // far shore
+    for (let n = 0; n < 26; n++) {
+      const u = -125 + n * 10 + ((n * 37) % 5);
+      const h = 6 + ((n * 53) % 22);
+      box(f, 5 + ((n * 7) % 6), h, 6, u, -0.6, D + GARDEN + 104 + ((n * 13) % 8), SKYLINE[n % SKYLINE.length], false);
+    }
+    for (const u of [-120, 110]) shape(f, new THREE.SphereGeometry(30, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.6, 0.55, 1), u, -1.2, D + GARDEN + 98, C(0x5f8a55));
+    for (let n = 0; n < 5; n++) {
+      // Sailboats: a hull and a white sail.
+      const u = -40 + n * 21 + ((n * 17) % 9);
+      const v = D + GARDEN + 25 + ((n * 23) % 45);
+      box(f, 2.2, 0.4, 0.8, u, -1.2, v, C(0x8a5a3a), false);
+      shape(f, new THREE.ConeGeometry(1, 3, 3).scale(0.2, 1, 1), u, -0.8, v, C(0xf4f1ea));
+    }
 
     // ---- Buffet along the left wall, a chef behind it ----
     box(f, 1.1, 0.95, 9, -W / 2 + 1.6, 0, 12, C(0xf3eee4));
