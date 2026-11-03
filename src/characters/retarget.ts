@@ -18,6 +18,9 @@ export const QUATERNIUS_FROM_MIXAMO: Record<string, string> = (() => {
   return map;
 })();
 
+/** Hips and legs (Quaternius names): held at rest by an upper-body-only retarget. */
+const LOWER_BODY = new Set(['Hips', 'UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR', 'FootL', 'FootR']);
+
 function bonesOf(root: THREE.Object3D) {
   const bones: THREE.Bone[] = [];
   root.traverse((o) => {
@@ -31,8 +34,10 @@ function bonesOf(root: THREE.Object3D) {
  * Works in world space: each mapped target bone gets the source bone's rotation *change from
  * its rest pose*, applied on top of the target's own rest pose. Both rigs must share a rest
  * pose (both T-pose here) and face +z. Rotations only: the clip plays in place.
+ * upperOnly: hips and legs stay at rest (standing straight). Mixamo's talking / yelling clips
+ * crouch with bent knees, which reads as a squat on the shorter Quaternius legs.
  */
-export function retargetClip(source: THREE.Object3D, target: THREE.Object3D, clip: THREE.AnimationClip, boneMap: Record<string, string>, fps = 30) {
+export function retargetClip(source: THREE.Object3D, target: THREE.Object3D, clip: THREE.AnimationClip, boneMap: Record<string, string>, fps = 30, upperOnly = false) {
   const src = cloneSkinned(source); // fresh rest pose, the real hero is untouched
   src.updateMatrixWorld(true);
   target.updateMatrixWorld(true);
@@ -64,8 +69,10 @@ export function retargetClip(source: THREE.Object3D, target: THREE.Object3D, cli
     src.updateMatrixWorld(true);
     for (const b of tgtBones) {
       const parentWorld = world.get(b.parent as THREE.Bone) ?? tgtParentRest.get(b)!;
-      const s = srcBones.get(boneMap[b.name]);
+      const rest = upperOnly && LOWER_BODY.has(b.name);
+      const s = rest ? undefined : srcBones.get(boneMap[b.name]);
       let w: THREE.Quaternion;
+      if (rest && values.has(b)) tgtLocalRest.get(b)!.toArray(values.get(b)!, f * 4);
       if (s) {
         delta.multiplyQuaternions(s.getWorldQuaternion(q()), srcRestInv.get(s.name)!);
         w = delta.clone().multiply(tgtRest.get(b)!);

@@ -30,7 +30,7 @@ const HERO = {
   src: 'mixamo/hero.fbx',
   simplifyRatio: 0.29, // 49k -> under 15k tris
   clips: [
-    { name: 'idle', inPlace: false },
+    { name: 'idle', inPlace: true }, // Standing Idle (in place: the old idle's root motion made the hero drift)
     { name: 'walk', inPlace: true },
     { name: 'run', inPlace: true },
     { name: 'jump', inPlace: true, capLift: true },

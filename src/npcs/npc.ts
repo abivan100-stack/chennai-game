@@ -67,6 +67,8 @@ export class Npc {
   private target = 0;
   private busy = 0; // talking / scolding
   private readonly pose: NpcOptions['pose'];
+  /** Where a posed NPC stays (after the seated drop). */
+  private home: THREE.Vector3;
   private scoldCooldown = 0;
   private hits = 0; // times the player has hit us recently
   private fightT = -1; // seconds into a fight-back combo, -1 = not fighting
@@ -115,7 +117,9 @@ export class Npc {
       this.animator.play(this.pose.clip, { fade: 0 });
       // The seated clip keeps the hips at standing-stool height: drop onto a bench / log seat.
       if (this.pose.clip.startsWith('sit_')) this.root.position.y -= SIT_DROP * scale;
-    } else {
+    }
+    this.home = this.root.position.clone();
+    if (!this.pose) {
       this.animator.play(this.moveClip, { fade: 0 });
       this.animator.setSpeed(this.speed / SPEED[this.moveClip]);
     }
@@ -147,10 +151,15 @@ export class Npc {
     return this.busy <= 0;
   }
 
+  /** Sitting on a bench / chair: reactions stay seated (standing clips would sink into the seat). */
+  get seated() {
+    return !!this.pose && this.pose.clip !== 'idle';
+  }
+
   /** Player pressed E: stop, face them, talk. Returns the line. */
   talk() {
     this.busy = TALK_SECONDS;
-    this.animator.play('talk', { fade: 0.3 });
+    this.animator.play(this.seated ? 'sit_talk' : 'talk', { fade: 0.3 });
     this.animator.setSpeed(1);
     return nextLine(GREETINGS, this.lineIndex++);
   }
@@ -160,7 +169,8 @@ export class Npc {
     if (this.scoldCooldown > 0) return null;
     this.scoldCooldown = SCOLD_COOLDOWN;
     this.busy = SCOLD_SECONDS;
-    this.animator.play('hit', { once: true, then: 'yell', fade: 0.1 });
+    if (this.seated) this.animator.play('sit_talk', { fade: 0.2 }); // tells you off without getting up
+    else this.animator.play('hit', { once: true, then: 'yell', fade: 0.1 });
     this.animator.setSpeed(1);
     return nextLine(lines, Math.floor(Math.random() * lines.length));
   }
@@ -174,6 +184,11 @@ export class Npc {
     this.hits++;
     this.fightT = -1;
     const away = this.toPlayer.lengthSq() > 0 ? this.toPlayer.clone().normalize().negate() : new THREE.Vector3();
+    if (this.seated) {
+      // Hit while sitting: no knock-back, no getting up to fight; they just shout from the seat.
+      this.scoldCooldown = 0;
+      return this.scold(lines);
+    }
     if (move === 'kick') {
       this.downT = KNOCKDOWN_SECONDS;
       this.busy = KNOCKDOWN_SECONDS + 0.6;
@@ -223,8 +238,12 @@ export class Npc {
     }
     if (this.busy <= 0 && this.hits > 0) this.hits = Math.max(0, this.hits - dt * 0.1);
 
+    if (this.pose && this.fightT < 0 && this.downT <= 0) {
+      // People who stay put drift back to their spot after being shoved.
+      this.root.position.lerp(this.home, 1 - Math.exp(-3 * dt));
+    }
     if (this.busy > 0) {
-      this.yaw = Math.atan2(this.toPlayer.x, this.toPlayer.z);
+      if (!this.seated) this.yaw = Math.atan2(this.toPlayer.x, this.toPlayer.z);
       this.busy -= dt;
       if (this.busy <= 0) {
         this.animator.play(this.pose ? this.pose.clip : this.moveClip, { fade: 0.4 });
