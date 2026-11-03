@@ -9,7 +9,7 @@ import { BOUNDS, X_LINES, Z_LINES } from '../world/layout';
 import { fmtDist } from './bigMap';
 import { CHAPTERS, type StoryState } from '../missions/story';
 
-type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather' | 'story';
+type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather' | 'story' | 'garage';
 
 export interface PhoneDeps {
   jobs: TaxiJobs;
@@ -35,6 +35,9 @@ export interface PhoneDeps {
   /** Rent on the Mandaveli house (Chapter 2) and paying it. */
   rent: () => { active: boolean; owed: number; daysLeft: number; evicted: boolean; weekly: number };
   payRent: () => void;
+  /** Your vehicles: name, metres away, whether you're in it; deliver(i) brings one home. */
+  garage: () => { list: { name: string; away: number; inUse: boolean }[]; upgrades: string[]; deliverPrice: number };
+  deliver: (i: number) => void;
   /** Camera yaw (the map turns with it, like the minimap). */
   view: () => number;
   /** Everywhere you can navigate to. */
@@ -193,6 +196,7 @@ export class Phone {
       messages: () => this.messagesApp(),
       weather: () => this.weatherApp(),
       story: () => this.storyApp(),
+      garage: () => this.garageApp(),
     };
     const body = apps[this.app]();
     // Keep the scroll position of lists across refreshes.
@@ -226,6 +230,7 @@ export class Phone {
         icon('messages', '💬', 'Messages', unread),
         icon('weather', '🌦️', 'Weather'),
         icon('story', '📖', 'Story'),
+        icon('garage', '🔑', 'Garage'),
       ),
     );
   }
@@ -548,6 +553,24 @@ export class Phone {
       list.append(h('div', { class: 'phone-row', style: `padding:4px 2px;${ch.n > chapter ? 'color:#999' : ''}` }, h('span', {}, `${ch.n}. ${ch.title}`), h('span', { class: 'muted' }, state2)));
     }
     return h('div', {}, h('div', { class: 'phone-title' }, 'Story'), goals, h('div', { class: 'phone-card' }, list));
+  }
+
+  /** Your own vehicles (bought from the dealer) and the auto's upgrades. */
+  private garageApp() {
+    const g = this.deps.garage();
+    const list = h('div', {}, h('div', { class: 'phone-title' }, 'Garage'));
+    list.append(h('div', { class: 'phone-card' }, h('b', {}, '🛺 Chithappa\'s auto'), h('div', { class: 'muted' }, g.upgrades.length ? `Upgrades: ${g.upgrades.join(', ')}` : 'No upgrades yet: any mechanic sells them (CNG, music, meter, seats, paint, sticker).')));
+    if (!g.list.length) list.append(h('p', { class: 'muted' }, 'No other vehicles yet. Mylai Used Vehicles on R.K. Mutt Road sells second-hand scooters, bikes, vans and taxis.'));
+    g.list.forEach((v, i) => {
+      const b = h('button', { class: 'phone-btn' }, `Bring it home (${rupees(g.deliverPrice)})`);
+      if (v.inUse || this.deps.economy.cash < g.deliverPrice) b.setAttribute('disabled', '');
+      b.onclick = () => {
+        this.deps.deliver(i);
+        this.render();
+      };
+      list.append(h('div', { class: 'phone-card' }, h('div', { class: 'phone-row' }, h('b', {}, v.name), h('span', { class: 'muted' }, v.inUse ? 'driving' : `${v.away} m away`)), b));
+    });
+    return list;
   }
 
   private weatherApp() {

@@ -548,6 +548,9 @@ export const STORE_LOTS = (): Lot[] => [
   sideLot(-5, 2, 'n', 20, 8, 10),
 ];
 
+/** Second-hand vehicle dealer (world/dealer.ts) on R.K. Mutt Road, west side (block [0, 4]). */
+export const DEALER_LOT = (): Lot => sideLot(0, 4, 'e', 4, 30, 16);
+
 /** Homes (world/homes.ts): 12 x 13 m plots. Index order = HOMES data order (0 = the rented house you start in). */
 export const HOME_LOTS = (): Lot[] => [
   sideLot(3, 5, 'w', 20, 12, 13), // Mandaveli: your rented house

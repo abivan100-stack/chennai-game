@@ -39,8 +39,8 @@ export class Upkeep {
   }
 
   /** Litres a given amount of money buys (capped by the space in the tank). */
-  litresFor(money: number) {
-    return Math.min(TANK - this.fuel, money / PETROL_PRICE);
+  litresFor(money: number, price = PETROL_PRICE) {
+    return Math.min(TANK - this.fuel, money / price);
   }
 
   fill(litres: number) {

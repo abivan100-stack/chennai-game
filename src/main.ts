@@ -33,6 +33,10 @@ import { clearSave, loadSave, writeSave } from './core/save';
 import { RENT, Rent } from './missions/rent';
 import { nextStory, storyTitle } from './missions/storyMissions';
 import { QuestRunner } from './missions/questRunner';
+import { DEALER_STOCK, DELIVER_HOME, PAINTS, PAINT_PRICE, UPGRADES, bumpDecel, fareFactor, fuelFactor } from './vehicles/garage';
+import { createDealer } from './world/dealer';
+import { frame } from './world/kit';
+import { HOME_LOTS, SIDEWALK_WIDTH } from './world/layout';
 import { Sound } from './audio/sound';
 import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
@@ -109,6 +113,14 @@ const RENT_LINES = {
   paid: 'Vaadagai vandhuchu, nandri thambi!',
   back: 'Seri, ellam settle aayiduchu. Saavi gate-la vechirukken.',
   ended: 'Sondha veedu vaangiteengala! Vaazhthukkal thambi. Ini vaadagai venaam.',
+};
+const DEALER = 'Basheer bhai (Mylai Used Vehicles)';
+const GARAGE_LINES = {
+  cantAfford: 'Sir, ₹{price} aagum. Konjam saerthu vachittu vaanga, naan vechirukken!',
+  bought: 'Saavi itho! {name} ippo ungaludhu. RC transfer naan paathukkaren. Nalla ottunga!',
+  delivered: '{name} unga veettu vaasal-la nikkudhu.',
+  upgraded: 'Mechanic: {name} pottaachu! Auto ippo semma.',
+  painted: 'Mechanic: Pudhu paint! {name}-la auto puthusu maadhiri irukku.',
 };
 const STORY_RIDE_LINES = {
   passed: 'Story ride done: {title}! Phone > Story-la paarunga.',
@@ -313,11 +325,12 @@ async function main() {
   // ---- Places: petrol bunk, mechanic, bank, pharmacy, auto stand ----------------------------
   let serviceOpen: Service | null = null;
   type Row = { label: string; price: number; note: string; run: () => string };
+  const fuelPrice = () => Math.round(PETROL_PRICE * fuelFactor(upgrades));
   const fill = (money: number): Row => {
-    const litres = upkeep.litresFor(money);
-    const cost = Math.ceil(litres * PETROL_PRICE);
+    const litres = upkeep.litresFor(money, fuelPrice());
+    const cost = Math.ceil(litres * fuelPrice());
     return {
-      label: money >= TANK * PETROL_PRICE ? 'Full tank' : `Petrol ₹${money}`,
+      label: money >= TANK * fuelPrice() ? 'Full tank' : `${upgrades.includes('cng') ? 'Gas' : 'Petrol'} ₹${money}`,
       price: cost,
       note: `${litres.toFixed(1)} L`,
       run: () => {
@@ -331,10 +344,33 @@ async function main() {
     switch (s.kind) {
       case 'fuel':
         if (upkeep.fuel >= TANK - 0.05) return { greet: PLACE_LINES.bunkFull, rows: [] };
-        return { greet: `${PLACE_LINES.bunkGreet} (₹${PETROL_PRICE}/L · tank ${upkeep.fuel.toFixed(1)}/${TANK} L)`, rows: [fill(100), fill(300), fill(TANK * PETROL_PRICE)] };
+        return { greet: `${PLACE_LINES.bunkGreet} (₹${fuelPrice()}/L${upgrades.includes('cng') ? ' CNG' : ''} · tank ${upkeep.fuel.toFixed(1)}/${TANK} L)`, rows: [fill(100), fill(300), fill(TANK * fuelPrice())] };
       case 'mechanic': {
         const broken = 100 - upkeep.condition;
-        if (broken < 0.5) return { greet: PLACE_LINES.mechFine, rows: [] };
+        // Chapter 2: the auto is yours, so you can do it up (one of each; paint any time).
+        const ups: Row[] = story.chapter < 2 ? [] : [
+          ...UPGRADES.filter((u) => !upgrades.includes(u.id)).map((u): Row => ({
+            label: u.name, price: u.price, note: u.note,
+            run: () => {
+              economy.cash -= u.price;
+              upgrades.push(u.id);
+              if (u.id === 'sticker') auto.setSticker(true);
+              saveNow();
+              return GARAGE_LINES.upgraded.replace('{name}', u.name);
+            },
+          })),
+          ...PAINTS.filter((p) => p.colour !== paintColour).map((p): Row => ({
+            label: `Paint: ${p.name}`, price: PAINT_PRICE, note: 'new colour',
+            run: () => {
+              economy.cash -= PAINT_PRICE;
+              paintColour = p.colour;
+              auto.paint(p.colour);
+              saveNow();
+              return GARAGE_LINES.painted.replace('{name}', p.name);
+            },
+          })),
+        ];
+        if (broken < 0.5) return { greet: PLACE_LINES.mechFine, rows: ups.slice(0, 9) };
         const fix = (points: number, label: string): Row => ({
           label, price: Math.ceil(points) * REPAIR_PRICE, note: `+${Math.ceil(points)}%`,
           run: () => {
@@ -342,7 +378,7 @@ async function main() {
             return PLACE_LINES.repaired;
           },
         });
-        return { greet: `${PLACE_LINES.mechGreet} (condition ${Math.round(upkeep.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : [])] };
+        return { greet: `${PLACE_LINES.mechGreet} (condition ${Math.round(upkeep.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : []), ...ups].slice(0, 9) };
       }
       case 'bank': {
         const say = (line: string, n: number) => line.replace('{n}', n.toLocaleString('en-IN'));
@@ -485,6 +521,26 @@ async function main() {
     redeem: () => redeemAuto(),
     story: () => ({ chapter: story.chapter, state: storyState() }),
     rent: () => ({ active: rent.active, owed: rent.owed, evicted: rent.evicted, weekly: RENT, daysLeft: Math.max(0, rent.dueDay - Math.floor(istTime(dayNight.timeMs).day)) }),
+    garage: () => ({
+      list: mine.map((m) => ({
+        name: DEALER_STOCK.find((s) => s.id === m.stock)?.name ?? m.veh.kind,
+        away: Math.round(Math.hypot(m.veh.currPos.x - player.position.x, m.veh.currPos.z - player.position.z)),
+        inUse: stolen === m.veh,
+      })),
+      upgrades: UPGRADES.filter((u) => upgrades.includes(u.id)).map((u) => u.name),
+      deliverPrice: DELIVER_HOME,
+    }),
+    deliver: (i) => {
+      const m = mine[i];
+      if (!m || stolen === m.veh || economy.cash < DELIVER_HOME) return;
+      economy.cash -= DELIVER_HOME;
+      const p = homeSpot(i);
+      traffic.place(m.veh, p.x, p.z, p.heading);
+      showMoney();
+      const name = DEALER_STOCK.find((s) => s.id === m.stock)?.name ?? m.veh.kind;
+      phone.addMessage(DEALER, GARAGE_LINES.delivered.replace('{name}', name));
+      saveNow();
+    },
     payRent: () => {
       const paid = rent.pay(economy.cash);
       if (!paid) return;
@@ -533,6 +589,23 @@ async function main() {
   };
   jobs.onStory = storyFinished;
   const quests = new QuestRunner(scene, world, characters.npcs);
+  // ---- Your vehicles (Chapter 2): auto upgrades, the dealer's stock, vehicles you bought ----
+  const upgrades: string[] = [...(saved?.garage?.upgrades ?? [])];
+  let paintColour = saved?.garage?.paint ?? PAINTS[0].colour;
+  auto.paint(paintColour);
+  auto.setSticker(upgrades.includes('sticker'));
+  const dealer = createDealer(scene, world);
+  const mine: { stock: string; veh: Vehicle }[] = (saved?.garage?.vehicles ?? []).map((v) => ({ stock: v.stock, veh: traffic.addParked(v.kind as Vehicle['kind'], v.colour, v.x, v.z, v.heading) }));
+  const dealerStock = DEALER_STOCK.map((s, i) => ({ s, veh: mine.some((m) => m.stock === s.id) ? null : traffic.addParked(s.kind, s.colour, dealer.spots[i].x, dealer.spots[i].z, dealer.spots[i].heading, true) }));
+  /** Where an owned vehicle is delivered: in front of your newest home (or the rented one). */
+  const homeSpot = (n: number) => {
+    const bought = [...owned].filter((i) => i !== 0);
+    const lot = HOME_LOTS()[bought.length ? bought[bought.length - 1] : 0];
+    const f = frame(lot);
+    const p = f.at(-4 + (n % 3) * 4.5, -(SIDEWALK_WIDTH + 2));
+    const along = f.at(1, 0).sub(f.at(0, 0));
+    return { x: p.x, z: p.z, heading: Math.atan2(along.x, along.z) };
+  };
   quests.onSay = (name, line) => hud.say(name, line);
   const heroFeet = new THREE.Vector3();
   let lastVSpeed = 0;
@@ -723,6 +796,11 @@ async function main() {
       homes: [...owned],
       story: { ...story.snapshot(), done: storyDone },
       rent: rent.snapshot(),
+      garage: {
+        upgrades,
+        paint: paintColour,
+        vehicles: mine.map((m) => ({ stock: m.stock, kind: m.veh.kind, colour: m.veh.colour, x: m.veh.currPos.x, z: m.veh.currPos.z, heading: traffic.headingOf(m.veh) })),
+      },
     });
   };
   window.setInterval(saveNow, AUTOSAVE_MS);
@@ -924,6 +1002,26 @@ async function main() {
       energy.spend(ATTACK_COST);
     }
     player.blocking = onFootFree && input.isDown('Mouse2') && !player.acting;
+    // Dealer: E next to a vehicle on show buys it (cash first, then the bank).
+    const sale = onFootFree ? dealerStock.find((f) => f.veh?.locked && Math.hypot(f.veh.currPos.x - player.position.x, f.veh.currPos.z - player.position.z) < 3.4) ?? null : null;
+    if (sale && sale.veh && input.wasPressed('KeyE')) {
+      const { s, veh } = sale;
+      if (economy.cash + economy.savings < s.price) hud.say(DEALER, GARAGE_LINES.cantAfford.replace('{price}', s.price.toLocaleString('en-IN')));
+      else {
+        const fromCash = Math.min(economy.cash, s.price);
+        economy.cash -= fromCash;
+        economy.savings -= s.price - fromCash;
+        veh.locked = false;
+        mine.push({ stock: s.id, veh });
+        sale.veh = null;
+        showMoney();
+        sound.coin();
+        const line = GARAGE_LINES.bought.replace('{name}', s.name);
+        hud.say(DEALER, line);
+        phone.addMessage(DEALER, line);
+        saveNow();
+      }
+    }
     // Story quest: E for its prompt comes first.
     const questE = !!quests.prompt && free && input.wasPressed('KeyE') && quests.interact(questCtx());
     if (talkTo && !questE && input.wasPressed('KeyE')) {
@@ -935,6 +1033,7 @@ async function main() {
     hud.setPrompt(
       !free ? null
         : quests.prompt && player.onFoot && !stolen ? quests.prompt
+        : sale ? `E - Buy the ${sale.s.name}: ₹${sale.s.price.toLocaleString('en-IN')}`
         : stolen ? (Math.abs(stolenSpeed) < 3 ? 'F - Get out' : null)
         : pushing ? 'W/S - Push · A/D - Steer · G - Let go · F - Get in'
         : nearAuto ? (upkeep.fuel <= 0 ? 'F - Get in · G - Push the auto (no petrol)' : 'F - Get in · G - Push')
@@ -1150,7 +1249,8 @@ async function main() {
     hospital.setNight(dayNight.night);
     signals.update(dt);
     flood.update(dt, weather.rain);
-    jobs.fareBoost = weather.rain > 0.5 ? RAIN_SURCHARGE : 1;
+    jobs.fareBoost = (weather.rain > 0.5 ? RAIN_SURCHARGE : 1) * fareFactor(upgrades);
+    jobs.bumpDecel = bumpDecel(upgrades);
     const drivingAny = ride.driving || !!stolen;
     const vPos = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
     const vSpeed = stolen ? Math.abs(stolenSpeed) : ride.driving ? Math.abs(auto.speed) : player.speed;

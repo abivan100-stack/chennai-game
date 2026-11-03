@@ -55,6 +55,40 @@ export class AutoRickshaw {
   private readonly vehicle: RAPIER.DynamicRayCastVehicleController;
   private readonly wheelMeshes: THREE.Object3D[] = [];
   private readonly headlight: THREE.MeshStandardMaterial;
+  private readonly paintMat: THREE.MeshStandardMaterial;
+  private sticker: THREE.Mesh | null = null;
+
+  /** Body colour (paint job at the mechanic). */
+  paint(colour: number) {
+    this.paintMat.color.setHex(colour);
+  }
+
+  /** The classic back-panel sticker: அம்மா அப்பா ஆசீர்வாதம் (Amma Appa Aasirvadham). */
+  setSticker(on: boolean) {
+    if (on && !this.sticker) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 128;
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#111111';
+      g.fillRect(0, 0, 512, 128);
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = '#ffd54f';
+      g.font = '700 46px "Nirmala UI", "Latha", "Noto Sans Tamil", sans-serif';
+      g.fillText('அம்மா அப்பா ஆசீர்வாதம்', 256, 46, 490);
+      g.fillStyle = '#ffffff';
+      g.font = '700 28px system-ui, sans-serif';
+      g.fillText('AMMA APPA AASIRVADHAM', 256, 100, 490);
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace;
+      this.sticker = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 }));
+      this.sticker.position.set(0, 0.74, -1.287);
+      this.sticker.rotation.y = Math.PI;
+      this.group.add(this.sticker);
+    }
+    if (this.sticker) this.sticker.visible = on;
+  }
   private readonly tail: THREE.MeshStandardMaterial;
   private steer = 0;
   private readonly prevPos = new THREE.Vector3();
@@ -67,7 +101,8 @@ export class AutoRickshaw {
   private handbrake = true;
 
   constructor(scene: THREE.Scene, world: RAPIER.World, position: THREE.Vector3, heading = 0) {
-    const { headlight, tail, wheels } = buildAutoModel(this.group);
+    const { headlight, tail, wheels, paint } = buildAutoModel(this.group);
+    this.paintMat = paint;
     this.wheelMeshes.push(...wheels);
     this.headlight = headlight;
     this.tail = tail;
@@ -312,5 +347,5 @@ const wheels: THREE.Object3D[] = [];
     wheels.push(mesh);
     group.add(mesh);
   }
-  return { headlight, tail, wheels };
+  return { headlight, tail, wheels, paint: yellow };
 }

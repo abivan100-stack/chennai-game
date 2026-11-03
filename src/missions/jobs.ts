@@ -93,6 +93,8 @@ export class TaxiJobs {
   onPaid: (fare: number, tip: number) => void = () => {};
   /** Fare multiplier (rain surcharge), set by the game each frame. */
   fareBoost = 1;
+  /** m/s lost in one frame that a passenger feels as a bump (seat covers raise it). */
+  bumpDecel = BUMP_DECEL;
   /** A new ride request arrived on the phone. */
   onNewOrder: (order: Order) => void = () => {};
   /** A story mission ended (passed or not). */
@@ -267,7 +269,7 @@ export class TaxiJobs {
     const speed = Math.abs(this.auto.speed);
     const stopped = driving && speed < STOP_SPEED;
     // A sudden loss of speed = the passenger got thrown about (VIPs mind).
-    if (this.phase === 'riding' && this.lastSpeed - speed > BUMP_DECEL) {
+    if (this.phase === 'riding' && this.lastSpeed - speed > this.bumpDecel) {
       this.bumps++;
       if (this.kind === 'vip') this.onSay(this.name, rand(VIP_BUMP));
       if (this.story?.lines.bump) this.onSay(this.name, rand(this.story.lines.bump));

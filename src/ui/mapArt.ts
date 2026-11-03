@@ -4,7 +4,7 @@ import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, roadHalf, SIDEWALK_WIDTH, streetName, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
-import { BEACHFRONT_LOTS, STORE_LOTS, HOME_LOTS, HOTEL_LOTS, RAIL_HALF, RAIL_X, TNAGAR, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
+import { BEACHFRONT_LOTS, DEALER_LOT, STORE_LOTS, HOME_LOTS, HOTEL_LOTS, RAIL_HALF, RAIL_X, TNAGAR, SERVICE_HUBS, SHOWROOM_LOTS } from '../world/layout';
 import { BEACHFRONT } from '../world/beachfront';
 import { HOMES } from '../world/homes';
 import { SHOWROOMS } from '../world/showrooms';
@@ -309,6 +309,12 @@ export function drawTownMap(data: MapData): TownMap {
     poi(name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#ad1457', '👗', 'shop', 2);
   });
   labels.push({ text: 'Fashion street', x: -205, z: -185, kind: 'landmark' });
+  {
+    const d = DEALER_LOT();
+    g.fillStyle = '#d6e4f5';
+    g.fillRect(P(d.x0), P(d.z0), M(d.x1 - d.x0), M(d.z1 - d.z0));
+    poi('Mylai Used Vehicles', (d.x0 + d.x1) / 2, (d.z0 + d.z1) / 2, '#0d47a1', '🏍', 'shop', 1);
+  }
   STORE_LOTS().forEach((lot, i) => {
     const st = STORES[i % STORES.length];
     g.fillStyle = '#f3d6e0';

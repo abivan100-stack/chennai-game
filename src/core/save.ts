@@ -25,6 +25,8 @@ export interface SaveData {
   story?: { chapter: number; done?: string[] };
   /** Rent on the Mandaveli house (Chapter 2). */
   rent?: { active: boolean; dueDay: number; owed: number; evicted: boolean };
+  /** Chapter 2: auto upgrades + paint, and vehicles bought from the dealer (where you left them). */
+  garage?: { upgrades: string[]; paint: number; vehicles: { stock: string; kind: string; colour?: number; x: number; z: number; heading: number }[] };
 }
 
 export function loadSave(): SaveData | null {

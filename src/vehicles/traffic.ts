@@ -186,6 +186,10 @@ export interface Vehicle {
   target: number; // speed we want (set per frame from corners / obstacles)
   knocked: number; // s left of being pushed around
   id: number;
+  /** Body colour it was built with (owned vehicles are saved with it). */
+  colour?: number;
+  /** For sale at the dealer: can't be got into. */
+  locked?: boolean;
   /** Heading this frame (unit, on the ground). */
   hx: number;
   hz: number;
@@ -230,8 +234,11 @@ export class Traffic {
   private readonly scene: THREE.Scene;
   private readonly fleeing: { root: THREE.Group; anim: Animator; dx: number; dz: number; t: number }[] = [];
 
+  private readonly world: RAPIER.World;
+
   constructor(scene: THREE.Scene, world: RAPIER.World, npcs: Map<NpcModelId, CharacterAsset>) {
     this.scene = scene;
+    this.world = world;
     this.driverModels = [...npcs.entries()].filter(([id]) => id !== 'police').map(([, a]) => a);
     const fleet: [Kind, number, number, number, number?][] = [
       // kind, block i, j, start fraction, colour
@@ -300,7 +307,33 @@ export class Traffic {
   private readonly streetBlocks = blocks().filter((b) => b.kind !== 'beach' && b.road.w && b.road.e && b.road.n && b.road.s && !(b.z0 < RIVER.z1 + 10 && b.z1 > RIVER.z0 - 10));
 
   /** Build one AI vehicle on `path`, `start` of the way round. */
-  private spawn(world: RAPIER.World, kind: Kind, path: Path, start: number, colour?: number) {
+  /**
+   * A parked vehicle with nobody in it (your own, or the dealer's stock when locked), nose along
+   * `heading` (radians, 0 = +z).
+   */
+  addParked(kind: Kind, colour: number | undefined, x: number, z: number, heading: number, locked = false) {
+    const b = this.streetBlocks[0];
+    const veh = this.spawn(this.world, kind, blockRoute(b.i, b.j), 0, colour, false);
+    veh.mode = 'parked';
+    veh.locked = locked;
+    this.place(veh, x, z, heading);
+    return veh;
+  }
+
+  /** Move a vehicle (not while someone drives it) to (x, z) facing `heading`. */
+  place(veh: Vehicle, x: number, z: number, heading: number) {
+    const rot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), heading);
+    veh.body.setTranslation({ x, y: 0.05, z }, true);
+    veh.body.setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w }, true);
+    veh.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    veh.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    veh.prevPos.set(x, 0.05, z);
+    veh.currPos.set(x, 0.05, z);
+    veh.prevRot.copy(rot);
+    veh.currRot.copy(rot);
+  }
+
+  private spawn(world: RAPIER.World, kind: Kind, path: Path, start: number, colour?: number, withDriver = true) {
     const group = new THREE.Group();
     let wheelMeshes: THREE.Object3D[];
     let wheelR = 0.21;
@@ -329,7 +362,7 @@ export class Traffic {
       lights = m.lights;
     }
     this.scene.add(group);
-    const driver = seatDriver(this.driverModels[Math.floor(Math.random() * this.driverModels.length)], group, DRIVER_SEAT[kind]);
+    const driver = withDriver ? seatDriver(this.driverModels[Math.floor(Math.random() * this.driverModels.length)], group, DRIVER_SEAT[kind]) : null;
     const sp = SPEC[kind];
     // Dynamic body with real mass, kept upright: it can be shoved; it drives by velocity control.
     const s0 = start * path.length;
@@ -351,7 +384,7 @@ export class Traffic {
     const veh: Vehicle = {
       kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
       group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
-      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0,
+      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0,
       prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
     };
     this.vehicles.push(veh);
@@ -596,7 +629,7 @@ export class Traffic {
     let bestD = Infinity;
     for (const v of this.vehicles) {
       const d = Math.hypot(v.currPos.x - p.x, v.currPos.z - p.z) - SPEC[v.kind].length / 2;
-      if (d < 1.8 && d < bestD) {
+      if (d < 1.8 && d < bestD && !v.locked) {
         best = v;
         bestD = d;
       }

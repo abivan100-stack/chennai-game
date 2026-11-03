@@ -249,3 +249,13 @@ console.log('check: stops on pavements passed');
   }
 }
 console.log('check: quests passed');
+
+// --- Garage: upgrade effects, dealer stock ---
+{
+  const { UPGRADES, DEALER_STOCK, fuelFactor, fareFactor, bumpDecel } = await import('../src/vehicles/garage.ts');
+  assert(fuelFactor([]) === 1 && fuelFactor(['cng']) < 1, 'CNG makes fuel cheaper');
+  assert(fareFactor([]) === 1 && Math.abs(fareFactor(['music', 'meter']) - 1.2) < 1e-9, 'music + meter = fares +20%');
+  assert(bumpDecel(['seats']) > bumpDecel([]), 'seat covers soften bumps');
+  assert(new Set(UPGRADES.map((u) => u.id)).size === UPGRADES.length && new Set(DEALER_STOCK.map((d) => d.id)).size === DEALER_STOCK.length, 'ids are unique');
+}
+console.log('check: garage passed');
