@@ -216,7 +216,7 @@ export const MSG_SEIZED = 'Moonu naal kattala. Auto-va eduthuttu poitten. ₹{co
 export const MSG_REDEEMED = 'Seri, kaasu vandhuchu. Auto temple pakkathula nikkudhu. Ini ozhunga kattu!';
 export const MISSION_SEIZED = "Kandasamy took the auto! Earn ₹{cost} and get it back (Phone > Wallet)";
 export const TRAFFIC_POLICE = 'Traffic Police';
-export const SIGNAL_FINE = 500;
+export const SIGNAL_FINE = 100;
 export const MSG_SIGNAL_JUMP = 'Signal jump panniteenga! ₹{fine} fine. Red-la nillunga!';
 /** {paid}, {left} */
 export const MSG_PAID = 'Seri, ₹{paid} vandhuchu. Innum ₹{left} baaki.';

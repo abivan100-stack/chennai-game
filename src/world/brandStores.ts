@@ -226,6 +226,14 @@ export function createBrandStores(scene: THREE.Scene, world: RAPIER.World) {
     const out = f.at(0, -1).sub(f.at(0, 0));
     flat.quad(f.at(u + w / 2, v, y), f.at(u - w / 2, v, y), f.at(u - w / 2, v, y + h), f.at(u + w / 2, v, y + h), [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], WHITE, out);
   };
+  /** The same on a side wall: the plane u = uS, facing outwards on side sg, centred at depth v, len along v. */
+  const sideDecal = (f: Frame, sg: number, uv: number[], uS: number, y: number, v: number, len: number, h: number) => {
+    const [u0, v0, u1, v1] = uv;
+    const out = f.at(sg, 0).sub(f.at(0, 0));
+    const a = v + (sg * len) / 2;
+    const b = v - (sg * len) / 2;
+    flat.quad(f.at(uS, a, y), f.at(uS, b, y), f.at(uS, b, y + h), f.at(uS, a, y + h), [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], WHITE, out);
+  };
   const pane = (f: Frame, u: number, y: number, v: number, w: number, h: number, tint = 0xd6ecf7) => {
     const p = f.at(u, v);
     glass.box(w, h, 0.04, p.x, y + h / 2, p.z, C(tint), f.yaw);
@@ -511,6 +519,47 @@ export function createBrandStores(scene: THREE.Scene, world: RAPIER.World) {
     for (const sg of [-1, 1]) {
       box(f, 4, 3, 4, sg * (bw / 2 - 2), H, fv + 2, CREAM);
       shape(f, new THREE.SphereGeometry(1.6, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), sg * (bw / 2 - 2), H + 3, fv + 2, ORNATE);
+    }
+
+    // Side walls (one usually faces a road): the same grooves, the name band wrapping round,
+    // arched poster bays on the ground floor, a big framed banner, the cornice and balustrade.
+    const len = d - fv;
+    const mid = fv + len / 2;
+    for (const sg of [-1, 1]) {
+      const uS = sg * (bw / 2);
+      for (let y = 0.7; y < H - 3; y += 0.7) box(f, 0.04, 0.06, len, uS + sg * 0.02, y, mid, CREAM_D, false);
+      box(f, 0.6, 2.2, len, uS + sg * 0.3, 11.4, mid, accent, false);
+      sideDecal(f, sg, atlas.uvRow(nameRow), uS + sg * 0.62, 11.55, mid, nw, (nw / 8) * 1.6);
+      k.shape(f, new THREE.BoxGeometry(0.1, 0.1, len), uS + sg * 0.6, 11.3, mid, C(0xffffff), 0, k.bulbs);
+      // Ground floor: three arched bays with posters behind glass, ornate piers and keystones.
+      const bays = 3;
+      const bl = len / bays;
+      for (let b = 0; b < bays; b++) {
+        const v = fv + (b + 0.5) * bl;
+        const ow = bl - 3;
+        box(f, 0.3, 5.2, ow, uS + sg * 0.05, 1.2, v, C(0x2b2b2b), false);
+        shape(f, new THREE.CylinderGeometry(ow / 2, ow / 2, 0.3, 16).rotateZ(Math.PI / 2), uS + sg * 0.05, 6.4, v, C(0x2b2b2b));
+        sideDecal(f, sg, atlas.uvPoster((b + i + 1) % 6), uS + sg * 0.22, 1.4, v, ow - 0.4, 4.8);
+        const gp = f.at(uS + sg * 0.25, v);
+        glass.box(0.04, 5.2, ow, gp.x, 1.2 + 2.6, gp.z, C(0xd6ecf7), f.yaw);
+        for (const e of [-1, 1]) box(f, 0.35, 5.2 + ow / 2, 0.45, uS + sg * 0.15, 1.0, v + e * (ow / 2 + 0.22), ORNATE, false);
+        box(f, 0.4, 0.9, 0.7, uS + sg * 0.18, 6.2 + ow / 2 - 0.1, v, ORNATE, false);
+      }
+      // Upper floors: a big framed banner in the middle, tall blind windows either side.
+      box(f, 0.3, 7, 6.4, uS + sg * 0.15, 14.4, mid, ORNATE, false);
+      sideDecal(f, sg, atlas.uvPoster((i + 4) % 6), uS + sg * 0.32, 14.7, mid, 5.2, 6.4);
+      for (const e of [-1, 1]) {
+        for (const off of [7, 12]) {
+          const v = mid + e * off;
+          if (v < fv + 1.5 || v > d - 1.5) continue;
+          box(f, 0.08, 4.2, 1.6, uS + sg * 0.04, 15.2, v, C(0x51626a), false);
+          box(f, 0.3, 0.3, 2.1, uS + sg * 0.15, 19.4, v, ORNATE, false);
+          box(f, 0.3, 0.2, 2, uS + sg * 0.15, 15.0, v, ORNATE, false);
+        }
+      }
+      box(f, 1.2, 0.6, len, uS + sg * 0.3, H - 2.2, mid, ORNATE, false);
+      for (let v = fv + 0.6; v < d - 0.4; v += 0.7) box(f, 0.22, 0.9, 0.22, uS - sg * 0.2, H, v, ORNATE, false);
+      box(f, 0.5, 0.2, len, uS - sg * 0.2, H + 0.9, mid, ORNATE, false);
     }
   }
 
