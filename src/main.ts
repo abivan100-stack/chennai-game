@@ -364,8 +364,8 @@ async function main() {
     switch (s.kind) {
       case 'fuel': {
         const u = curUpkeep();
-        if (u.fuel >= u.tank - 0.05) return { greet: PLACE_LINES.bunkFull, rows: [] };
-        return { greet: `${PLACE_LINES.bunkGreet} (₹${fuelPrice()}/L${upgrades.includes('cng') && u === upkeep ? ' CNG' : ''} · tank ${u.fuel.toFixed(1)}/${u.tank} L)`, rows: [fill(100), fill(500), fill(u.tank * fuelPrice())] };
+        if (u.fuel >= u.tank - 0.05) return { greet: `${PLACE_LINES.bunkFull} (${upkeepName(u)})`, rows: [] };
+        return { greet: `${PLACE_LINES.bunkGreet} (${upkeepName(u)}: ₹${fuelPrice()}/L${upgrades.includes('cng') && u === upkeep ? ' CNG' : ''} · tank ${u.fuel.toFixed(1)}/${u.tank} L)`, rows: [fill(100), fill(500), fill(u.tank * fuelPrice())] };
       }
       case 'mechanic': {
         const u = curUpkeep();
@@ -393,7 +393,7 @@ async function main() {
             },
           })),
         ];
-        if (broken < 0.5) return { greet: PLACE_LINES.mechFine, rows: ups.slice(0, 9) };
+        if (broken < 0.5) return { greet: `${PLACE_LINES.mechFine} (${upkeepName(u)})`, rows: ups.slice(0, 9) };
         const fix = (points: number, label: string): Row => ({
           label, price: Math.ceil(points) * REPAIR_PRICE, note: `+${Math.ceil(points)}%`,
           run: () => {
@@ -401,7 +401,7 @@ async function main() {
             return PLACE_LINES.repaired;
           },
         });
-        return { greet: `${PLACE_LINES.mechGreet} (condition ${Math.round(u.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : []), ...ups].slice(0, 9) };
+        return { greet: `${PLACE_LINES.mechGreet} (${upkeepName(u)}: condition ${Math.round(u.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : []), ...ups].slice(0, 9) };
       }
       case 'bank': {
         const say = (line: string, n: number) => line.replace('{n}', n.toLocaleString('en-IN'));
@@ -695,8 +695,31 @@ async function main() {
   });
   /** The owned vehicle you're driving, if any. */
   const ownedNow = () => (stolen ? mine.find((m) => m.veh === stolen) ?? null : null);
-  /** Petrol / repairs apply to whatever you're sitting in that's yours (the auto otherwise). */
-  const curUpkeep = () => ownedNow()?.upkeep ?? upkeep;
+  /**
+   * Petrol / repairs go to whatever of yours you're sitting in; on foot, to your vehicle parked
+   * nearest you (the auto, or one you bought), so a mechanic can fix any of them.
+   */
+  const curUpkeep = () => {
+    const own = ownedNow();
+    if (own) return own.upkeep;
+    if (ride.driving || stolen) return upkeep;
+    const pp = player.position;
+    let best = upkeep;
+    let d = Math.hypot(auto.group.position.x - pp.x, auto.group.position.z - pp.z);
+    for (const m of mine) {
+      const dm = Math.hypot(m.veh.currPos.x - pp.x, m.veh.currPos.z - pp.z);
+      if (dm < d && dm < 20) {
+        best = m.upkeep;
+        d = dm;
+      }
+    }
+    return best;
+  };
+  /** What the bunk / mechanic calls the vehicle they're working on. */
+  const upkeepName = (u: Upkeep) => {
+    const m = mine.find((x) => x.upkeep === u);
+    return m ? DEALER_STOCK.find((d) => d.id === m.stock)?.name ?? VEHICLE_NAMES[m.veh.kind] : 'Auto';
+  };
   const dealerStock = DEALER_STOCK.map((s, i) => ({ s, veh: mine.some((m) => m.stock === s.id) ? null : traffic.addParked(s.kind, s.colour, dealer.spots[i].x, dealer.spots[i].z, dealer.spots[i].heading, true) }));
   /**
    * Where an owned vehicle is delivered: the home you own nearest to you. At the rented Mandaveli
@@ -1628,7 +1651,7 @@ async function main() {
     }
     phone.update(performance.now());
     minimap.update(performance.now(), {
-      player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
+      player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? traffic.headingOf(stolen) : player.mesh.rotation.y },
       view: cam.yaw,
       auto: auto.group.position,
       marker: quests.active && !jobs.busy ? quests.target : jobs.target,
@@ -1637,7 +1660,7 @@ async function main() {
       dest: nav,
     });
     bigMap.update(dt, input, {
-      player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? stolen.group.rotation.y : player.mesh.rotation.y },
+      player: { x: mapAt.x, z: mapAt.z, yaw: ride.driving ? auto.heading : stolen ? traffic.headingOf(stolen) : player.mesh.rotation.y },
       auto: auto.group.visible ? auto.group.position : null,
       marker: quests.active && !jobs.busy ? quests.target : jobs.target,
       guide,

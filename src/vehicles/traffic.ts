@@ -33,7 +33,10 @@ const LATE_MIN_SPEED = 5; // m/s: slow traffic always stops in time
 const CRASH_SPEED = 2.5;
 /** The body box starts this high, so it clears kerbs (pavements are 0.15 m); heights are set, not left to gravity. */
 const CLEARANCE = 0.22;
-const STUCK_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
+const STUCK_AFTER = 5;
+/** Jams / pile-ups clear themselves: stopped this long (not at a red light, not for you), or this long knocked off its lane. */
+const STALL_AFTER = 10;
+const UNTANGLE_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
 const DETAIL_DIST = 32; // ...and beyond this they drop wheels and driver (5 draw calls each)
@@ -263,6 +266,9 @@ export interface Vehicle {
   /** Velocity before this physics step (crash speeds are judged on it; after the step they've already bounced). */
   pvx: number;
   pvz: number;
+  /** s stopped for no good reason / s knocked off its lane (see STALL_AFTER / UNTANGLE_AFTER). */
+  stalled: number;
+  tangled: number;
   prevPos: THREE.Vector3;
   currPos: THREE.Vector3;
   prevRot: THREE.Quaternion;
@@ -459,7 +465,7 @@ export class Traffic {
     const veh: Vehicle = {
       kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
       group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
-      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0, limit: 1, late: 0, sawPlayer: false, pvx: 0, pvz: 0,
+      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0, limit: 1, late: 0, sawPlayer: false, pvx: 0, pvz: 0, stalled: 0, tangled: 0,
       prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
     };
     this.vehicles.push(veh);
@@ -585,12 +591,14 @@ export class Traffic {
       }
       if (blocked || blocker) target = 0;
       // Traffic lights: stop at the line on red, and on amber unless too close to stop.
+      let atSignal = false;
       if (this.signals) {
         const fx = p.x + this.dir.x * sp.length / 2;
         const fz = p.z + this.dir.z * sp.length / 2;
         const sig = this.signals(fx, fz, this.dir.x, this.dir.z, SIGNAL_LOOK);
         if (sig && sig.light !== 'green' && !(sig.light === 'amber' && sig.distToStop < 3)) {
           target = Math.min(target, Math.max(0, (sig.distToStop - 0.8) * 0.9));
+          atSignal = true;
         }
       }
       veh.target = target * this.slowAt(p.x, p.z);
@@ -604,6 +612,12 @@ export class Traffic {
         veh.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(this.dir.x, this.dir.z)), true);
         veh.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       }
+      // Jams and pile-ups: off its lane / turned sideways, or stopped with no red light and nobody of yours in the way.
+      veh.path.at(veh.s, this.pos, this.dir);
+      const offLane = Math.hypot(p.x - this.pos.x, p.z - this.pos.z) > 2 || veh.hx * Math.sin(this.headingOf(veh)) + veh.hz * Math.cos(this.headingOf(veh)) < 0.5;
+      veh.tangled = offLane && veh.knocked <= 0 ? veh.tangled + dt : 0;
+      veh.stalled = veh.v < 0.3 && !atSignal && !mine ? veh.stalled + dt : 0;
+      if (veh.tangled > UNTANGLE_AFTER || veh.stalled > STALL_AFTER) this.relocate(veh, obstacles);
 
       // Chennai rules: if you're in the way, they let you know.
       veh.blockedFor = blocked && veh.v < 0.5 ? veh.blockedFor + dt : 0;
@@ -771,6 +785,25 @@ export class Traffic {
     v.knocked = 0;
     v.ctl = { throttle: 0, steer: 0, brake: false };
     return stolen;
+  }
+
+  /** Put a jammed vehicle back on its lane at the first free gap a little ahead. */
+  private relocate(veh: Vehicle, obstacles: Obstacle[]) {
+    veh.tangled = veh.stalled = veh.stuck = veh.waitVeh = 0;
+    veh.blocker = null;
+    const s0 = veh.path.nearest(veh.currPos.x, veh.currPos.z);
+    for (let k = 0; k < 12; k++) {
+      const s = s0 + 6 + k * 4;
+      veh.path.at(s, this.pos, this.dir);
+      const clear = this.vehicles.every((o) => o === veh || o.currPos.distanceTo(this.pos) > 5) && obstacles.every((o) => Math.hypot(o.x - this.pos.x, o.z - this.pos.z) > 5);
+      if (!clear && k < 11) continue;
+      veh.s = s;
+      veh.body.setTranslation({ x: this.pos.x, y: 0.02, z: this.pos.z }, true);
+      veh.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(this.dir.x, this.dir.z)), true);
+      veh.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      veh.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      return;
+    }
   }
 
   /** Player got out: the vehicle stays where it is. */
