@@ -488,7 +488,7 @@ async function main() {
     if (crashCooldown > 0) return;
     const yours = ride.driving ? upkeep : ownedNow()?.upkeep ?? null;
     if (yours) {
-      yours.crash(CRASH_DV + closing * 0.4);
+      yours.crash(CRASH_DV + closing * 0.25);
       dented(yours);
     } else {
       crashCooldown = 1;

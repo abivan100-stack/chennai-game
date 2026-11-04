@@ -7,10 +7,10 @@ export const TANK = 10; // litres (the auto)
 export const LITRES_PER_KM = 0.5; // ~20 km a tank: a good day's driving
 export const PETROL_PRICE = 105; // ₹ per litre
 export const REPAIR_PRICE = 12; // ₹ per point of damage
-export const CRASH_DV = 3; // m/s lost in one physics step that counts as a crash
-export const CRASH_DAMAGE = 7; // condition points per m/s over CRASH_DV
+export const CRASH_DV = 4.5; // m/s lost in one physics step that counts as a crash (small knocks don't)
+export const CRASH_DAMAGE = 3; // condition points per m/s over CRASH_DV
 export const EMPTY_CRAWL = 0; // empty tank: the engine won't go, you push it (G)
-export const WRECK_CRAWL = 0.35; // ...and when the auto is nearly wrecked
+export const WRECK_CRAWL = 0.75; // nearly wrecked: still drivable, a bit slower
 
 /** Tank (litres) and thirst (litres per km) of the vehicles you can own besides the auto. */
 export const FUEL_SPEC: Record<string, { tank: number; perKm: number }> = {
@@ -45,7 +45,7 @@ export class Upkeep {
   /** Speed lost in one step (m/s). Returns the damage done (0 if it wasn't a crash). */
   crash(speedLost: number) {
     if (speedLost <= CRASH_DV) return 0;
-    const dmg = Math.min(this.condition, Math.round((speedLost - CRASH_DV) * CRASH_DAMAGE) + 2);
+    const dmg = Math.min(this.condition, Math.round((speedLost - CRASH_DV) * CRASH_DAMAGE) + 1);
     this.condition -= dmg;
     return dmg;
   }
@@ -54,7 +54,7 @@ export class Upkeep {
   get speedFactor() {
     if (this.fuel <= 0) return EMPTY_CRAWL;
     if (this.condition < 15) return WRECK_CRAWL;
-    if (this.condition < 40) return 0.7;
+    if (this.condition < 40) return 0.9;
     return 1;
   }
 
