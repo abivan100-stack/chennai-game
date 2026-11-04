@@ -230,6 +230,8 @@ export const MSG_PAID_OFF = 'Mudinjuthu! Kadan full-aa kattiteenga. Auto ippo fu
 
 // ---- Police --------------------------------------------------------------------------------
 export const POLICE = 'Mylapore Police';
+/** Out of the search circle: the police give up. */
+export const ESCAPED_LINE = 'Control room: Suspect thappichitaan. Search call off pannunga. (You got away!)';
 export const MSG_THEFT_WARNING = 'Vandi thirudinadhu theriyum! Udane niruthu, illana arrest. Idhu first warning.';
 export const MSG_ESCALATE = 'Warning-a mathikala. Ippo shoot-at-sight order!';
 export const BUSTED_TITLE = 'ARRESTED';

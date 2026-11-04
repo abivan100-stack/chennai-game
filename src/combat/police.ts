@@ -7,7 +7,7 @@ import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { route } from '../missions/route';
 import { BEACH_ROAD, X_LINES, Z_LINES } from '../world/layout';
 import { policeModel } from '../vehicles/models';
-import { ESCAPE_STEP, MAX_STARS } from './wanted';
+import { SEARCH_RADIUS, MAX_STARS } from './wanted';
 
 // ---- Tuning -------------------------------------------------------------------------------
 const CHASE_SPEED = 22;
@@ -15,8 +15,8 @@ const CORNER_SPEED = 9;
 const STOP_DIST = 13; // jeep stops and officers get out this close to you
 const REBOARD_DIST = 30; // you got away from the officers on foot: they get back in
 const SPAWN_DIST = [38, 55]; // dispatched units appear on a road this far from you, out of sight
-/** A unit further than this gets re-dispatched near you: past the last escape ring, so outrunning them works. */
-const DISPATCH_FROM = ESCAPE_STEP * MAX_STARS + 30;
+/** A unit further than this gets re-dispatched near you: beyond the search circle, so outrunning them works. */
+const DISPATCH_FROM = SEARCH_RADIUS[MAX_STARS] + 30;
 const SIGHT = 40; // police see you within this distance with a clear line of sight
 const STUCK_SECONDS = 2.5;
 const MASS = 1600;
@@ -60,6 +60,8 @@ export interface PoliceContext {
   camera: THREE.Vector3;
   cameraDir: THREE.Vector3;
   blocking: boolean;
+  /** Centre of the search circle (where they last had you): new units are sent there, not to you. */
+  search?: { x: number; z: number } | null;
 }
 
 export interface PoliceEvents {
@@ -414,8 +416,10 @@ export class Police {
     for (const z of Z_LINES) for (let x = X_LINES[0]; x <= BEACH_ROAD; x += 5) candidates.push({ x, z });
     {
       {
+        const at = ctx.search ?? ctx.player; // they go where they last had you
         for (const p of candidates) {
-          const d = Math.hypot(p.x - ctx.player.x, p.z - ctx.player.z);
+          const d = Math.hypot(p.x - at.x, p.z - at.z);
+          if (Math.hypot(p.x - ctx.player.x, p.z - ctx.player.z) < SPAWN_DIST[0]) continue; // never pop up right beside you
           if (d < SPAWN_DIST[0] || d > SPAWN_DIST[1]) continue;
           // Behind the camera = out of view.
           const vx = p.x - ctx.camera.x;

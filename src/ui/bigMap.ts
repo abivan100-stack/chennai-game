@@ -25,6 +25,8 @@ export interface BigMapState {
   marker: { x: number; z: number; kind: 'pickup' | 'drop' } | null;
   guide: { x: number; z: number }[] | null;
   police: { x: number; z: number }[];
+  /** Police search circle (get out of it to lose them), or null. */
+  search?: { x: number; z: number; r: number } | null;
   /** Where the navigation is taking you (chosen on this map or the phone). */
   dest: Dest | null;
   /** Metres left on the route to dest. */
@@ -231,6 +233,18 @@ export class BigMap {
       g.roundRect(a.x - 8, a.y - 8, 16, 16, 4);
       g.fill();
       g.stroke();
+    }
+    if (s.search) {
+      const c = S(s.search.x, s.search.z);
+      g.fillStyle = 'rgba(229, 57, 53, 0.14)';
+      g.strokeStyle = 'rgba(229, 57, 53, 0.9)';
+      g.lineWidth = 3;
+      g.setLineDash([10, 6]);
+      g.beginPath();
+      g.arc(c.x, c.y, s.search.r * k, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      g.setLineDash([]);
     }
     if (s.marker) dot(s.marker.x, s.marker.z, s.marker.kind === 'pickup' ? '#ffcc00' : '#2ecc71', 9);
     if (s.dest) {

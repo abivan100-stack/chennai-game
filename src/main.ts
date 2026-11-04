@@ -85,7 +85,7 @@ import { BEATEN, HORN_LINES } from './npcs/dialogue';
 import { CRASH_LINES, MSG_HOME_HINT, RECOVER_LINE, SLEEPY_LINE, SLEEP_SUB, SLEEP_TITLE } from './missions/data';
 import { HOSPITAL_SLEEP, Sleep } from './player/sleep';
 import { TIME_SCALE } from './world/sky';
-import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
+import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, ESCAPED_LINE, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
 import { ATTACK_COST, Energy, type Activity } from './player/energy';
 import { Meal } from './player/meal';
 import { createEateries, type Eatery } from './world/eateries';
@@ -481,6 +481,7 @@ async function main() {
   };
   let lastAutoSpeed = 0;
   let crashCooldown = 0;
+  let lastStars = 0; // wanted level last frame (new stars re-centre the search circle)
   let lastOwnSpeed = 0;
   let ownFuelWarned = false;
   /** You and a traffic vehicle hit each other: your vehicle takes a dent, their driver shouts. */
@@ -1456,6 +1457,7 @@ async function main() {
     // Police: chase, arrest, shoot. Wanted level fades when they lose you.
     const vehicleCollider = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;
     const pev = police.update(dt, {
+      search: wanted.level > 0 ? { x: wanted.cx, z: wanted.cz } : null,
       player: player.position,
       playerSpeed: stolen ? Math.abs(stolenSpeed) : vehicleCollider ? Math.abs(auto.speed) : player.speed,
       vehicle: vehicleCollider,
@@ -1465,10 +1467,12 @@ async function main() {
       blocking: player.blocking,
     });
     if (pev.arresting) hud.setPrompt('🚓 Kai-ya thooku! Run, or be arrested');
-    // Getting away = distance from the nearest police unit: each ring further takes a star off.
+    // Getting away: out of the search circle (centred where the police last had you) = they give up.
     const me = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
     const copDist = police.blips().reduce((d, b) => Math.min(d, Math.hypot(b.x - me.x, b.z - me.z)), Infinity);
-    wanted.update(dt, copDist);
+    if (wanted.level > lastStars) wanted.seenAt(me.x, me.z); // new stars: the search starts here
+    if (wanted.update(dt, me.x, me.z, copDist)) hud.say(POLICE, ESCAPED_LINE);
+    lastStars = wanted.level;
     if (pev.officerHit) wanted.report('assaultPolice');
     if (stolen && wanted.level === 1) {
       stolenFor += dt;
@@ -1738,6 +1742,7 @@ async function main() {
       marker: quests.active && !jobs.busy ? quests.target : jobs.target,
       guide,
       police: police.blips(),
+      search: wanted.level > 0 ? { x: wanted.cx, z: wanted.cz, r: wanted.radius } : null,
       dest: nav,
     });
     bigMap.update(dt, input, {
@@ -1746,6 +1751,7 @@ async function main() {
       marker: quests.active && !jobs.busy ? quests.target : jobs.target,
       guide,
       police: police.blips(),
+      search: wanted.level > 0 ? { x: wanted.cx, z: wanted.cz, r: wanted.radius } : null,
       dest: nav,
       destLeft: navLeft,
     });

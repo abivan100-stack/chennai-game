@@ -20,6 +20,8 @@ export interface MinimapState {
   guide: { x: number; z: number }[] | null;
   police: { x: number; z: number }[];
   dest: Dest | null;
+  /** Police search circle (get out of it to lose them), or null. */
+  search?: { x: number; z: number; r: number } | null;
 }
 
 /**
@@ -83,6 +85,18 @@ export class Minimap {
     drawCrop(g, this.town, mapPx(s.player.x) - src / 2, mapPx(s.player.z) - src / 2, src, src, -dst / 2, -dst / 2, dst, dst);
     g.restore();
 
+    if (s.search) {
+      const c = toScreen(s.search.x, s.search.z);
+      g.fillStyle = 'rgba(229, 57, 53, 0.16)';
+      g.strokeStyle = 'rgba(229, 57, 53, 0.85)';
+      g.lineWidth = 2;
+      g.setLineDash([6, 4]);
+      g.beginPath();
+      g.arc(c.x, c.y, s.search.r * k, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      g.setLineDash([]);
+    }
     if (s.guide) drawRoute(g, s.guide, toScreen, 5);
 
     drawOverlay(g, this.townMap, { k, w: SIZE, h: SIZE, toScreen });

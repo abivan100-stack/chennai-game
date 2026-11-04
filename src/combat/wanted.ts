@@ -4,20 +4,18 @@
  *   1 star  - a warning: police come to arrest you (no shooting).
  *   2 stars - police shoot on sight.
  *   3 stars - police shoot, more aggressively (hit chance up).
- * Distance from the police drops stars one by one (see ESCAPE_STEP).
+ * Leave the search circle (SEARCH_RADIUS) and the police give up.
  */
 export type Crime = 'theft' | 'keepStolen' | 'assault' | 'assaultPolice';
 
 export const MAX_STARS = 3;
 /**
- * Getting away, star by star: every ESCAPE_STEP metres between you and the nearest police jeep /
- * officer takes one star off (130 m: max 2, 260 m: max 1, 390 m: clear). Each drop needs you
- * to stay past that ring for DROP_SECONDS, one star at a time.
+ * Getting away: a search circle on the map, centred on where the police last had you (it moves
+ * with you while a unit is within SIGHT_DIST). Get outside it and they give up the chase.
+ * Its radius grows with the stars.
  */
-export const ESCAPE_STEP = 130;
-export const DROP_SECONDS = 1;
-/** The police haven't found you yet: they keep looking this long before giving up. */
-export const SEARCH_SECONDS = 45;
+export const SEARCH_RADIUS = [0, 150, 200, 250]; // m, by stars
+export const SIGHT_DIST = 60;
 /** Driving a stolen vehicle this long after the warning escalates to 2 stars. */
 export const KEEP_STOLEN_SECONDS = 15;
 
@@ -25,9 +23,9 @@ export class Wanted {
   level = 0;
   /** Seconds out of police sight (counts towards losing a star). */
   hidden = 0;
-  /** The police have had eyes on you since the stars went up (stars only fade after that). */
-  spotted = false;
-  private searching = 0;
+  /** The search circle's centre (where they last had you). */
+  cx = 0;
+  cz = 0;
 
   /** Report a crime. Returns the new level. */
   report(crime: Crime) {
@@ -46,36 +44,31 @@ export class Wanted {
         this.level = Math.min(MAX_STARS, Math.max(2, this.level + 1));
         break;
     }
-    if (this.level > before) {
-      this.hidden = 0;
-      this.spotted = false;
-      this.searching = 0;
-    }
+    if (this.level > before) this.hidden = 0;
     return this.level;
   }
 
-  /** Most stars you can still have this far (m) from the nearest police. */
-  static allowedAt(dist: number) {
-    return Math.max(0, MAX_STARS - Math.floor(dist / ESCAPE_STEP));
+  /** The circle's radius now (0 = not wanted). */
+  get radius() {
+    return SEARCH_RADIUS[this.level];
   }
 
-  /** dist: metres to the nearest police jeep / officer (Infinity if none are out). */
-  update(dt: number, dist: number) {
-    if (this.level === 0) return;
-    if (dist < ESCAPE_STEP) this.spotted = true;
-    // Until they've reached you the police are on their way: stars stay (unless they search in vain too long).
-    if (!this.spotted) {
-      this.searching += dt;
-      if (this.searching < SEARCH_SECONDS) return;
-      dist = Infinity;
-    }
-    if (Wanted.allowedAt(dist) < this.level) {
-      this.hidden += dt;
-      if (this.hidden >= DROP_SECONDS) {
-        this.level--;
-        this.hidden = 0;
-      }
-    } else this.hidden = 0;
+  /** Centre the search on (x, z): the crime scene, or wherever the police can see you. */
+  seenAt(x: number, z: number) {
+    this.cx = x;
+    this.cz = z;
+  }
+
+  /**
+   * (x, z): you. copDist: metres to the nearest police unit. Close police keep the circle on you;
+   * outside the circle they give up. Returns true the moment they give up.
+   */
+  update(_dt: number, x: number, z: number, copDist: number) {
+    if (this.level === 0) return false;
+    if (copDist < SIGHT_DIST) this.seenAt(x, z);
+    if (Math.hypot(x - this.cx, z - this.cz) <= this.radius) return false;
+    this.clear();
+    return true;
   }
 
   get shootOnSight() {
@@ -85,7 +78,5 @@ export class Wanted {
   clear() {
     this.level = 0;
     this.hidden = 0;
-    this.spotted = false;
-    this.searching = 0;
   }
 }

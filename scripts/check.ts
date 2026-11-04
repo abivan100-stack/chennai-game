@@ -4,7 +4,7 @@ import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/qua
 import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
 import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
 import { nextTurn, route, routeLength } from '../src/missions/route.ts';
-import { DROP_SECONDS, ESCAPE_STEP, Wanted } from '../src/combat/wanted.ts';
+import { SEARCH_RADIUS, SIGHT_DIST, Wanted } from '../src/combat/wanted.ts';
 import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts';
 import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
 import { SHOP_SIGNS } from '../src/world/textures.ts';
@@ -91,26 +91,13 @@ const w = new Wanted();
 assert(w.report('theft') === 1 && !w.shootOnSight, 'theft = warning star, no shooting');
 assert(w.report('keepStolen') === 2 && w.shootOnSight, 'keeping the stolen ride = shoot on sight');
 assert(w.report('assaultPolice') === 3 && w.report('assault') === 3, 'capped at 3 stars');
-w.update(0.5, 10); // they've reached you
-w.update(DROP_SECONDS * 3, ESCAPE_STEP - 1);
-assert(w.level === 3, 'close to the police: no stars drop');
-w.update(DROP_SECONDS + 0.1, ESCAPE_STEP + 5);
-assert(w.level === 2, 'past the first ring: one star drops');
-w.update(DROP_SECONDS * 5, ESCAPE_STEP + 5);
-assert(w.level === 2, 'one ring = one star, however long you wait there');
-w.update(DROP_SECONDS + 0.1, ESCAPE_STEP * 3 + 5);
-w.update(DROP_SECONDS + 0.1, ESCAPE_STEP * 3 + 5);
-assert(w.level === 0, 'far enough: the stars drop one by one');
-w.clear();
-{
-  const { SEARCH_SECONDS } = await import('../src/combat/wanted.ts');
-  w.report('theft');
-  w.update(10, Infinity);
-  assert(w.level === 1, 'stars stay while the police are still coming to find you');
-  w.update(SEARCH_SECONDS, Infinity);
-  w.update(DROP_SECONDS + 0.1, Infinity);
-  assert(w.level === 0, 'they give up if they never find you');
-}
+w.seenAt(0, 0);
+assert(!w.update(0.1, 100, 0, SIGHT_DIST + 50) && w.level === 3, 'inside the search circle: still wanted');
+assert(!w.update(0.1, 140, 0, 10) && w.cx === 140, 'police close by: the circle moves with you');
+assert(w.update(0.1, 140 + SEARCH_RADIUS[3] + 1, 0, SIGHT_DIST + 50) && w.level === 0, 'out of the circle: they give up');
+w.report('theft');
+w.seenAt(0, 0);
+assert(w.update(0.1, SEARCH_RADIUS[1] + 1, 0, Infinity) && w.level === 0, 'one star: a smaller circle');
 assert(w.report('assault') === 1, 'first assault = 1 star');
 
 // --- Energy + food ---
