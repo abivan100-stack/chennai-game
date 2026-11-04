@@ -33,6 +33,8 @@ import { clearSave, loadSave, writeSave } from './core/save';
 import { RENT, Rent } from './missions/rent';
 import { nextStory, storyTitle } from './missions/storyMissions';
 import { QuestRunner } from './missions/questRunner';
+import { BAG_PRICE, BAG_SLOTS, Bag } from './player/bag';
+import { BAG_LINES } from './world/food';
 import { DRIVERS, FLEET_AUTO_PRICE, Fleet, TRAITS } from './missions/fleet';
 import { DEALER_STOCK, DELIVER_HOME, PAINTS, PAINT_PRICE, UPGRADES, bumpDecel, fareFactor, fuelFactor } from './vehicles/garage';
 import { createDealer } from './world/dealer';
@@ -327,16 +329,32 @@ async function main() {
     if (finished) hud.say('Neenga', MEAL_DONE);
   };
   let menuFor: Eatery | null = null;
+  // Shopping bag: snacks / parcels to eat later. B toggles parcel mode in a food menu, B elsewhere opens the bag.
+  const bag = new Bag();
+  if (saved?.bag) bag.restore(saved.bag);
+  let parcelMode = false;
+  let bagOpen = false;
   const openMenu = (e: Eatery) => {
     menuFor = e;
     hud.menu({
-      title: e.name,
-      greet: e.menu.greet,
+      title: parcelMode ? `${e.name} · 🛍 Parcel` : e.name,
+      greet: parcelMode ? `Parcel: goes in your bag (${bag.items.length}/${BAG_SLOTS})` : e.menu.greet,
+      keys: `1-${e.menu.items.length} order · B ${parcelMode ? 'eat here' : 'parcel'} · E close`,
       rows: e.menu.items.map((it) => ({ label: it.name, price: it.price, energy: it.energy, affordable: economy.cash >= it.price })),
+    });
+  };
+  const openBag = () => {
+    bagOpen = true;
+    hud.menu({
+      title: `🛍 Bag (${bag.items.length}/${BAG_SLOTS})`,
+      greet: bag.items.length ? 'Pasikkudha? Edhaavadhu saapdunga.' : BAG_LINES.empty,
+      keys: bag.items.length ? `1-${bag.items.length} eat · B / E close` : 'B / E close',
+      rows: bag.items.map((it) => ({ label: it.name, price: 0, energy: it.energy, affordable: true })),
     });
   };
   const closeMenu = () => {
     menuFor = null;
+    bagOpen = false;
     shelfOpen = null;
     serviceOpen = null;
     hud.menu(null);
@@ -816,7 +834,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -953,6 +971,7 @@ async function main() {
       homes: [...owned],
       story: { ...story.snapshot(), done: storyDone },
       fleet: fleet.snapshot(),
+      bag: bag.snapshot(),
       rent: rent.snapshot(),
       garage: {
         upgrades,
@@ -997,12 +1016,28 @@ async function main() {
     if (eatery && input.wasPressed('KeyE')) {
       if (menuFor) closeMenu();
       else openMenu(eatery);
+    } else if (menuFor && input.wasPressed('KeyB')) {
+      if (!bag.owned) hud.say(menuFor.name, BAG_LINES.noBag.replace('{price}', String(BAG_PRICE)));
+      else {
+        parcelMode = !parcelMode;
+        openMenu(menuFor);
+      }
     } else if (menuFor) {
       const at = menuFor;
       const i = at.menu.items.findIndex((_, n) => input.wasPressed(`Digit${n + 1}`));
       const item = at.menu.items[i];
       if (item && economy.cash < item.price) hud.say(at.name, NO_MONEY);
-      else if (item) {
+      else if (item && parcelMode) {
+        if (!bag.add(item)) hud.say(at.name, BAG_LINES.full);
+        else {
+          economy.cash -= item.price;
+          showMoney();
+          sound.coin();
+          hud.say(at.name, BAG_LINES.parcel.replace('{item}', item.name).replace('{price}', String(item.price)));
+          openMenu(at); // the bag count
+          saveNow();
+        }
+      } else if (item) {
         economy.cash -= item.price;
         showMoney();
         closeMenu();
@@ -1037,7 +1072,33 @@ async function main() {
         openShelf(open); // refresh the basket line
       }
     }
-    if (counter && basket.length && input.wasPressed('KeyE')) {
+    if (counter && !bag.owned && input.wasPressed('KeyB')) {
+      if (!economy.spend(BAG_PRICE)) hud.say(CASHIER, NO_MONEY);
+      else {
+        bag.owned = true;
+        showMoney();
+        hud.say(CASHIER, BAG_LINES.bought);
+        saveNow();
+      }
+    }
+    if (counter && basket.length && input.wasPressed('KeyE') && bag.owned) {
+      // With a bag: it all goes in (what doesn't fit, you eat now).
+      const total = basketTotal();
+      if (economy.cash < total) hud.say(CASHIER, NO_MONEY);
+      else {
+        economy.cash -= total;
+        showMoney();
+        const packed = basket.filter((it) => bag.add(it)).length;
+        const rest = basket.slice(packed);
+        hud.say(CASHIER, rest.length ? BAG_LINES.fullEat : BAG_LINES.packed.replace('{n}', String(packed)));
+        if (rest.length) {
+          if (melee.stickOut) melee.toggleStick();
+          meal.start(SHOP_EATERY, { name: rest.map((it) => it.name).join(' + '), price: 0, energy: rest.reduce((n, it) => n + it.energy, 0), seconds: Math.min(12, rest.reduce((n, it) => n + it.seconds, 0)), color: rest[0].color });
+        }
+        basket = [];
+        saveNow();
+      }
+    } else if (counter && basket.length && input.wasPressed('KeyE')) {
       const total = basketTotal();
       if (economy.cash < total) hud.say(CASHIER, NO_MONEY);
       else {
@@ -1055,6 +1116,20 @@ async function main() {
         basket = [];
       }
     }
+    // The bag: B opens it (on foot, nothing else open); 1-6 eats that item standing.
+    if (bagOpen) {
+      if (!onFootFree || input.wasPressed('KeyB') || input.wasPressed('KeyE')) closeMenu();
+      else {
+        const i = bag.items.findIndex((_, n) => input.wasPressed(`Digit${n + 1}`));
+        if (i >= 0) {
+          const it = bag.take(i)!;
+          closeMenu();
+          if (melee.stickOut) melee.toggleStick();
+          meal.start(SHOP_EATERY, it);
+          saveNow();
+        }
+      }
+    } else if (onFootFree && bag.owned && !menuFor && !shelfOpen && !serviceOpen && !counter && input.wasPressed('KeyB')) openBag();
     // Places: E opens the service menu (on foot, or stopped in the auto for petrol / repairs).
     const autoStopped = ((ride.driving && Math.abs(auto.speed) < 1) || pushing) && free;
     const ownStopped = !!ownedNow() && Math.abs(traffic.speedOf(stolen!)) < 1 && free;
@@ -1150,7 +1225,7 @@ async function main() {
       if (melee.stickOut) melee.toggleStick();
     }
     // (meal.busy: the same key press may have just ordered food from a menu this frame)
-    if (onFootFree && !meal.busy && !menuFor && !shelfOpen && !serviceOpen && input.wasPressed('Digit1')) melee.toggleStick();
+    if (onFootFree && !meal.busy && !menuFor && !shelfOpen && !serviceOpen && !bagOpen && input.wasPressed('Digit1')) melee.toggleStick();
     if (onFootFree && input.wasPressed('Mouse0')) {
       melee.attack(meleeTargets);
       energy.spend(ATTACK_COST);
@@ -1197,7 +1272,7 @@ async function main() {
         : ride.canExit ? 'F - Get out'
         : other ? (other.driver ? `F - Steal the ${otherName} (police will come!)` : `F - Get in the ${otherName}`)
         : shelf ? (shelfOpen ? null : `E - ${shelf.name} (basket ${basket.length}/${BASKET_MAX})`)
-        : counter ? (basket.length ? `E - Pay ₹${basketTotal()} at the counter` : 'Cashier: pick something from the shelves first')
+        : counter ? `${basket.length ? `E - Pay ₹${basketTotal()}${bag.owned ? ' (into the bag)' : ''}` : 'Cashier: pick something from the shelves first'}${bag.owned ? '' : ` · B - Buy a cloth bag ₹${BAG_PRICE}`}`
         : store && basket.length && !meal.busy ? `Basket: ${basket.length} item(s), ₹${basketTotal()} - pay at the counter`
         : forSale >= 0 ? `E - Buy this house in ${homes.homes[forSale].area} (₹${homes.homes[forSale].price.toLocaleString('en-IN')})`
         : myBed >= 0 ? 'E - Sleep'

@@ -293,6 +293,22 @@ console.log('check: garage passed');
 }
 console.log('check: sleep passed');
 
+// --- Shopping bag ---
+{
+  const { Bag, BAG_SLOTS } = await import('../src/player/bag.ts');
+  const b = new Bag();
+  const vada = { name: 'Vada', price: 15, energy: 10, seconds: 4, color: '#c68a3c' };
+  assert(!b.add(vada), 'no bag, no parcels');
+  b.owned = true;
+  for (let i = 0; i < BAG_SLOTS; i++) assert(b.add(vada), 'room in the bag');
+  assert(b.full && !b.add(vada), 'a full bag takes nothing more');
+  assert(b.take(0)?.name === 'Vada' && b.items.length === BAG_SLOTS - 1 && b.take(99) === null, 'take an item out to eat it');
+  const c = new Bag();
+  c.restore(b.snapshot());
+  assert(c.owned && c.items.length === BAG_SLOTS - 1, 'bag saves and loads');
+}
+console.log('check: bag passed');
+
 // --- Anna Travels fleet (chapter 3) ---
 {
   const { Fleet, DRIVERS, DRIVER_SHARE, TRAITS, RIVAL_COST } = await import('../src/missions/fleet.ts');

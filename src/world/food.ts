@@ -229,6 +229,16 @@ export const CASHIER_HELLO = 'Vanakkam sir! Basket-la podunga, counter-la pay pa
 export const CASHIER_THANKS = 'Thank you sir, marubadi vaanga!';
 export const SHOPLIFT_LINE = 'Dei! Kaasu kudukkaama poriya?! Thirudan, thirudan! Police!';
 export const BASKET_FULL = 'Basket full anna. Mudhalla pay pannunga.';
+/** The shopping bag (player/bag.ts). */
+export const BAG_LINES = {
+  bought: 'Idho, thuni pai (cloth bag)! Snacks, parcel ellam ithula vechikalaam. (B - open the bag)',
+  packed: '{n} item(s) bag-la vechaachu. Pasikkum bodhu B adichu saapdunga.',
+  fullEat: 'Bag full aayiduchu, meedhi ippove saapdunga!',
+  parcel: '{item} parcel ready! Bag-la vechaachu. ₹{price}',
+  full: 'Bag-la idam illa anna! Mudhalla edhaavadhu saapdunga.',
+  noBag: "Parcel-ku pai venum anna. Kapali Supermarket counter-la thuni pai vaangunga (₹{price}).",
+  empty: 'Bag kaali. Supermarket / hotel-la parcel vaangi vechukonga.',
+};
 
 export const NO_MONEY = 'Kaasu illaiye anna... sambadhichitu vaanga.';
 export const MEAL_DONE = 'Saapdu semma! Vayiru full.';
