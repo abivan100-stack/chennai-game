@@ -28,6 +28,8 @@ export interface SaveData {
   /** Rent on the Mandaveli house (Chapter 2). */
   rent?: { active: boolean; dueDay: number; owed: number; evicted: boolean };
   /** Chapter 2: auto upgrades + paint, and vehicles bought from the dealer (where you left them). */
+  /** Anna Travels (Chapter 3). */
+  fleet?: { autos: { driver: string | null }[]; earned: number; seen: number | null };
   garage?: { upgrades: string[]; paint: number; vehicles: { stock: string; kind: string; colour?: number; x: number; z: number; heading: number }[] };
 }
 

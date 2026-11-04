@@ -13,6 +13,9 @@ export interface StoryState {
   savings: number;
   homesBought: number; // homes owned beyond the rented one
   storyRides: number; // story missions passed (missions/storyMissions.ts)
+  seshadri: boolean; // returned Seshadri sir's lost bag (story mission 'lostbag')
+  fleet: number; // autos in Anna Travels (missions/fleet.ts)
+  fleetEarned: number; // what the fleet has paid you so far
 }
 
 export interface Goal {
@@ -56,14 +59,27 @@ export const CHAPTERS: Chapter[] = [
       { text: 'Buy your own home', done: (s) => s.homesBought > 0 },
       { text: 'Give 25 rides', done: (s) => s.rides >= 25, progress: (s) => `${Math.min(s.rides, 25)}/25` },
       { text: 'Story missions (Phone > Orders / messages)', done: (s) => s.storyRides >= STORY_ORDER.length, progress: (s) => `${Math.min(s.storyRides, STORY_ORDER.length)}/${STORY_ORDER.length}` },
+      { text: "Return the lost bag to its owner (story)", done: (s) => s.seshadri },
     ],
-    needed: [0, 1],
+    needed: [0, 1, 4],
   },
   {
     n: 3,
     title: 'Muthal Mudhalaali',
     ta: 'முதல் முதலாளி',
-    blurb: 'Coming soon: Seshadri sir, Anna Travels, and a rival who plays dirty.', // no goals = not built: chapter 2 waits
+    blurb: "Seshadri sir backs you: Anna Travels is born. Buy autos, hire drivers, keep them honest. And watch out for Kandasamy's nephew Ganesh.",
+    goals: [
+      { text: 'Run 3 autos in Anna Travels (Phone > Business)', done: (s) => s.fleet >= 3, progress: (s) => `${Math.min(s.fleet, 3)}/3` },
+      { text: 'Earn ₹10,000 from the fleet', done: (s) => s.fleetEarned >= 10000, progress: (s) => `${rupees(s.fleetEarned)} / ₹10,000` },
+      { text: 'Save ₹25,000 in the bank', done: (s) => s.savings >= 25000, progress: (s) => `${rupees(s.savings)} / ₹25,000` },
+    ],
+    needed: [0, 1, 2],
+  },
+  {
+    n: 4,
+    title: 'Anna Travels & Logistics',
+    ta: 'அண்ணா டிராவல்ஸ்',
+    blurb: 'Coming soon: cabs, delivery vans, a staff bus contract, and new districts.', // no goals = not built: chapter 3 waits
     goals: [],
     needed: [],
   },

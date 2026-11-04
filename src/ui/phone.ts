@@ -9,7 +9,7 @@ import { BOUNDS, X_LINES, Z_LINES } from '../world/layout';
 import { fmtDist } from './bigMap';
 import { CHAPTERS, type StoryState } from '../missions/story';
 
-type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather' | 'story' | 'garage';
+type App = 'home' | 'orders' | 'map' | 'wallet' | 'messages' | 'weather' | 'story' | 'garage' | 'business';
 
 export interface PhoneDeps {
   jobs: TaxiJobs;
@@ -38,6 +38,11 @@ export interface PhoneDeps {
   /** Your vehicles: name, metres away, whether you're in it; deliver(i) brings one home. */
   garage: () => { list: { name: string; away: number; inUse: boolean }[]; upgrades: string[]; deliverPrice: number };
   deliver: (i: number) => void;
+  /** Anna Travels (Chapter 3): your fleet autos, drivers you could hire. */
+  business: () => { open: boolean; price: number; earned: number; autos: { driver: string | null }[]; candidates: { id: string; name: string; trait: string; blurb: string }[] };
+  buyAuto: () => void;
+  hire: (i: number, id: string) => void;
+  fire: (i: number) => void;
   /** Camera yaw (the map turns with it, like the minimap). */
   view: () => number;
   /** Everywhere you can navigate to. */
@@ -198,6 +203,7 @@ export class Phone {
       weather: () => this.weatherApp(),
       story: () => this.storyApp(),
       garage: () => this.garageApp(),
+      business: () => this.businessApp(),
     };
     const body = apps[this.app]();
     // Keep the scroll position of lists across refreshes.
@@ -232,6 +238,7 @@ export class Phone {
         icon('weather', '🌦️', 'Weather'),
         icon('story', '📖', 'Story'),
         icon('garage', '🔑', 'Garage'),
+        ...(this.deps.business().open ? [icon('business', '💼', 'Business')] : []),
       ),
     );
   }
@@ -554,6 +561,43 @@ export class Phone {
       list.append(h('div', { class: 'phone-row', style: `padding:4px 2px;${ch.n > chapter ? 'color:#999' : ''}` }, h('span', {}, `${ch.n}. ${ch.title}`), h('span', { class: 'muted' }, state2)));
     }
     return h('div', {}, h('div', { class: 'phone-title' }, 'Story'), goals, h('div', { class: 'phone-card' }, list));
+  }
+
+  /** Anna Travels: buy fleet autos, hire / fire their drivers, see what they've earned. */
+  private businessApp() {
+    const b = this.deps.business();
+    const out = h('div', {}, h('div', { class: 'phone-title' }, 'Anna Travels'));
+    if (!b.open) return out.appendChild(h('p', { class: 'muted' }, 'Opens in Chapter 3.')), out;
+    out.append(h('div', { class: 'phone-sub' }, `${b.autos.length} autos · earned ${rupees(b.earned)} · takings reach the bank each morning`));
+    const buy = h('button', { class: 'phone-btn' }, `Buy an auto (${rupees(b.price)})`);
+    const { economy } = this.deps;
+    if (economy.cash + economy.savings < b.price) buy.setAttribute('disabled', '');
+    buy.onclick = () => {
+      this.deps.buyAuto();
+      this.render();
+    };
+    out.append(buy);
+    b.autos.forEach((a, i) => {
+      const card = h('div', { class: 'phone-card' }, h('b', {}, `🛺 Auto ${i + 1}`), h('div', { class: 'muted' }, a.driver ? `Driver: ${a.driver}` : 'No driver: pick one below'));
+      if (a.driver) {
+        const fire = h('button', { class: 'phone-btn' }, 'Let the driver go');
+        fire.onclick = () => {
+          this.deps.fire(i);
+          this.render();
+        };
+        card.append(fire);
+      } else
+        for (const c of b.candidates) {
+          const hire = h('button', { class: 'phone-btn' }, `Hire ${c.name}`);
+          hire.onclick = () => {
+            this.deps.hire(i, c.id);
+            this.render();
+          };
+          card.append(h('div', { class: 'muted', style: 'margin-top:6px' }, `${c.trait}. ${c.blurb}`), hire);
+        }
+      out.append(card);
+    });
+    return out;
   }
 
   /** Your own vehicles (bought from the dealer) and the auto's upgrades. */

@@ -167,7 +167,7 @@ export function nextMission(done: readonly string[]) {
 }
 
 /** Chapter 2's story missions in the order they come up: auto rides and quests (missions/quests.ts) mixed. */
-export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 'film', 'flowers', 'tourist', 'follow', 'match', 'nurse', 'lostbag'];
+export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 'film', 'flowers', 'lostbag', 'tourist', 'follow', 'match', 'nurse'];
 
 /** Is game hour `h` inside [from, to) (wrapping past midnight when to < from)? */
 export const inHours = (h: number, [a, b]: [number, number]) => (a <= b ? h >= a && h < b : h >= a || h < b);

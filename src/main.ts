@@ -33,6 +33,7 @@ import { clearSave, loadSave, writeSave } from './core/save';
 import { RENT, Rent } from './missions/rent';
 import { nextStory, storyTitle } from './missions/storyMissions';
 import { QuestRunner } from './missions/questRunner';
+import { DRIVERS, FLEET_AUTO_PRICE, Fleet, TRAITS } from './missions/fleet';
 import { DEALER_STOCK, DELIVER_HOME, PAINTS, PAINT_PRICE, UPGRADES, bumpDecel, fareFactor, fuelFactor } from './vehicles/garage';
 import { createDealer } from './world/dealer';
 import { frame } from './world/kit';
@@ -102,6 +103,20 @@ const STORY_LINES: Record<number, [string, string][]> = {
     ['Chithappa (memory)', '"Auto-va paathukko da. Adhu namma kudumbam maadhiri." - you can almost hear him.'],
     ['Auto Anna', 'Chapter 2: every rupee is yours now. Goals in Phone > Story.'],
   ],
+  3: [
+    ['Seshadri sir', 'Thambi, naan sonnadhu nyaabagam irukka? Un per-la oru business aarambikkalaam: "Anna Travels". Naan backing, nee mudhalaali.'],
+    ['Seshadri sir', 'Mylapore auto stand-la oru shed vaadagaikku eduthutten. Phone > Business-la auto vaangu (₹8,000 ovvonnum), nalla driver-a podu. Honest-aana aal dhaan mukkiyam!'],
+    ['Kandasamy', 'Enna, mudhalaali aagitiya? En marumagan Ganesh-um auto fleet vechirukkaan. Paathu nadandhukko...'],
+    ['Auto Anna', 'Chapter 3: Anna Travels. Goals in Phone > Story.'],
+  ],
+};
+const SESHADRI = 'Seshadri sir';
+const FLEET_LINES = {
+  bought: 'Pudhu auto Anna Travels-la serndhuduchu! Driver-a podu, illana summa nikkum.',
+  cantAfford: 'Auto ₹{price} thambi. Konjam saerthu vechittu vaangu.',
+  hired: '{name} Anna Travels-la join pannittaanga. ({trait})',
+  fired: '{name}-a anuppiyaachu.',
+  report: '📒 Anna Travels: {income} today.',
 };
 /** House owner's messages about the rent (Chapter 2). */
 /** m/s lost in one frame while driving that counts as a crash for fragile cargo. */
@@ -276,7 +291,12 @@ async function main() {
   const rent = new Rent();
   if (saved?.rent) rent.restore(saved.rent);
   const homesBought = () => [...owned].filter((i) => i !== 0).length;
-  const storyState = () => ({ loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.length });
+  const fleet = new Fleet();
+  if (saved?.fleet) fleet.restore(saved.fleet);
+  const storyState = () => ({
+    loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.length,
+    seshadri: storyDone.includes('lostbag'), fleet: fleet.autos.length, fleetEarned: fleet.earned,
+  });
   let storyCheck = 0;
   if (rent.evicted) owned.delete(0); // locked out of the rented house until the rent is paid
   homes.homes.forEach((h, i) => h.setOwned(owned.has(i)));
@@ -541,6 +561,35 @@ async function main() {
       upgrades: UPGRADES.filter((u) => upgrades.includes(u.id)).map((u) => u.name),
       deliverPrice: DELIVER_HOME,
     }),
+    business: () => ({
+      open: story.chapter >= 3,
+      price: FLEET_AUTO_PRICE,
+      earned: fleet.earned,
+      autos: fleet.autos.map((a) => {
+        const d = a.driver ? DRIVERS.find((x) => x.id === a.driver)! : null;
+        return { driver: d ? `${d.name} (${d.trait})` : null };
+      }),
+      candidates: fleet.candidates.map((d) => ({ id: d.id, name: d.name, trait: TRAITS[d.trait].label, blurb: d.blurb })),
+    }),
+    buyAuto: () => {
+      if (!economy.spend(FLEET_AUTO_PRICE)) return phone.addMessage(SESHADRI, FLEET_LINES.cantAfford.replace('{price}', FLEET_AUTO_PRICE.toLocaleString('en-IN')));
+      fleet.buy();
+      showMoney();
+      phone.addMessage(SESHADRI, FLEET_LINES.bought);
+      saveNow();
+    },
+    hire: (i, id) => {
+      if (!fleet.hire(i, id)) return;
+      const d = DRIVERS.find((x) => x.id === id)!;
+      phone.addMessage(SESHADRI, FLEET_LINES.hired.replace('{name}', d.name).replace('{trait}', TRAITS[d.trait].label));
+      saveNow();
+    },
+    fire: (i) => {
+      const d = DRIVERS.find((x) => x.id === fleet.autos[i]?.driver);
+      fleet.fire(i);
+      if (d) phone.addMessage(SESHADRI, FLEET_LINES.fired.replace('{name}', d.name));
+      saveNow();
+    },
     deliver: (i) => {
       const m = mine[i];
       if (!m || stolen === m.veh || !economy.spend(DELIVER_HOME)) return;
@@ -608,16 +657,17 @@ async function main() {
   const mine: { stock: string; veh: Vehicle }[] = (saved?.garage?.vehicles ?? []).map((v) => ({ stock: v.stock, veh: traffic.addParked(v.kind as Vehicle['kind'], v.colour, v.x, v.z, v.heading) }));
   const dealerStock = DEALER_STOCK.map((s, i) => ({ s, veh: mine.some((m) => m.stock === s.id) ? null : traffic.addParked(s.kind, s.colour, dealer.spots[i].x, dealer.spots[i].z, dealer.spots[i].heading, true) }));
   /**
-   * Where an owned vehicle is delivered: parked side by side behind your newest home (or the rented
-   * one): the walled backyard on the big plots, the open strip behind the Mandaveli house.
+   * Where an owned vehicle is delivered: your newest home's walled backyard (side by side), or at
+   * the rented Mandaveli house the open yard beside it, one behind another facing the road.
    */
   const homeSpot = (n: number) => {
     const bought = [...owned].filter((i) => i !== 0);
     const idx = bought.length ? bought[bought.length - 1] : 0;
     const f = frame(HOME_LOTS()[idx]);
-    const p = idx === 0 ? f.at(-2.5 + (n % 3) * 4.5, 13.7) : f.at(-4.5 + (n % 3) * 4.5, 14.9);
-    const along = f.at(1, 0).sub(f.at(0, 0));
-    return { x: p.x, z: p.z, heading: Math.atan2(along.x, along.z) };
+    const side = idx === 0;
+    const p = side ? f.at(9.3, 2.6 + (n % 3) * 5) : f.at(-4.5 + (n % 3) * 4.5, 14.9);
+    const dir = side ? f.at(0, -1).sub(f.at(0, 0)) : f.at(1, 0).sub(f.at(0, 0));
+    return { x: p.x, z: p.z, heading: Math.atan2(dir.x, dir.z) };
   };
   quests.onSay = (name, line) => hud.say(name, line);
   const heroFeet = new THREE.Vector3();
@@ -816,6 +866,7 @@ async function main() {
       upkeep: { fuel: upkeep.fuel, condition: upkeep.condition },
       homes: [...owned],
       story: { ...story.snapshot(), done: storyDone },
+      fleet: fleet.snapshot(),
       rent: rent.snapshot(),
       garage: {
         upgrades,
@@ -1188,6 +1239,16 @@ async function main() {
         homes.homes[0].setOwned(true);
       }
       phone.addMessage(LANDLORD, RENT_LINES.ended);
+    }
+    // Anna Travels (Chapter 3): the drivers' takings each new day go to the bank.
+    if (story.chapter >= 3) fleet.open(today);
+    const fleetDay = fleet.tick(today);
+    if (fleetDay && fleetDay.lines.length) {
+      if (fleetDay.income >= 0) economy.savings += fleetDay.income;
+      else economy.charge(-fleetDay.income);
+      showMoney();
+      phone.addMessage(SESHADRI, [FLEET_LINES.report.replace('{income}', `₹${fleetDay.income.toLocaleString('en-IN')}`), ...fleetDay.lines].join('\n'));
+      saveNow();
     }
     const rentEv = rent.tick(today);
     if (rentEv) {

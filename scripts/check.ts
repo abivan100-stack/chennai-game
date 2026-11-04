@@ -180,12 +180,14 @@ console.log('check: all passed');
 {
   const { Story } = await import('../src/missions/story.ts');
   const st = new Story();
-  const base = { loan: 5000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0 };
+  const base = { loan: 5000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0, seshadri: false, fleet: 0, fleetEarned: 0 };
   assert(st.update(base) === null && st.chapter === 1, 'chapter 1 while the kadan is unpaid');
   assert(st.update({ ...base, loan: 0 })?.n === 2 && st.chapter === 2, 'paying the kadan opens chapter 2');
   assert(st.update({ ...base, loan: 0, savings: 60000 }) === null, 'chapter 2 needs a home too');
-  assert(st.update({ ...base, loan: 0, savings: 60000, homesBought: 1 }) === null && st.chapter === 2, 'chapter 2 waits while chapter 3 is not built');
-  assert(new Story({ chapter: 99 }).chapter === 2, 'a saved chapter is clamped to the last one that is built');
+  assert(st.update({ ...base, loan: 0, savings: 60000, homesBought: 1 }) === null && st.chapter === 2, 'chapter 2 needs Seshadri sir met too');
+  assert(st.update({ ...base, loan: 0, savings: 60000, homesBought: 1, seshadri: true })?.n === 3, 'home + savings + the bag open chapter 3');
+  assert(st.update({ ...base, loan: 0, savings: 60000, fleet: 5, fleetEarned: 20000 }) === null && st.chapter === 3, 'chapter 3 waits while chapter 4 is not built');
+  assert(new Story({ chapter: 99 }).chapter === 3, 'a saved chapter is clamped to the last one that is built');
 }
 console.log('check: story passed');
 
@@ -245,7 +247,7 @@ console.log('check: stops on pavements passed');
     const n = nextStory(beforeNurse, h);
     return n && ('ride' in n ? n.ride.id : n.quest.id);
   };
-  assert(pick(23) === 'nurse' && pick(2) === 'nurse' && pick(12) === 'lostbag', 'night ride only at night; the next mission comes meanwhile');
+  assert(pick(23) === 'nurse' && pick(2) === 'nurse' && pick(12) === null, 'night ride only at night');
   for (const q of QUESTS) {
     for (const st of q.steps) if (st.kind === 'tail' && st.rider) assert(st.rider in q.people, `quest ${q.id}: tail rider ${st.rider}`);
   }
@@ -282,3 +284,31 @@ console.log('check: garage passed');
   assert(sl.awake === 0 && !sl.tired && sl.add(TIRED_AFTER) === 'tired', 'a sleep resets it (and the warning)');
 }
 console.log('check: sleep passed');
+
+// --- Anna Travels fleet (chapter 3) ---
+{
+  const { Fleet, DRIVERS, DRIVER_SHARE, TRAITS, RIVAL_COST } = await import('../src/missions/fleet.ts');
+  const f = new Fleet();
+  const always = (v: number) => () => v;
+  assert(f.tick(5) === null, 'no takings before the business opens');
+  f.open(5);
+  f.buy();
+  f.buy();
+  assert(f.tick(6, always(0.99))?.income === 0, 'autos without drivers earn nothing');
+  assert(f.hire(0, 'murugan') && !f.hire(1, 'murugan'), "a driver can't drive two autos");
+  f.hire(1, 'babu');
+  assert(f.candidates.length === DRIVERS.length - 2, 'hired drivers leave the candidate list');
+  // rand 0.99: no trouble, takings x 1.196
+  const r = f.tick(7, always(0.99))!;
+  const want = Math.round((TRAITS.honest.takings + TRAITS.lazy.takings) * (0.8 + 0.99 * 0.4) * (1 - DRIVER_SHARE));
+  assert(r.income === want && r.lines.length === 2, 'each driver pays their share');
+  assert(f.tick(7) === null, 'a day is settled once');
+  // rand 0: the rival strikes (2 autos) and everyone else has every kind of trouble
+  const bad = f.tick(8, always(0))!;
+  assert(bad.income === -RIVAL_COST && bad.lines.length === 2, "Ganesh slashes a tyre; the lazy driver doesn't turn up");
+  assert(f.tick(10, always(0.99))!.lines.length === 4, 'missed days are all settled');
+  const g = new Fleet();
+  g.restore(f.snapshot());
+  assert(g.hired.join() === 'murugan,babu' && g.earned === f.earned, 'fleet saves and loads');
+}
+console.log('check: fleet passed');
