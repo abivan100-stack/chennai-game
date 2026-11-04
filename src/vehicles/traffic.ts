@@ -17,6 +17,19 @@ const HONK_AFTER = 2.5; // s blocked before honking
 /** Gridlock breakers: after waiting this long behind other vehicles, nose through them for PUSH_ON s. */
 const PATIENCE = 4;
 const PUSH_ON = 2.5;
+/** Traffic runs this much faster than SPEC's base speeds; vehicles you drive get PLAYER_TOP x their handling. */
+const AI_SPEED = 1.15;
+const PLAYER_TOP = 1.35;
+const PLAYER_ACCEL = 1.25;
+/**
+ * Your fault, now and then: when you cut in close in front of a moving vehicle (or stop dead in
+ * its lane) it reacts late this often, for LATE_SECONDS, and hits you.
+ */
+const LATE_CHANCE = 0.12;
+const LATE_SECONDS = 0.9;
+const LATE_MIN_SPEED = 5; // m/s: slow traffic always stops in time
+/** Closing speed (m/s) that counts as a crash between a vehicle and yours. */
+const CRASH_SPEED = 2.5;
 const STUCK_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
@@ -239,6 +252,14 @@ export interface Vehicle {
   waitVeh: number;
   pushOn: number;
   stuck: number;
+  /** Top-speed multiplier when you drive it (an owned vehicle out of petrol or battered). */
+  limit: number;
+  /** s left reacting late to the player (it won't brake for you), and whether you were ahead last frame. */
+  late: number;
+  sawPlayer: boolean;
+  /** Velocity before this physics step (crash speeds are judged on it; after the step they've already bounced). */
+  pvx: number;
+  pvz: number;
   prevPos: THREE.Vector3;
   currPos: THREE.Vector3;
   prevRot: THREE.Quaternion;
@@ -250,6 +271,8 @@ export interface Obstacle {
   x: number;
   z: number;
   honk: boolean;
+  /** The player's own vehicle (traffic may react late to it: see LATE_CHANCE). */
+  player?: boolean;
 }
 
 /**
@@ -272,6 +295,11 @@ export class Traffic {
   slowAt: (x: number, z: number) => number = () => 1;
   /** A driver was pulled out of their vehicle and says something. */
   onSay: (name: string, line: string) => void = () => {};
+  /**
+   * A vehicle and the one you're driving hit each other. closing = m/s; theirs = they ran into
+   * you after you cut in (they reacted late) rather than you into them.
+   */
+  onCrash: (v: Vehicle, closing: number, theirs: boolean) => void = () => {};
   private readonly scene: THREE.Scene;
   private readonly fleeing: { root: THREE.Group; anim: Animator; dx: number; dz: number; t: number }[] = [];
 
@@ -425,7 +453,7 @@ export class Traffic {
     const veh: Vehicle = {
       kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
       group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
-      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0,
+      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0, limit: 1, late: 0, sawPlayer: false, pvx: 0, pvz: 0,
       prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
     };
     this.vehicles.push(veh);
@@ -481,7 +509,7 @@ export class Traffic {
       veh.path.at(veh.s, this.ahead, this.dir);
       veh.path.at(veh.s + LOOKAHEAD, this.ahead, this.aheadDir);
       const turning = this.dir.dot(this.aheadDir) < 0.9;
-      let target = turning ? Math.min(CORNER_SPEED, sp.speed) : sp.speed;
+      let target = turning ? Math.min(CORNER_SPEED, sp.speed * AI_SPEED) : sp.speed * AI_SPEED;
 
       // Stop for anything in the lane ahead.
       const reach = sp.length / 2 + 3 + Math.max(0, veh.v) * 1.2;
@@ -489,15 +517,24 @@ export class Traffic {
       veh.hz = this.dir.z;
       let honkable = false;
       let blocked = false;
+      let nearest = Infinity; // closest thing of yours in the lane (m)
       const inLane = (x: number, z: number) => {
         const rx = x - p.x;
         const rz = z - p.z;
         const along = rx * this.dir.x + rz * this.dir.z;
         const side = Math.abs(rx * this.dir.z - rz * this.dir.x);
-        return along > 0 && along < reach && side < sp.width / 2 + 0.6;
+        return along > 0 && along < reach && side < sp.width / 2 + 0.6 ? along : -1;
       };
+      veh.late = Math.max(0, veh.late - dt);
+      let mine = false; // the player (or their vehicle) is in the lane ahead
       for (const o of obstacles) {
-        if (!inLane(o.x, o.z)) continue;
+        const along = inLane(o.x, o.z);
+        if (along < 0) continue;
+        if (o.player) {
+          mine = true;
+          nearest = Math.min(nearest, along);
+          if (veh.late > 0) continue; // reacting late: doesn't brake for you
+        }
         blocked = true;
         honkable ||= o.honk;
       }
@@ -508,7 +545,14 @@ export class Traffic {
       let blocker: Vehicle | null = null;
       if (veh.pushOn <= 0) {
         for (const other of this.vehicles) {
-          if (other === veh || !inLane(other.currPos.x, other.currPos.z)) continue;
+          if (other === veh) continue;
+          const along = inLane(other.currPos.x, other.currPos.z);
+          if (along < 0) continue;
+          if (other.mode === 'player') {
+            mine = true;
+            nearest = Math.min(nearest, along);
+            if (veh.late > 0) continue;
+          }
           if (other.mode === 'ai' && other.hx * this.dir.x + other.hz * this.dir.z < -0.3) continue;
           if (other.blocker === veh && veh.id < other.id) continue;
           blocker = other;
@@ -516,6 +560,13 @@ export class Traffic {
         }
       }
       veh.blocker = blocker;
+      // You appeared suddenly and close in front (cut in / braked in their lane): now and then they're late.
+      if (mine && !veh.sawPlayer && veh.v > LATE_MIN_SPEED && nearest < reach * 0.55 && Math.random() < LATE_CHANCE) {
+        veh.late = LATE_SECONDS;
+        if (blocker?.mode === 'player') blocker = veh.blocker = null;
+        blocked = obstacles.some((o) => !o.player && inLane(o.x, o.z) >= 0);
+      }
+      veh.sawPlayer = mine;
       veh.waitVeh = blocker && veh.v < 0.5 ? veh.waitVeh + dt : 0;
       if (veh.waitVeh > PATIENCE) {
         veh.waitVeh = 0;
@@ -556,6 +607,9 @@ export class Traffic {
   /** Each physics step, before world.step(): steer towards the lane, unless just shoved. */
   step(dt: number) {
     for (const veh of this.vehicles) {
+      const pv = veh.body.linvel();
+      veh.pvx = pv.x;
+      veh.pvz = pv.z;
       if (veh.mode === 'parked') continue; // abandoned: just friction and damping
       if (veh.mode === 'player') {
         this.drivePlayer(veh, dt);
@@ -594,13 +648,31 @@ export class Traffic {
    * After each world.step(): anything touching a pusher (the player, the player's auto) or an
    * already-shoved vehicle goes limp too. Records poses for interpolation.
    */
-  afterStep(world: RAPIER.World, pushers: RAPIER.Collider[]) {
+  afterStep(world: RAPIER.World, pushers: RAPIER.Collider[], yours: RAPIER.Collider | null = null, yoursVel: { x: number; z: number } | null = null) {
     const limp = new Set(this.vehicles.filter((v) => v.knocked > 0).map((v) => v.collider));
     for (const veh of this.vehicles) {
       world.contactPairsWith(veh.collider, (other) => {
         const byPlayer = pushers.includes(other);
         if (!byPlayer && !limp.has(other)) return;
-        if (byPlayer && veh.knocked <= 0) this.honk(veh.kind);
+        if (byPlayer && veh.knocked <= 0) {
+          this.honk(veh.kind);
+          // Vehicle against vehicle: how hard, and whose fault.
+          if (other === yours && veh.mode !== 'player') {
+            const b = yoursVel ?? other.parent()!.linvel();
+            const closing = Math.hypot(veh.pvx - b.x, veh.pvz - b.z);
+            if (closing > CRASH_SPEED) {
+              const theirs = veh.late > 0;
+              // A hard knock shoves the lighter one more (on top of the contact itself).
+              const t = veh.body.translation();
+              const o = other.parent()!.translation();
+              const d = Math.hypot(t.x - o.x, t.z - o.z) || 1;
+              const push = theirs ? 0 : SPEC[veh.kind].mass * Math.min(closing, 12) * 0.25;
+              veh.body.applyImpulse({ x: ((t.x - o.x) / d) * push, y: 0, z: ((t.z - o.z) / d) * push }, true);
+              this.onCrash(veh, closing, theirs);
+            }
+          }
+          veh.late = 0;
+        }
         veh.knocked = KNOCK_SECONDS;
       });
       const t = veh.body.translation();
@@ -722,7 +794,7 @@ export class Traffic {
     let speed = lv.x * fx + lv.z * fz;
     const { throttle, steer, brake } = v.ctl;
     if (brake) speed *= 1 - Math.min(1, 4 * dt);
-    else if (throttle > 0) speed = speed < -0.3 ? speed + h.accel * 2 * dt : Math.min(h.top * this.slowAt(v.currPos.x, v.currPos.z), speed + h.accel * dt);
+    else if (throttle > 0) speed = speed < -0.3 ? speed + h.accel * 2 * dt : Math.min(h.top * PLAYER_TOP * v.limit * this.slowAt(v.currPos.x, v.currPos.z), speed + h.accel * PLAYER_ACCEL * dt);
     else if (throttle < 0) speed = speed > 0.3 ? speed - h.accel * 2 * dt : Math.max(-5, speed - h.accel * 0.7 * dt);
     else speed *= 1 - Math.min(1, 0.8 * dt);
     // Tyres kill most sideways slide each step.

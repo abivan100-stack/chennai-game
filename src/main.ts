@@ -63,7 +63,8 @@ import { createBesantNagar } from './world/besant';
 import { createBeachLife } from './world/beachLife';
 import { createChepauk } from './world/chepauk';
 import { STADIUM, TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
-import { PETROL_PRICE, REPAIR_PRICE, TANK, Upkeep } from './vehicles/upkeep';
+import { CRASH_DV, FUEL_SPEC, PETROL_PRICE, REPAIR_PRICE, Upkeep } from './vehicles/upkeep';
+import { setPlateKind } from './vehicles/plates';
 import { createTrafficLights } from './world/trafficLights';
 import { createFlood } from './world/flood';
 import { MISSION_SEIZED, MSG_REDEEMED, MSG_SEIZED, MSG_SIGNAL_JUMP, RAIN_SURCHARGE, SIGNAL_FINE, TRAFFIC_POLICE } from './missions/data';
@@ -79,7 +80,7 @@ import { PARCEL_SPOT, PASSENGER_SEAT, RIDER_POSE, SPEC, VEHICLE_NAMES, type Vehi
 import type { Carrier } from './missions/jobs';
 import { poseRider } from './characters/rider';
 import { BEATEN, HORN_LINES } from './npcs/dialogue';
-import { MSG_HOME_HINT, RECOVER_LINE, SLEEPY_LINE, SLEEP_SUB, SLEEP_TITLE } from './missions/data';
+import { CRASH_LINES, MSG_HOME_HINT, RECOVER_LINE, SLEEPY_LINE, SLEEP_SUB, SLEEP_TITLE } from './missions/data';
 import { HOSPITAL_SLEEP, Sleep } from './player/sleep';
 import { TIME_SCALE } from './world/sky';
 import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
@@ -343,16 +344,17 @@ async function main() {
   // ---- Places: petrol bunk, mechanic, bank, pharmacy, auto stand ----------------------------
   let serviceOpen: Service | null = null;
   type Row = { label: string; price: number; note: string; run: () => string };
-  const fuelPrice = () => Math.round(PETROL_PRICE * fuelFactor(upgrades));
+  const fuelPrice = () => Math.round(PETROL_PRICE * (curUpkeep() === upkeep ? fuelFactor(upgrades) : 1));
   const fill = (money: number): Row => {
-    const litres = upkeep.litresFor(money, fuelPrice());
+    const u = curUpkeep();
+    const litres = u.litresFor(money, fuelPrice());
     const cost = Math.ceil(litres * fuelPrice());
     return {
-      label: money >= TANK * fuelPrice() ? 'Full tank' : `${upgrades.includes('cng') ? 'Gas' : 'Petrol'} ₹${money}`,
+      label: money >= u.tank * fuelPrice() ? 'Full tank' : `${upgrades.includes('cng') ? 'Gas' : 'Petrol'} ₹${money}`,
       price: cost,
       note: `${litres.toFixed(1)} L`,
       run: () => {
-        upkeep.fill(litres);
+        u.fill(litres);
         economy.cash -= cost;
         return PLACE_LINES.filled.replace('{litres}', litres.toFixed(1)).replace('{cost}', String(cost));
       },
@@ -360,13 +362,16 @@ async function main() {
   };
   const serviceMenu = (s: Service): { greet: string; rows: Row[] } => {
     switch (s.kind) {
-      case 'fuel':
-        if (upkeep.fuel >= TANK - 0.05) return { greet: PLACE_LINES.bunkFull, rows: [] };
-        return { greet: `${PLACE_LINES.bunkGreet} (₹${fuelPrice()}/L${upgrades.includes('cng') ? ' CNG' : ''} · tank ${upkeep.fuel.toFixed(1)}/${TANK} L)`, rows: [fill(100), fill(300), fill(TANK * fuelPrice())] };
+      case 'fuel': {
+        const u = curUpkeep();
+        if (u.fuel >= u.tank - 0.05) return { greet: PLACE_LINES.bunkFull, rows: [] };
+        return { greet: `${PLACE_LINES.bunkGreet} (₹${fuelPrice()}/L${upgrades.includes('cng') && u === upkeep ? ' CNG' : ''} · tank ${u.fuel.toFixed(1)}/${u.tank} L)`, rows: [fill(100), fill(500), fill(u.tank * fuelPrice())] };
+      }
       case 'mechanic': {
-        const broken = 100 - upkeep.condition;
-        // Chapter 2: the auto is yours, so you can do it up (one of each; paint any time).
-        const ups: Row[] = story.chapter < 2 ? [] : [
+        const u = curUpkeep();
+        const broken = 100 - u.condition;
+        // Chapter 2: the auto is yours, so you can do it up (one of each; paint any time). Other vehicles: repairs only.
+        const ups: Row[] = story.chapter < 2 || u !== upkeep ? [] : [
           ...UPGRADES.filter((u) => !upgrades.includes(u.id)).map((u): Row => ({
             label: u.name, price: u.price, note: u.note,
             run: () => {
@@ -392,11 +397,11 @@ async function main() {
         const fix = (points: number, label: string): Row => ({
           label, price: Math.ceil(points) * REPAIR_PRICE, note: `+${Math.ceil(points)}%`,
           run: () => {
-            economy.cash -= upkeep.repair(points);
+            economy.cash -= u.repair(points);
             return PLACE_LINES.repaired;
           },
         });
-        return { greet: `${PLACE_LINES.mechGreet} (condition ${Math.round(upkeep.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : []), ...ups].slice(0, 9) };
+        return { greet: `${PLACE_LINES.mechGreet} (condition ${Math.round(u.condition)}%)`, rows: [fix(broken, 'Full repair'), ...(broken > 30 ? [fix(30, 'Quick patch')] : []), ...ups].slice(0, 9) };
       }
       case 'bank': {
         const say = (line: string, n: number) => line.replace('{n}', n.toLocaleString('en-IN'));
@@ -458,6 +463,33 @@ async function main() {
   };
   let lastAutoSpeed = 0;
   let crashCooldown = 0;
+  let lastOwnSpeed = 0;
+  let ownFuelWarned = false;
+  /** You and a traffic vehicle hit each other: your vehicle takes a dent, their driver shouts. */
+  traffic.onCrash = (v, closing, theirs) => {
+    if (crashCooldown > 0) return;
+    const yours = ride.driving ? upkeep : ownedNow()?.upkeep ?? null;
+    if (yours) {
+      yours.crash(CRASH_DV + closing * 0.4);
+      dented(yours);
+    } else {
+      crashCooldown = 1;
+      sound.hit('kick');
+      cam.shake(0.08);
+    }
+    if (v.driver) {
+      const lines = theirs ? CRASH_LINES.theirs : CRASH_LINES.yours;
+      hud.say(`${VEHICLE_NAMES[v.kind]} driver`, lines[Math.floor(Math.random() * lines.length)]);
+    }
+  };
+  /** Your vehicle took a knock: sound, shake, condition on the HUD. */
+  const dented = (u: Upkeep) => {
+    crashCooldown = 1;
+    sound.hit('kick');
+    cam.shake(0.08);
+    const name = u === upkeep ? 'Auto' : ownedNow() ? DEALER_STOCK.find((d) => d.id === ownedNow()!.stock)?.name ?? 'Vandi' : 'Vandi';
+    hud.say(name, u === upkeep && u.condition < 15 ? PLACE_LINES.wrecked : CRASH_LINES.dent.replace('{name}', name).replace('{cond}', String(Math.round(u.condition))));
+  };
   let fuelWarned = false;
   let pushing = false;
   let insideHall = -1; // which hotel's dining hall you're in (-1 = outside)
@@ -645,7 +677,26 @@ async function main() {
   auto.paint(paintColour);
   auto.setSticker(upgrades.includes('sticker'));
   const dealer = createDealer(scene, world);
-  const mine: { stock: string; veh: Vehicle }[] = (saved?.garage?.vehicles ?? []).map((v) => ({ stock: v.stock, veh: traffic.addParked(v.kind as Vehicle['kind'], v.colour, v.x, v.z, v.heading) }));
+  /** A vehicle you own: its own tank and dents; cars you can run as cabs wear yellow plates. */
+  const ownUpkeep = (kind: string, fuel?: number, condition?: number) => {
+    const spec = FUEL_SPEC[kind] ?? FUEL_SPEC.hatch;
+    const u = new Upkeep(spec.tank, spec.perKm);
+    if (fuel !== undefined) u.fuel = Math.min(spec.tank, fuel);
+    if (condition !== undefined) u.condition = condition;
+    return u;
+  };
+  const ownPlates = (veh: Vehicle) => {
+    if (PASSENGER_SEAT[veh.kind]) setPlateKind(veh.group, 'commercial');
+  };
+  const mine: { stock: string; veh: Vehicle; upkeep: Upkeep }[] = (saved?.garage?.vehicles ?? []).map((v) => {
+    const veh = traffic.addParked(v.kind as Vehicle['kind'], v.colour, v.x, v.z, v.heading);
+    ownPlates(veh);
+    return { stock: v.stock, veh, upkeep: ownUpkeep(v.kind, v.fuel, v.condition) };
+  });
+  /** The owned vehicle you're driving, if any. */
+  const ownedNow = () => (stolen ? mine.find((m) => m.veh === stolen) ?? null : null);
+  /** Petrol / repairs apply to whatever you're sitting in that's yours (the auto otherwise). */
+  const curUpkeep = () => ownedNow()?.upkeep ?? upkeep;
   const dealerStock = DEALER_STOCK.map((s, i) => ({ s, veh: mine.some((m) => m.stock === s.id) ? null : traffic.addParked(s.kind, s.colour, dealer.spots[i].x, dealer.spots[i].z, dealer.spots[i].heading, true) }));
   /**
    * Where an owned vehicle is delivered: your newest home's walled backyard (side by side), or at
@@ -868,7 +919,7 @@ async function main() {
       garage: {
         upgrades,
         paint: paintColour,
-        vehicles: mine.map((m) => ({ stock: m.stock, kind: m.veh.kind, colour: m.veh.colour, x: m.veh.currPos.x, z: m.veh.currPos.z, heading: traffic.headingOf(m.veh) })),
+        vehicles: mine.map((m) => ({ stock: m.stock, kind: m.veh.kind, colour: m.veh.colour, x: m.veh.currPos.x, z: m.veh.currPos.z, heading: traffic.headingOf(m.veh), fuel: m.upkeep.fuel, condition: m.upkeep.condition })),
       },
     });
   };
@@ -968,8 +1019,10 @@ async function main() {
     }
     // Places: E opens the service menu (on foot, or stopped in the auto for petrol / repairs).
     const autoStopped = ((ride.driving && Math.abs(auto.speed) < 1) || pushing) && free;
+    const ownStopped = !!ownedNow() && Math.abs(traffic.speedOf(stolen!)) < 1 && free;
     const service = onFootFree && !nearAuto && !other && !eatery && !store ? nearService(player.position, false)
-      : autoStopped ? nearService(auto.group.position, true) : null;
+      : autoStopped ? nearService(auto.group.position, true)
+      : ownStopped ? nearService(stolen!.group.position, true) : null;
     if (serviceOpen && serviceOpen !== service) closeMenu();
     if (service && input.wasPressed('KeyE')) {
       if (serviceOpen) closeMenu();
@@ -1076,7 +1129,8 @@ async function main() {
       if (!economy.spend(s.price)) hud.say(DEALER, GARAGE_LINES.cantAfford.replace('{price}', s.price.toLocaleString('en-IN')));
       else {
         veh.locked = false;
-        mine.push({ stock: s.id, veh });
+        mine.push({ stock: s.id, veh, upkeep: ownUpkeep(s.kind) });
+        ownPlates(veh);
         sale.veh = null;
         showMoney();
         sound.coin();
@@ -1137,7 +1191,7 @@ async function main() {
     if (input.wasPressed('KeyR')) weather.cycleOverride();
     // Traffic stops for the player and the player's auto (and honks at them).
     traffic.update(dt, [
-      { x: auto.group.position.x, z: auto.group.position.z, honk: !player.onFoot },
+      { x: auto.group.position.x, z: auto.group.position.z, honk: !player.onFoot, player: ride.driving },
       ...(player.onFoot ? [{ x: player.position.x, z: player.position.z, honk: true }] : []),
     ]);
     accumulator = Math.min(accumulator + dt, PHYSICS_STEP * MAX_STEPS);
@@ -1146,8 +1200,9 @@ async function main() {
       auto.update(PHYSICS_STEP);
       traffic.step(PHYSICS_STEP);
       police.step();
+      const yoursVel = stolen ? stolen.body.linvel() : ride.driving ? auto.body.linvel() : null; // before the bounce
       world.step();
-      traffic.afterStep(world, [auto.collider, player.collider, ...police.jeepColliders, ...(stolen ? [stolen.collider] : [])]);
+      traffic.afterStep(world, [auto.collider, player.collider, ...police.jeepColliders, ...(stolen ? [stolen.collider] : [])], stolen ? stolen.collider : ride.driving ? auto.collider : null, yoursVel);
       police.afterStep(PHYSICS_STEP);
       // Ramming the police jeep is an attack on the police.
       const ram = stolen ? stolen.collider : !player.onFoot ? auto.collider : null;
@@ -1158,7 +1213,7 @@ async function main() {
       const autoSpeed = Math.abs(auto.speed);
       if (ride.driving) {
         upkeep.drive(autoSpeed * PHYSICS_STEP);
-        const dmg = upkeep.crash(lastAutoSpeed - autoSpeed);
+        const dmg = crashCooldown > 0 ? 0 : upkeep.crash(lastAutoSpeed - autoSpeed);
         if (dmg > 0 && crashCooldown <= 0) {
           crashCooldown = 1;
           sound.hit('kick');
@@ -1167,6 +1222,15 @@ async function main() {
         }
       }
       lastAutoSpeed = autoSpeed;
+      // Your own other vehicles: petrol by distance, dents from sudden stops.
+      const own = ownedNow();
+      if (own) {
+        const v = Math.abs(traffic.speedOf(own.veh));
+        own.upkeep.drive(v * PHYSICS_STEP);
+        const dmg = crashCooldown > 0 ? 0 : own.upkeep.crash(lastOwnSpeed - v);
+        if (dmg > 0) dented(own.upkeep);
+        lastOwnSpeed = v;
+      }
       accumulator -= PHYSICS_STEP;
     }
     const alpha = accumulator / PHYSICS_STEP; // how far we are into the next physics step
@@ -1204,7 +1268,8 @@ async function main() {
       player.position.copy(stolen.group.position);
       player.position.y += 1;
       cam.update(dt, stolen.group.position, traffic.headingOf(stolen));
-      hud.setSpeed(Math.abs(stolenSpeed) * 3.6);
+      const own = ownedNow();
+      hud.setSpeed(Math.abs(stolenSpeed) * 3.6, own ? `⛽ ${own.upkeep.fuel.toFixed(1)} L · 🔧 ${Math.round(own.upkeep.condition)}%` : undefined);
     } else if (ride.driving) {
       cam.update(dt, auto.group.position, auto.heading);
       hud.setSpeed(Math.abs(auto.speed) * 3.6, `⛽ ${upkeep.fuel.toFixed(1)} L · 🔧 ${Math.round(upkeep.condition)}%`);
@@ -1331,6 +1396,17 @@ async function main() {
     quests.update(dt, questCtx(drivingAny && lastVSpeed - vSpeed > JOLT_DROP));
     lastVSpeed = drivingAny ? vSpeed : 0;
     auto.speedLimit = flood.slowAt(auto.group.position.x, auto.group.position.z) * upkeep.speedFactor;
+    // Your own other vehicles: battered = slower; empty tank = a crawl to the nearest bunk.
+    const ownCar = ownedNow();
+    if (ownCar) {
+      const u = ownCar.upkeep;
+      ownCar.veh.limit = u.fuel <= 0 ? 0.15 : u.speedFactor;
+      if (u.fuel < u.tank * 0.1 && !ownFuelWarned) {
+        ownFuelWarned = true;
+        hud.say('Vandi', u.fuel <= 0 ? CRASH_LINES.noFuel : CRASH_LINES.lowFuel);
+      }
+      if (u.fuel >= u.tank * 0.1) ownFuelWarned = false;
+    }
     crashCooldown -= dt;
     if (ride.driving && upkeep.fuel < 1 && !fuelWarned) {
       fuelWarned = true;

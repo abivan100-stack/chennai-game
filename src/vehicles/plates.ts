@@ -102,5 +102,23 @@ export function addPlates(group: THREE.Group, text: string, kind: PlateKind, fro
     quad(width, p0, p1).rotateY(Math.PI).translate(0, back.y, back.z - 0.01),
   ];
   for (const b of badge?.at ?? []) geos.push(quad(b.w, 0, 0.5).rotateY(b.ry).translate(b.x ?? 0, b.y, b.z));
-  group.add(new THREE.Mesh(mergeGeometries(geos)!, mat));
+  const mesh = new THREE.Mesh(mergeGeometries(geos)!, mat);
+  mesh.name = 'plates';
+  mesh.userData.plate = { text, kind, badge };
+  group.add(mesh);
+}
+
+/**
+ * Repaint a vehicle's plates as another kind (a car you own and run as a cab gets the yellow
+ * commercial plate; same registration, same badge).
+ */
+export function setPlateKind(group: THREE.Object3D, kind: PlateKind) {
+  const mesh = group.getObjectByName('plates') as THREE.Mesh | undefined;
+  const info = mesh?.userData.plate as { text: string; kind: PlateKind; badge?: Badge } | undefined;
+  if (!mesh || !info || info.kind === kind) return;
+  const mat = mesh.material as THREE.MeshStandardMaterial;
+  mat.map?.dispose();
+  mat.map = plateTexture(info.text, kind, info.badge);
+  mat.needsUpdate = true;
+  info.kind = kind;
 }

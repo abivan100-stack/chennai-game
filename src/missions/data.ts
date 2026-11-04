@@ -238,6 +238,14 @@ export const WASTED_TITLE = 'SUTTUTAANGA!';
 export const BUSTED_SUB = 'Police pidichitaanga. ₹{fine} fine kattitu station-la irundhu veliya vandheenga.';
 export const STARVED_TITLE = 'PASI-LA VIZHUNDHUTEENGA!';
 export const STARVED_SUB = 'Saapdaama suthuneenga, mayangi vizhundhuteenga. Hospital bill ₹{fine}. Ini time-ku saapdunga!';
+/** Crashes with traffic: you ran into them / they ran into you after you cut in (your fault either way). */
+export const CRASH_LINES = {
+  yours: ['Dei! Kann theriyala? En vandi-ya idichutta!', 'Aiyo en car! Paathu ottu pa!', 'Insurance yaaru kudupaa? Paathu po thambi!'],
+  theirs: ['Indicator podaama cut adikkira?! Naan enna pannuven!', 'Sudden-aa munnaadi vandhu brake pottaa?! Un thappu dhaan!', 'Lane maathum bodhu paathu po pa!'],
+  dent: '💥 {name} condition {cond}%',
+  noFuel: 'Petrol theernthuduchu! Mella urutti bunk-ku kondu poga vendiyadhu dhaan (crawling).',
+  lowFuel: 'Petrol kammi aagudhu, bunk-la podunga.',
+};
 export const SLEEP_TITLE = 'THOOKAM ILLAAMA VIZHUNDHUTEENGA!';
 export const SLEEP_SUB = 'Oru naal muzhukka thoongala, nadu road-la mayangi vizhundhuteenga. Isabel Hospital-la 8 mani neram thoongi ezhundheenga. Bill ₹{fine}.';
 export const SLEEPY_LINE = '18 mani neram thoongala... kann moodudhu. Veetukku poi thoonga venum! (bed-la E)';

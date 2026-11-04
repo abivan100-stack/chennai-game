@@ -30,7 +30,7 @@ export interface SaveData {
   /** Chapter 2: auto upgrades + paint, and vehicles bought from the dealer (where you left them). */
   /** Anna Travels (Chapter 3). */
   fleet?: { autos: { driver: string | null }[]; earned: number; seen: number | null };
-  garage?: { upgrades: string[]; paint: number; vehicles: { stock: string; kind: string; colour?: number; x: number; z: number; heading: number }[] };
+  garage?: { upgrades: string[]; paint: number; vehicles: { stock: string; kind: string; colour?: number; x: number; z: number; heading: number; fuel?: number; condition?: number }[] };
 }
 
 export function loadSave(): SaveData | null {

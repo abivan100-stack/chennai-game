@@ -160,6 +160,14 @@ const dmg = upk.crash(CRASH_DV + 4);
 assert(dmg > 0 && upk.condition === 100 - dmg && upk.repairCost === dmg * REPAIR_PRICE, 'a crash dents the auto; repair costs per point');
 upk.repair();
 assert(upk.condition === 100 && upk.speedFactor === 1, 'repaired and fuelled = full speed');
+{
+  const { FUEL_SPEC } = await import('../src/vehicles/upkeep.ts');
+  const car = new Upkeep(FUEL_SPEC.hatch.tank, FUEL_SPEC.hatch.perKm);
+  assert(car.fuel === FUEL_SPEC.hatch.tank && car.litresFor(1e6) === 0, 'an owned car starts with its own full tank');
+  car.drive(10_000);
+  assert(Math.abs(car.fuel - (FUEL_SPEC.hatch.tank - 10 * FUEL_SPEC.hatch.perKm)) < 1e-9, 'each vehicle burns at its own rate');
+  assert(TANK / new Upkeep().perKm >= 15, 'the auto goes at least 15 km on a tank');
+}
 
 // --- Bank: savings cover fines before the kadan grows; pickpockets only get the cash ---
 const bk = new Economy();
