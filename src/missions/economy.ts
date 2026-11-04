@@ -2,7 +2,7 @@
  * Money: cash from fares, and Uncle's loan from Kandasamy the moneylender, repaid a little every
  * day. Pure logic (no DOM / three.js) so scripts/check.ts can test it.
  */
-export const LOAN_TOTAL = 15000;
+export const LOAN_TOTAL = 5000;
 export const DAILY_DUE = 500;
 /** Missed days in a row before Kandasamy takes the auto. */
 export const SEIZE_AFTER = 3;

@@ -180,7 +180,7 @@ console.log('check: all passed');
 {
   const { Story } = await import('../src/missions/story.ts');
   const st = new Story();
-  const base = { loan: 15000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0 };
+  const base = { loan: 5000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0 };
   assert(st.update(base) === null && st.chapter === 1, 'chapter 1 while the kadan is unpaid');
   assert(st.update({ ...base, loan: 0 })?.n === 2 && st.chapter === 2, 'paying the kadan opens chapter 2');
   assert(st.update({ ...base, loan: 0, savings: 60000 }) === null, 'chapter 2 needs a home too');

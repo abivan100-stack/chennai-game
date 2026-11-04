@@ -39,7 +39,7 @@ export const CHAPTERS: Chapter[] = [
     n: 1,
     title: "Chithappa's Auto",
     ta: 'சித்தப்பாவின் ஆட்டோ',
-    blurb: "Chithappa left you his old auto, and his ₹15,000 kadan to Kandasamy. ₹500 a day, or the auto goes.",
+    blurb: "Chithappa left you his old auto, and his ₹5,000 kadan to Kandasamy. ₹500 a day, or the auto goes.",
     goals: [
       { text: 'Pay off the kadan to Kandasamy', done: (s) => s.loan <= 0, progress: (s) => `${rupees(s.loan)} left` },
       { text: 'Give your first 10 rides', done: (s) => s.rides >= 10, progress: (s) => `${Math.min(s.rides, 10)}/10` },
@@ -52,9 +52,9 @@ export const CHAPTERS: Chapter[] = [
     ta: 'சொந்தக் கால்',
     blurb: 'The auto is yours now, the RC book in your pocket. Every rupee you earn is yours. Time to stand on your own feet.',
     goals: [
-      { text: 'Save ₹50,000 in the bank', done: (s) => s.savings >= 50000, progress: (s) => `${rupees(s.savings)} / ₹50,000` },
+      { text: 'Save ₹10,000 in the bank', done: (s) => s.savings >= 10000, progress: (s) => `${rupees(s.savings)} / ₹10,000` },
       { text: 'Buy your own home', done: (s) => s.homesBought > 0 },
-      { text: 'Give 100 rides', done: (s) => s.rides >= 100, progress: (s) => `${Math.min(s.rides, 100)}/100` },
+      { text: 'Give 25 rides', done: (s) => s.rides >= 25, progress: (s) => `${Math.min(s.rides, 25)}/25` },
       { text: 'Story missions (Phone > Orders / messages)', done: (s) => s.storyRides >= STORY_ORDER.length, progress: (s) => `${Math.min(s.storyRides, STORY_ORDER.length)}/${STORY_ORDER.length}` },
     ],
     needed: [0, 1],

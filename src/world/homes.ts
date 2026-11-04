@@ -19,9 +19,9 @@ import { HOME_LOTS } from './layout';
 /** Order matches layout.HOME_LOTS. price 0 = the rented house you start in. */
 export const HOMES: { name: string; area: string; price: number; wall: number }[] = [
   { name: 'Your rented house', area: 'Mandaveli', price: 0, wall: 0xf3d9a4 },
-  { name: 'House for sale', area: 'R.A. Puram', price: 150000, wall: 0xcfe3d0 },
-  { name: 'House for sale', area: 'R.A. Puram', price: 180000, wall: 0xf2c9c1 },
-  { name: 'House for sale', area: 'Alwarpet', price: 250000, wall: 0xd6e0f0 },
+  { name: 'House for sale', area: 'R.A. Puram', price: 30000, wall: 0xcfe3d0 },
+  { name: 'House for sale', area: 'R.A. Puram', price: 40000, wall: 0xf2c9c1 },
+  { name: 'House for sale', area: 'Alwarpet', price: 60000, wall: 0xd6e0f0 },
 ];
 
 const C = (hex: number) => new THREE.Color(hex);

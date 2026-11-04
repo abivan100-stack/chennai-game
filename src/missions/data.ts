@@ -212,9 +212,9 @@ export const LENDER = 'Kandasamy (kadan)';
 export const MSG_WELCOME_BACK = 'Thirumba vandhutta thambi! Auto, kaasu, kadan ellam appadiye irukku.';
 export const MSG_FINE_ON_LOAN = 'Fine kattaradhukku un kitta kaasu illa. ₹{owed} naan kattitten, un kadan-la serthutten. Ippo total kadan ₹{loan}.';
 export const MSG_WELCOME =
-  'Thambi, en auto ippo unnodadhu. Kandasamy kitta ₹15,000 kadan irukku. Daily ₹500 kattu, illana auto-va eduthuttu poiduvaan. Nalla ottu, nalla per vaangu!';
+  'Thambi, en auto ippo unnodadhu. Kandasamy kitta ₹5,000 kadan irukku. Daily ₹500 kattu, illana auto-va eduthuttu poiduvaan. Nalla ottu, nalla per vaangu!';
 export const MSG_HOME_HINT = 'Un veedu Mandaveli-la irukku (map-la 🏠 My house). Phone > Map > 🏠 Home - vazhi kaattum. Daily bed-la thoonganum (E), illana mayangi vizhuva!';
-export const MSG_LENDER_HELLO = 'Naan dhaan Kandasamy. Un chithappa auto-ku ₹15,000 baaki. Daily ₹500 — marakkaadha!';
+export const MSG_LENDER_HELLO = 'Naan dhaan Kandasamy. Un chithappa auto-ku ₹5,000 baaki. Daily ₹500 — marakkaadha!';
 export const MSG_MISSED = ['Dei! Nethu kattala. Inniku double-aa kattu!', 'Rendu naal aachu kattala. Ippadiye pona auto en kitta dhaan!', 'Kadaisi warning thambi. Naalaiku auto-va eduthuduven!'];
 /** {cost} */
 export const MSG_SEIZED = 'Moonu naal kattala. Auto-va eduthuttu poitten. ₹{cost} kattu, thirumba tharen. (Phone > Wallet)';

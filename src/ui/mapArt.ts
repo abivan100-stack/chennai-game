@@ -358,7 +358,7 @@ export function drawTownMap(data: MapData): TownMap {
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
     const h = HOMES[i];
     // Your rented house stands out on every map (and the phone's Home chip routes you there).
-    if (h.price) poi(`${h.name} (₹${(h.price / 100000).toFixed(1)} lakh)`, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#558b2f', '⌂', 'home', 2);
+    if (h.price) poi(`${h.name} (₹${h.price.toLocaleString('en-IN')})`, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#558b2f', '⌂', 'home', 2);
     else poi(`My house (${h.area})`, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#d84315', '🏠', 'home', 1);
   });
   HOTEL_LOTS().forEach((lot, i) => {

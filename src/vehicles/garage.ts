@@ -6,11 +6,11 @@
 export type UpgradeId = 'cng' | 'music' | 'meter' | 'seats' | 'sticker';
 
 export const UPGRADES: { id: UpgradeId; name: string; price: number; note: string }[] = [
-  { id: 'cng', name: 'CNG kit', price: 4000, note: 'fuel 40% cheaper' },
-  { id: 'music', name: 'Music system', price: 2500, note: 'fares +10% (passengers love it)' },
-  { id: 'meter', name: 'Digital fare meter', price: 1200, note: 'fares +10% (no haggling)' },
-  { id: 'seats', name: 'Soft seat covers', price: 800, note: 'passengers mind bumps less' },
-  { id: 'sticker', name: '"Amma Appa Aasirvadham" sticker', price: 300, note: 'every Chennai auto needs one' },
+  { id: 'cng', name: 'CNG kit', price: 1500, note: 'fuel 40% cheaper' },
+  { id: 'music', name: 'Music system', price: 1000, note: 'fares +10% (passengers love it)' },
+  { id: 'meter', name: 'Digital fare meter', price: 600, note: 'fares +10% (no haggling)' },
+  { id: 'seats', name: 'Soft seat covers', price: 400, note: 'passengers mind bumps less' },
+  { id: 'sticker', name: '"Amma Appa Aasirvadham" sticker', price: 150, note: 'every Chennai auto needs one' },
 ];
 
 /** Paint jobs for the auto (body colour); yellow is how Chithappa kept it. */
@@ -31,9 +31,9 @@ export const bumpDecel = (has: readonly string[]) => (has.includes('seats') ? 5 
 
 /** The dealer's stock: each item can be bought once. kind = traffic vehicle kind. */
 export const DEALER_STOCK: { id: string; kind: 'scooter' | 'bike' | 'van' | 'taxi'; name: string; colour: number; price: number }[] = [
-  { id: 'scooter', kind: 'scooter', name: 'Scooter (2016, one owner)', colour: 0x90caf9, price: 18000 },
-  { id: 'bike', kind: 'bike', name: 'Motorbike (150 cc)', colour: 0x212121, price: 25000 },
-  { id: 'van', kind: 'van', name: 'Omni-style van', colour: 0xfafafa, price: 55000 },
-  { id: 'taxi', kind: 'taxi', name: 'Ambassador-style taxi', colour: 0xf4f1e6, price: 85000 },
+  { id: 'scooter', kind: 'scooter', name: 'Scooter (2016, one owner)', colour: 0x90caf9, price: 6000 },
+  { id: 'bike', kind: 'bike', name: 'Motorbike (150 cc)', colour: 0x212121, price: 8000 },
+  { id: 'van', kind: 'van', name: 'Omni-style van', colour: 0xfafafa, price: 15000 },
+  { id: 'taxi', kind: 'taxi', name: 'Ambassador-style taxi', colour: 0xf4f1e6, price: 25000 },
 ];
 export const DELIVER_HOME = 150; // ₹ to have an owned vehicle brought to your house
