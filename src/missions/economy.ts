@@ -29,6 +29,15 @@ export class Economy {
     this.rides++;
   }
 
+  /** Buy something: cash first, the rest from the bank. False (nothing paid) if both together fall short. */
+  spend(amount: number) {
+    if (this.cash + this.savings < amount) return false;
+    const fromCash = Math.min(this.cash, amount);
+    this.cash -= fromCash;
+    this.savings -= amount - fromCash;
+    return true;
+  }
+
   /** Pay towards the loan; limited by cash and what's owed. Returns the amount actually paid. */
   pay(amount: number) {
     const paid = Math.max(0, Math.min(amount, this.cash, this.loan));

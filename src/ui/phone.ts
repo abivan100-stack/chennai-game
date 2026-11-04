@@ -564,7 +564,7 @@ export class Phone {
     if (!g.list.length) list.append(h('p', { class: 'muted' }, 'No other vehicles yet. Mylai Used Vehicles on R.K. Mutt Road sells second-hand scooters, bikes, vans and taxis.'));
     g.list.forEach((v, i) => {
       const b = h('button', { class: 'phone-btn' }, `Bring it home (${rupees(g.deliverPrice)})`);
-      if (v.inUse || this.deps.economy.cash < g.deliverPrice) b.setAttribute('disabled', '');
+      if (v.inUse || this.deps.economy.cash + this.deps.economy.savings < g.deliverPrice) b.setAttribute('disabled', '');
       b.onclick = () => {
         this.deps.deliver(i);
         this.render();

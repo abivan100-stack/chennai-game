@@ -543,8 +543,7 @@ async function main() {
     }),
     deliver: (i) => {
       const m = mine[i];
-      if (!m || stolen === m.veh || economy.cash < DELIVER_HOME) return;
-      economy.cash -= DELIVER_HOME;
+      if (!m || stolen === m.veh || !economy.spend(DELIVER_HOME)) return;
       const p = homeSpot(i);
       traffic.place(m.veh, p.x, p.z, p.heading);
       showMoney();
@@ -943,11 +942,8 @@ async function main() {
     const myBed = onFootFree ? homes.homes.findIndex((h, i) => owned.has(i) && nearPt(h.bed, 1.4)) : -1;
     if (forSale >= 0 && input.wasPressed('KeyE')) {
       const h = homes.homes[forSale];
-      if (economy.cash + economy.savings < h.price) hud.say('Owner', HOME_LINES.cantAfford.replace('{price}', h.price.toLocaleString('en-IN')));
+      if (!economy.spend(h.price)) hud.say('Owner', HOME_LINES.cantAfford.replace('{price}', h.price.toLocaleString('en-IN')));
       else {
-        const fromCash = Math.min(economy.cash, h.price);
-        economy.cash -= fromCash;
-        economy.savings -= h.price - fromCash;
         owned.add(forSale);
         h.setOwned(true);
         showMoney();
@@ -1026,11 +1022,8 @@ async function main() {
     const sale = onFootFree ? dealerStock.find((f) => f.veh?.locked && Math.hypot(f.veh.currPos.x - player.position.x, f.veh.currPos.z - player.position.z) < 3.4) ?? null : null;
     if (sale && sale.veh && input.wasPressed('KeyE')) {
       const { s, veh } = sale;
-      if (economy.cash + economy.savings < s.price) hud.say(DEALER, GARAGE_LINES.cantAfford.replace('{price}', s.price.toLocaleString('en-IN')));
+      if (!economy.spend(s.price)) hud.say(DEALER, GARAGE_LINES.cantAfford.replace('{price}', s.price.toLocaleString('en-IN')));
       else {
-        const fromCash = Math.min(economy.cash, s.price);
-        economy.cash -= fromCash;
-        economy.savings -= s.price - fromCash;
         veh.locked = false;
         mine.push({ stock: s.id, veh });
         sale.veh = null;
