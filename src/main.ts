@@ -76,7 +76,7 @@ import { istTime } from './world/solar';
 import { nextTurn, route, routeLength, type Pt } from './missions/route';
 import { Police } from './combat/police';
 import { Melee, type Target } from './combat/melee';
-import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
+import { ESCAPE_DIST, KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
 import { PARCEL_SPOT, PASSENGER_SEAT, RIDER_POSE, SPEC, VEHICLE_NAMES, type Vehicle } from './vehicles/traffic';
 import type { Carrier } from './missions/jobs';
@@ -1465,7 +1465,10 @@ async function main() {
       blocking: player.blocking,
     });
     if (pev.arresting) hud.setPrompt('🚓 Kai-ya thooku! Run, or be arrested');
-    wanted.update(dt, pev.seen);
+    // Getting away = putting distance between you and every police unit (not just ducking out of sight).
+    const me = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
+    const copsNear = police.blips().some((b) => Math.hypot(b.x - me.x, b.z - me.z) < ESCAPE_DIST);
+    wanted.update(dt, copsNear);
     if (pev.officerHit) wanted.report('assaultPolice');
     if (stolen && wanted.level === 1) {
       stolenFor += dt;

@@ -9,7 +9,9 @@
 export type Crime = 'theft' | 'keepStolen' | 'assault' | 'assaultPolice';
 
 export const MAX_STARS = 3;
-export const LOSE_SECONDS = 10; // per star, out of sight once they've found you: 3 stars gone in ~30 s
+export const LOSE_SECONDS = 10; // per star, kept ESCAPE_DIST away once they've found you: 3 stars gone in ~30 s
+/** Further than this (m) from every police jeep / officer counts as getting away (main.ts judges it). */
+export const ESCAPE_DIST = 70;
 /** The police haven't found you yet: they keep looking this long before giving up. */
 export const SEARCH_SECONDS = 45;
 /** Driving a stolen vehicle this long after the warning escalates to 2 stars. */
@@ -48,7 +50,7 @@ export class Wanted {
     return this.level;
   }
 
-  /** seen: any police officer or car has eyes on the player this frame. */
+  /** seen: police are close (within ESCAPE_DIST) or have eyes on the player this frame. */
   update(dt: number, seen: boolean) {
     if (this.level === 0) return;
     if (seen) this.spotted = true;
