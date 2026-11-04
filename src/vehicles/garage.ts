@@ -30,10 +30,12 @@ export const fareFactor = (has: readonly string[]) => 1 + (has.includes('music')
 export const bumpDecel = (has: readonly string[]) => (has.includes('seats') ? 5 : 3.5);
 
 /** The dealer's stock: each item can be bought once. kind = traffic vehicle kind. */
-export const DEALER_STOCK: { id: string; kind: 'scooter' | 'bike' | 'van' | 'taxi'; name: string; colour: number; price: number }[] = [
+export const DEALER_STOCK: { id: string; kind: 'scooter' | 'bike' | 'van' | 'taxi' | 'hatch' | 'suv'; name: string; colour: number; price: number }[] = [
   { id: 'scooter', kind: 'scooter', name: 'Scooter (2016, one owner)', colour: 0x90caf9, price: 6000 },
-  { id: 'bike', kind: 'bike', name: 'Motorbike (150 cc)', colour: 0x212121, price: 8000 },
-  { id: 'van', kind: 'van', name: 'Omni-style van', colour: 0xfafafa, price: 15000 },
-  { id: 'taxi', kind: 'taxi', name: 'Ambassador-style taxi', colour: 0xf4f1e6, price: 25000 },
+  { id: 'bike', kind: 'bike', name: 'Motorbike (125 cc commuter)', colour: 0x212121, price: 8000 },
+  { id: 'hatch', kind: 'hatch', name: 'Hatchback (petrol, 2015)', colour: 0xc62828, price: 14000 },
+  { id: 'van', kind: 'van', name: 'Mini van (7 seats)', colour: 0xfafafa, price: 15000 },
+  { id: 'taxi', kind: 'taxi', name: 'Call taxi MPV (yellow board)', colour: 0xf5f5f5, price: 25000 },
+  { id: 'suv', kind: 'suv', name: 'Compact SUV (diesel)', colour: 0x37474f, price: 32000 },
 ];
 export const DELIVER_HOME = 150; // ₹ to have an owned vehicle brought to your house

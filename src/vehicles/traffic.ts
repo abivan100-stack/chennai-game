@@ -2,10 +2,11 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Animator } from '../characters/animator';
+import { pair, pairAt, poseRider, type RiderPose } from '../characters/rider';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { RIVER, block, blocks, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
-import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel, suvModel, hatchModel, tankerModel, deliveryModel } from './models';
+import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel, suvModel, hatchModel, tankerModel, deliveryModel, driverOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
 import { randomPlate } from './plates';
 
 const LANE = SETBACK - 2.5; // lane centre: 2.5 m left of the road centre line (we drive on the left)
@@ -30,7 +31,7 @@ const AMBIENT_FLEET: [Kind, number?][] = [
   ['auto'], ['auto'], ['auto'], ['shareauto'], ['shareauto'],
   ['hatch', 0xe53935], ['hatch', 0xf4f4f4], ['hatch', 0x1e88e5], ['hatch', 0x9e9e9e], ['hatch', 0xfdd835],
   ['suv', 0xf4f4f4], ['suv', 0x263238], ['suv', 0x8d6e63],
-  ['car', 0xb0bec5], ['car', 0x1a237e], ['taxi', 0xf4f1e6],
+  ['car', 0xb0bec5], ['car', 0x1a237e], ['taxi', 0xf5f5f5],
   ['scooter', 0x90caf9], ['scooter', 0xf48fb1], ['bike', 0x212121], ['bike', 0xb71c1c],
   ['delivery'], ['delivery'], ['bus'], ['bus'], ['tanker'], ['tempo', 0x43a047], ['van', 0xfafafa], ['lorry', 0xf57c00],
 ];
@@ -39,21 +40,21 @@ const SIGNAL_LOOK = 25; // m: start slowing for a red this far before the stop l
 export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry' | 'suv' | 'hatch' | 'shareauto' | 'tanker' | 'delivery';
 /** What the prompt calls each kind ("F - Steal the ..."). */
 export const VEHICLE_NAMES: Record<Kind, string> = {
-  auto: 'auto', car: 'car', bus: 'bus', scooter: 'scooter', bike: 'bike', taxi: 'Ambassador taxi', van: 'van', tempo: 'mini truck', lorry: 'lorry',
+  auto: 'auto', car: 'car', bus: 'bus', scooter: 'scooter', bike: 'bike', taxi: 'call taxi', van: 'van', tempo: 'mini truck', lorry: 'lorry',
   suv: 'SUV', hatch: 'hatchback', shareauto: 'share auto', tanker: 'water tanker', delivery: 'delivery scooter',
 };
 export const SPEC: Record<Kind, { speed: number; length: number; width: number; height: number; mass: number }> = {
   auto: { speed: 10, length: 2.6, width: 1.3, height: 1.9, mass: 350 },
-  car: { speed: 13, length: 3.8, width: 1.65, height: 1.5, mass: 900 },
+  car: { speed: 13, length: 4.0, width: 1.7, height: 1.5, mass: 950 },
   bus: { speed: 9, length: 10, width: 2.5, height: 3.1, mass: 8000 },
   scooter: { speed: 11, length: 1.8, width: 0.7, height: 1.2, mass: 150 },
   bike: { speed: 12, length: 2.0, width: 0.75, height: 1.2, mass: 180 },
-  taxi: { speed: 12, length: 4.4, width: 1.75, height: 1.6, mass: 1100 },
-  van: { speed: 11, length: 3.5, width: 1.5, height: 1.75, mass: 800 },
+  taxi: { speed: 12, length: 4.4, width: 1.74, height: 1.7, mass: 1200 },
+  van: { speed: 11, length: 3.7, width: 1.5, height: 1.9, mass: 900 },
   tempo: { speed: 10, length: 4.0, width: 1.6, height: 1.8, mass: 1200 },
   lorry: { speed: 8, length: 7.5, width: 2.45, height: 3.0, mass: 9000 },
-  suv: { speed: 13, length: 4.6, width: 1.85, height: 1.9, mass: 1700 },
-  hatch: { speed: 12, length: 3.5, width: 1.6, height: 1.6, mass: 850 },
+  suv: { speed: 13, length: 4.3, width: 1.8, height: 1.7, mass: 1300 },
+  hatch: { speed: 12, length: 3.85, width: 1.7, height: 1.5, mass: 900 },
   shareauto: { speed: 9, length: 3.6, width: 1.55, height: 2.2, mass: 600 },
   tanker: { speed: 7.5, length: 7.5, width: 2.4, height: 3.3, mass: 11000 },
   delivery: { speed: 11, length: 1.8, width: 0.7, height: 1.6, mass: 160 },
@@ -83,19 +84,45 @@ const HANDLING: Record<Kind, { top: number; accel: number; turn: number }> = {
 /** Driver's hip position per vehicle (model space). India drives right-hand: driver on the right (-x). */
 export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
   auto: SEAT,
-  car: new THREE.Vector3(-0.38, 0.78, 0.0),
+  car: driverOf(SEDAN),
   bus: new THREE.Vector3(-0.8, 1.45, 4.0),
-  scooter: new THREE.Vector3(0, 0.9, -0.2),
-  bike: new THREE.Vector3(0, 0.98, -0.3),
-  taxi: new THREE.Vector3(-0.4, 0.82, 0.15),
+  scooter: new THREE.Vector3(0, 0.95, -0.3),
+  bike: new THREE.Vector3(0, 0.99, -0.18),
+  taxi: driverOf(MPV),
   van: new THREE.Vector3(-0.36, 0.88, 0.85),
   tempo: new THREE.Vector3(-0.36, 0.98, 1.1),
   lorry: new THREE.Vector3(-0.55, 1.75, 2.7),
-  suv: new THREE.Vector3(-0.4, 0.95, 0.3),
-  hatch: new THREE.Vector3(-0.36, 0.78, 0.1),
+  suv: driverOf(SUV),
+  hatch: driverOf(HATCH),
   shareauto: new THREE.Vector3(SEAT.x * 1.2, SEAT.y * 1.15, SEAT.z * 1.45),
   tanker: new THREE.Vector3(-0.55, 1.75, 2.7),
-  delivery: new THREE.Vector3(0, 0.9, -0.2),
+  delivery: new THREE.Vector3(0, 0.95, -0.3),
+};
+/** Hands on a steering wheel centred at `wheel`, feet forward on the pedals. */
+const carPose = (hips: THREE.Vector3, wheel: THREE.Vector3): RiderPose => ({
+  hips,
+  hands: pairAt(wheel.x, 0.16, wheel.y + 0.03, wheel.z - 0.07),
+  feet: pairAt(hips.x, 0.13, Math.max(hips.y - 0.42, 0.3), hips.z + 0.7),
+  lean: 0,
+});
+/** Where everything goes when someone rides each kind (model space; see characters/rider.ts). */
+export const RIDER_POSE: Record<Kind, RiderPose> = {
+  auto: { hips: SEAT, hands: pair(0.27, 1.25, 0.54), feet: pair(0.14, 0.55, 0.62), lean: 0.05 },
+  shareauto: { hips: DRIVER_SEAT.shareauto, hands: pair(0.32, 1.44, 0.8), feet: pair(0.16, 0.63, 0.9), lean: 0.05 },
+  // Bike: knees in by the tank, feet on the pegs, slight lean to the bars.
+  bike: { hips: DRIVER_SEAT.bike, hands: pair(0.34, 1.08, 0.33), feet: pair(0.2, 0.44, -0.06), lean: 0.32 },
+  // Scooter: upright, feet flat on the floorboard.
+  scooter: { hips: DRIVER_SEAT.scooter, hands: pair(0.3, 1.11, 0.41), feet: pair(0.12, 0.43, 0.1), lean: 0.06 },
+  delivery: { hips: DRIVER_SEAT.delivery, hands: pair(0.3, 1.11, 0.41), feet: pair(0.12, 0.43, 0.1), lean: 0.06 },
+  car: carPose(DRIVER_SEAT.car, wheelOf(SEDAN)),
+  hatch: carPose(DRIVER_SEAT.hatch, wheelOf(HATCH)),
+  suv: carPose(DRIVER_SEAT.suv, wheelOf(SUV)),
+  taxi: carPose(DRIVER_SEAT.taxi, wheelOf(MPV)),
+  van: carPose(DRIVER_SEAT.van, new THREE.Vector3(-0.36, 1.25, 1.32)),
+  bus: carPose(DRIVER_SEAT.bus, DRIVER_SEAT.bus.clone().add(new THREE.Vector3(0, 0.42, 0.55))),
+  tempo: carPose(DRIVER_SEAT.tempo, DRIVER_SEAT.tempo.clone().add(new THREE.Vector3(0, 0.42, 0.5))),
+  lorry: carPose(DRIVER_SEAT.lorry, DRIVER_SEAT.lorry.clone().add(new THREE.Vector3(0, 0.42, 0.55))),
+  tanker: carPose(DRIVER_SEAT.tanker, DRIVER_SEAT.tanker.clone().add(new THREE.Vector3(0, 0.42, 0.55))),
 };
 const FLEE_SECONDS = 6;
 const FLEE_SPEED = 3.5;
@@ -252,7 +279,7 @@ export class Traffic {
       ['car', 3, 3, 0.1, 0xf4f4f4],
       ['scooter', 2, 2, 0.85, 0xd32f2f],
       ['bike', 3, 2, 0.45, 0x1a1a1a],
-      ['taxi', 1, 2, 0.55, 0xf4f1e6],
+      ['taxi', 1, 2, 0.55, 0xf5f5f5],
       ['van', 2, 1, 0.1, 0xfafafa],
       ['tempo', 3, 3, 0.6, 0x1e88e5],
       ['lorry', 2, 3, 0.85, 0xf57c00],
@@ -362,7 +389,7 @@ export class Traffic {
       lights = m.lights;
     }
     this.scene.add(group);
-    const driver = withDriver ? seatDriver(this.driverModels[Math.floor(Math.random() * this.driverModels.length)], group, DRIVER_SEAT[kind]) : null;
+    const driver = withDriver ? seatDriver(this.driverModels[Math.floor(Math.random() * this.driverModels.length)], group, RIDER_POSE[kind]) : null;
     const sp = SPEC[kind];
     // Dynamic body with real mass, kept upright: it can be shoved; it drives by velocity control.
     const s0 = start * path.length;
@@ -735,7 +762,7 @@ const DRIVER_LINES = ['Dei! En vandi! Thirudan, thirudan!', 'Aiyo! Police-a koop
  * Sit an NPC in the driver's seat in the (retargeted) Driving pose. The pose is set once and the
  * mixer never updated again, so a seated driver costs almost nothing per frame.
  */
-function seatDriver(asset: CharacterAsset, parent: THREE.Group, hips: THREE.Vector3) {
+function seatDriver(asset: CharacterAsset, parent: THREE.Group, pose: RiderPose) {
   const body = cloneSkinned(asset.scene);
   const root = new THREE.Group();
   root.add(body);
@@ -744,9 +771,7 @@ function seatDriver(asset: CharacterAsset, parent: THREE.Group, hips: THREE.Vect
   const anim = new Animator(body, asset.clips);
   anim.play('drive', { fade: 0 });
   anim.update(0.01);
-  parent.updateMatrixWorld(true);
-  const local = parent.worldToLocal(body.getObjectByName('Hips')!.getWorldPosition(new THREE.Vector3()));
-  root.position.add(hips.clone().sub(local));
+  poseRider(body, root, parent, pose); // hands on the bars / wheel, feet on the pegs / pedals
   body.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) o.castShadow = false;
   });

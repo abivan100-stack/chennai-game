@@ -31,14 +31,16 @@ export function createDealer(scene: THREE.Scene, world: RAPIER.World) {
   // Forecourt: paving with painted bays, a low kerb at the sides.
   box(f, w, 0.05, d, 0, 0, d / 2, C(0x9e9e9e), false);
   const spots: { x: number; z: number; heading: number }[] = [];
+  const gap = (w - 8) / (DEALER_STOCK.length - 1);
+  const half = Math.min(2.6, gap / 2); // neighbouring bays share their painted line
   DEALER_STOCK.forEach((_, i) => {
-    const u = -w / 2 + 4 + i * ((w - 8) / (DEALER_STOCK.length - 1));
-    for (const s of [-1, 1]) box(f, 0.12, 0.02, 5.5, u + s * 2.6, 0.05, 6, C(0xffffff), false);
+    const u = -w / 2 + 4 + i * gap;
+    for (const s of [-1, 1]) box(f, 0.12, 0.02, 5.5, u + s * half, 0.05, 6, C(0xffffff), false);
     const p = f.at(u, 6);
     spots.push({ x: p.x, z: p.z, heading });
     // Price board on a stand, just in front of the bay (to one side, so you can drive out).
-    box(f, 0.08, 1.2, 0.08, u + 2.0, 0, 2.6, C(0x424242), false);
-    board(f, i + 1, u + 2.0, 1.2, 2.55, 1.7, 0.6);
+    box(f, 0.08, 1.2, 0.08, u + half - 0.6, 0, 2.6, C(0x424242), false);
+    board(f, i + 1, u + half - 0.6, 1.2, 2.55, 1.4, 0.55);
   });
   for (const s of [-1, 1]) box(f, 0.25, 0.3, d, s * (w / 2 - 0.12), 0, d / 2, C(0xf2c200));
 

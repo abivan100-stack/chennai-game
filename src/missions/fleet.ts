@@ -19,9 +19,9 @@ export const FLEET_AUTO_PRICE = 8000;
 export const DRIVER_SHARE = 0.5;
 /** A day's takings per trait, and the chance of each kind of trouble. */
 export const TRAITS: Record<Trait, { takings: number; noShow: number; fine: number; breakdown: number; label: string }> = {
-  honest: { takings: 700, noShow: 0.05, fine: 0.02, breakdown: 0.05, label: 'Honest: steady, careful' },
-  fast: { takings: 1000, noShow: 0.05, fine: 0.2, breakdown: 0.12, label: 'Fast: earns more, collects fines + dents' },
-  lazy: { takings: 450, noShow: 0.25, fine: 0.05, breakdown: 0.05, label: 'Lazy: cheap to keep, often missing' },
+  honest: { takings: 1800, noShow: 0.05, fine: 0.02, breakdown: 0.05, label: 'Honest: steady, careful' },
+  fast: { takings: 2500, noShow: 0.05, fine: 0.2, breakdown: 0.12, label: 'Fast: earns more, collects fines + dents' },
+  lazy: { takings: 1100, noShow: 0.25, fine: 0.05, breakdown: 0.05, label: 'Lazy: cheap to keep, often missing' },
 };
 export const FINE = 300;
 export const REPAIR = 800;
