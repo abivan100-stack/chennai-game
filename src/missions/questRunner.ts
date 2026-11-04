@@ -4,6 +4,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { Animator } from '../characters/animator';
 import { CHARACTER_HEIGHT, NPC_MODELS, type CharacterAsset, type NpcModelId } from '../characters/catalog';
 import { varyLook } from '../npcs/look';
+import { carModel } from '../vehicles/models';
 import { X_LINES, Z_LINES, roadHalf } from '../world/layout';
 import { Marker } from './jobs';
 import type { Person, Pt, Quest, Step } from './quests';
@@ -24,6 +25,9 @@ const ARRIVE_RADIUS = 6;
 const FOLLOW_GAP = 1.6;
 const CRY_RADIUS = 14;
 const LINGER = 8; // s the people stay after the quest ends
+const SPOT_AFTER = 3; // s too close behind the car you're tailing before they notice
+const LOSE_AFTER = 8; // s too far behind before it's gone
+const LANE = 2.6; // m left of the road centre: the tailed car keeps to the left lane
 const RAY_FLAGS = RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC | RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC | RAPIER.QueryFilterFlags.EXCLUDE_SENSORS;
 
 interface Actor {
@@ -64,6 +68,10 @@ export class QuestRunner {
   private readonly assets: Map<NpcModelId, CharacterAsset>;
   private readonly box: THREE.Mesh;
   private readonly garland: THREE.Group;
+  private readonly bag: THREE.Mesh;
+  /** The car being tailed (built for the tail step only). */
+  private car: THREE.Group | null = null;
+  private near = 0;
   // Step state.
   private path: Pt[] = [];
   private pathI = 0;
@@ -72,6 +80,7 @@ export class QuestRunner {
   private cried = false;
   private warned = false;
   private caught = false;
+  private gap = -1; // m to the tailed car (HUD)
   private readonly ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
   constructor(scene: THREE.Scene, world: RAPIER.World, assets: Map<NpcModelId, CharacterAsset>) {
@@ -89,8 +98,10 @@ export class QuestRunner {
       m.position.y = i * 0.09;
       this.garland.add(m);
     });
-    this.box.visible = this.garland.visible = false;
-    scene.add(this.box, this.garland);
+    this.bag = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.16), new THREE.MeshStandardMaterial({ color: 0x1c1410, roughness: 0.45 }));
+    this.bag.castShadow = true;
+    this.box.visible = this.garland.visible = this.bag.visible = false;
+    scene.add(this.box, this.garland, this.bag);
   }
 
   get active() {
@@ -106,6 +117,7 @@ export class QuestRunner {
     const s = this.cur;
     if (!s) return null;
     if (s.kind === 'goto') return { ...s.at, kind: 'pickup' };
+    if (s.kind === 'tail') return this.car ? { x: this.car.position.x, z: this.car.position.z, kind: 'pickup' } : null;
     if (s.kind === 'talk' || s.kind === 'chase') {
       const a = this.people.get(s.who);
       return a ? { x: a.root.position.x, z: a.root.position.z, kind: 'pickup' } : null;
@@ -120,7 +132,8 @@ export class QuestRunner {
     if (!s || !this.quest) return '';
     const clock = s.kind === 'carry' ? ` ⏱ ${Math.max(0, Math.ceil(s.limit - this.t))}s` : '';
     const knocks = s.kind === 'carry' && s.maxJolts !== undefined ? ` · knocks ${this.jolts}/${s.maxJolts}` : '';
-    return `📖 ${this.quest.title}: ${s.text}${clock}${knocks}`;
+    const gap = s.kind === 'tail' && this.gap >= 0 ? ` · ${Math.round(this.gap)} m` : '';
+    return `📖 ${this.quest.title}: ${s.text}${clock}${knocks}${gap}`;
   }
 
   start(q: Quest) {
@@ -245,8 +258,41 @@ export class QuestRunner {
         if (this.far > s.loseAfter || this.pathI >= this.path.length) this.finish(false, s.escaped);
         return;
       }
+      case 'tail': {
+        const car = this.car!;
+        if (!ctx.vehicle) {
+          this.prompt = 'Get in a vehicle to follow the car';
+          this.gap = -1;
+          return; // the car waits at the kerb until you're driving
+        }
+        const d = this.dist(ctx.vehicle, car.position);
+        this.gap = d;
+        this.drive(car, s.speed, dt);
+        const rider = s.rider ? this.people.get(s.rider)!.person.name : '';
+        // Too close: they notice in the mirror. Too far: gone.
+        this.near = d < s.near ? this.near + dt : 0;
+        this.far = d > s.lose ? this.far + dt : 0;
+        if (this.near > 0 && !this.warned) {
+          this.warned = true;
+          this.onSay(rider, s.warnNear);
+        }
+        if (this.far > 0 && !this.cried) {
+          this.cried = true;
+          this.onSay(rider, s.warnFar);
+        }
+        if (this.near === 0 && this.far === 0) this.warned = this.cried = false;
+        if (this.near > SPOT_AFTER) return this.finish(false, s.spotted);
+        if (this.far > LOSE_AFTER) return this.finish(false, s.lost);
+        if (this.pathI >= this.path.length) {
+          if (d > s.lose) return this.finish(false, s.lost);
+          if (s.rider) this.showRider(s.rider, ctx.vehicle);
+          this.onSay(rider, s.arrived);
+          this.next();
+        }
+        return;
+      }
       case 'carry': {
-        const item = s.item === 'box' ? this.box : this.garland;
+        const item = s.item === 'box' ? this.box : s.item === 'bag' ? this.bag : this.garland;
         item.visible = true;
         if (ctx.vehicle) item.position.set(ctx.vehicle.x, ctx.vehicle.y + 1.25, ctx.vehicle.z);
         else item.position.set(ctx.hero.x + Math.sin(ctx.heroYaw) * 0.38, ctx.hero.y + 1.05, ctx.hero.z + Math.cos(ctx.heroYaw) * 0.38);
@@ -273,9 +319,24 @@ export class QuestRunner {
     this.cried = false;
     this.warned = false;
     this.caught = false;
-    this.box.visible = this.garland.visible = false;
+    this.near = 0;
+    this.gap = -1;
+    this.box.visible = this.garland.visible = this.bag.visible = false;
+    this.dropCar();
     const s = this.cur;
     if (!s) return;
+    if (s.kind === 'tail') {
+      this.path = this.lanePath(route(s.from, s.to, X_LINES, Z_LINES));
+      this.pathI = 1;
+      this.car = new THREE.Group();
+      carModel(this.car, s.colour);
+      const [a, b] = this.path;
+      this.car.position.set(a.x, 0, a.z);
+      this.car.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+      this.scene.add(this.car);
+      // The rider gets into your vehicle.
+      if (s.rider) this.people.get(s.rider)!.root.visible = false;
+    }
     if (s.kind === 'search') {
       const spot = s.spots[Math.floor(Math.random() * s.spots.length)];
       this.spawn(s.who, this.quest!.people[s.who], spot);
@@ -311,7 +372,9 @@ export class QuestRunner {
     this.onSay(passed ? '✅' : '❌', line);
     this.quest = null;
     this.marker.hide();
-    this.box.visible = this.garland.visible = false;
+    this.box.visible = this.garland.visible = this.bag.visible = false;
+    this.dropCar();
+    for (const a of this.people.values()) a.root.visible = true;
     this.lingering = { actors: [...this.people.values()], t: LINGER };
     for (const a of this.people.values()) if (a.animator.currentName !== 'fall') a.animator.play('idle', { fade: 0.3 });
     this.people.clear();
@@ -322,6 +385,42 @@ export class QuestRunner {
     for (const a of this.people.values()) a.root.removeFromParent();
     this.people.clear();
     this.marker.hide();
+    this.dropCar();
+  }
+
+  private dropCar() {
+    if (!this.car) return;
+    this.car.removeFromParent();
+    this.car.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.car = null;
+  }
+
+  /** The tailed car drives along its path, slowing for turns. */
+  private drive(car: THREE.Group, speed: number, dt: number) {
+    if (this.pathI >= this.path.length) return;
+    const goal = this.path[this.pathI];
+    const p = car.position;
+    const dx = goal.x - p.x;
+    const dz = goal.z - p.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 1) {
+      this.pathI++;
+      return;
+    }
+    const yaw = Math.atan2(dx, dz);
+    const turn = Math.atan2(Math.sin(yaw - car.rotation.y), Math.cos(yaw - car.rotation.y));
+    car.rotation.y += turn * Math.min(1, dt * 4);
+    const v = speed * (d < 12 && this.pathI < this.path.length - 1 ? 0.55 : 1) * (Math.abs(turn) > 0.5 ? 0.5 : 1);
+    const step = Math.min(d, v * dt);
+    p.x += (dx / d) * step;
+    p.z += (dz / d) * step;
+  }
+
+  /** A quest person steps out beside your vehicle. */
+  private showRider(id: string, at: THREE.Vector3) {
+    const a = this.people.get(id)!;
+    a.root.visible = true;
+    a.root.position.set(at.x + 1.6, this.groundY(at.x + 1.6, at.y + 1.5, at.z), at.z);
   }
 
   // ---- people --------------------------------------------------------------------------------
@@ -409,13 +508,22 @@ export class QuestRunner {
 
   /** A road-centre route moved onto the pavement on the right of travel (runners keep off the traffic). */
   private pavementPath(pts: Pt[]): Pt[] {
+    return this.offsetPath(pts, (half) => half + 1.2);
+  }
+
+  /** A road-centre route moved into the left-hand lane (Indian traffic keeps left). */
+  private lanePath(pts: Pt[]): Pt[] {
+    return this.offsetPath(pts, (half) => -Math.min(LANE, half - 1.5));
+  }
+
+  /** Each segment shifted sideways by off(road half-width) to the right of travel (negative = left). */
+  private offsetPath(pts: Pt[], off: (half: number) => number): Pt[] {
     if (pts.length < 2) return pts;
     const segOff = (a: Pt, b: Pt) => {
       const dx = Math.sign(b.x - a.x);
       const dz = Math.sign(b.z - a.z);
       // Along x: the road is an east-west line z = a.z; along z: north-south x = a.x.
-      const half = Math.abs(dx) > Math.abs(dz) ? roadHalf('x', a.z) : roadHalf('z', a.x);
-      const o = half + 1.2;
+      const o = off(Math.abs(dx) > Math.abs(dz) ? roadHalf('x', a.z) : roadHalf('z', a.x));
       return { x: -dz * o, z: dx * o };
     };
     const out: Pt[] = [pts[0]];

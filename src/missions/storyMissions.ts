@@ -21,6 +21,8 @@ export interface StoryMission {
   maxBumps?: number;
   /** Most red lights you may jump. */
   maxReds?: number;
+  /** Game hours [from, to) when it's offered (to < from wraps past midnight); any time if absent. */
+  hours?: [number, number];
   /** Marigold garland on the auto for the ride. */
   garland?: boolean;
   reward: number;
@@ -96,6 +98,62 @@ export const STORY_MISSIONS: StoryMission[] = [
       fail: 'Late aayiduchu... sir ulla vidamaattaaru-nu nenaikkiren. Indha ₹{fare}.',
     },
   },
+  {
+    id: 'tourist',
+    title: 'Foreign Tourist',
+    passenger: 'Emma from Germany',
+    from: 'Lighthouse',
+    to: 'Kapaleeshwarar Temple',
+    via: 'San Thome Basilica',
+    viaAfter: 3,
+    maxBumps: 3,
+    reward: 1300,
+    lines: {
+      offer: '📖 A foreign tourist at the Lighthouse wants a heritage tour: Santhome Basilica, then Kapaleeshwarar Temple.',
+      pickup: 'Vanakkam! (did I say it right?) I want to see the old Chennai. Can you show me?',
+      ride: ['Emma: Is it always this... loud? I love it!', 'Emma: What is the white powder pattern in front of the houses? Kolam? Beautiful!', 'Emma: My guidebook says Mylapore is older than the city itself!'],
+      via: 'Emma: Oh, the Basilica first please! They say Saint Thomas is buried there. Can we stop a moment?',
+      viaDone: 'Emma: Wow. So white and calm inside. Now the big colourful temple!',
+      bump: ['Emma: Whoa! Careful, my camera!', 'Emma: Ha, this is better than a roller coaster... but slower please?'],
+      success: 'Emma: Danke! That gopuram with all the gods... unbelievable. ₹{reward}, and I will tell everyone about "Auto Anna"!',
+      fail: 'Emma: Bit of a bumpy tour... but thank you. ₹{fare}.',
+    },
+  },
+  {
+    id: 'match',
+    title: 'Match Night',
+    passenger: 'Karthik + Dinesh (cricket fans)',
+    from: 'Mylapore Tank bus stop',
+    to: 'Chepauk Stadium',
+    tight: 0.9,
+    hours: [16, 19.5],
+    reward: 1400,
+    lines: {
+      offer: '📖 Match night! Two cricket fans at the Mylapore Tank bus stop need to reach Chepauk before the toss!',
+      pickup: 'Anna, Chepauk! Toss 7 manikku! Ticket ₹3,000 kuduthu vaangirukom, miss panna koodadhu!',
+      ride: ['Karthik: Whistle podu! Whistle podu!', 'Dinesh: Dei, captain innaiku aaduvaara?', 'Karthik: Anna, stadium pakkam traffic jam aagum, munnaadiye poidunga!'],
+      success: 'Toss-ku munnaadi vandhaachu! Anna, indha ₹{reward}, namma team jeichaa innum tharom!',
+      fail: 'Toss mudinjiduchu... first over miss aayiduchu. Indha ₹{fare}.',
+    },
+  },
+  {
+    id: 'nurse',
+    title: 'Night Shift',
+    passenger: 'Sister Mercy',
+    from: 'Isabel Hospital',
+    to: 'Adyar signal',
+    hours: [22, 4],
+    maxBumps: 2,
+    reward: 900,
+    lines: {
+      offer: '📖 Midnight passenger: a nurse finishing her night shift at Isabel Hospital needs a ride home to Adyar.',
+      pickup: 'Thambi, Adyar pakkam... 14 mani neram duty. Mella ponga, konjam kann moodikiren.',
+      ride: ['Mercy: Indha time-la auto kedaikaradhe kashtam, nalla velai neenga vandheenga.', 'Mercy: Adyar bridge pakkam oru vellai saree amma nippaanga-nu solluvaanga... nambaadheenga, kadhai dhaan. (laughs)', 'Mercy: Innaiku moonu delivery, onnu twins!'],
+      bump: ['Mercy: Aiyo! Thookam pochu...', 'Mercy: Thambi, kuzhi paathu!'],
+      success: 'Mercy: Romba nandri thambi. Indha ₹{reward}, night duty-la neenga dhaan en auto ippo! (She saves your number.)',
+      fail: 'Mercy: Thookam varaama pochu... seri, indha ₹{fare}.',
+    },
+  },
 ];
 
 /** Did the ride pass? */
@@ -109,11 +167,21 @@ export function nextMission(done: readonly string[]) {
 }
 
 /** Chapter 2's story missions in the order they come up: auto rides and quests (missions/quests.ts) mixed. */
-export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 'film', 'flowers'];
+export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 'film', 'flowers', 'tourist', 'follow', 'match', 'nurse', 'lostbag'];
 
-/** The next story mission to hand out: a ride (phone order) or a quest (started straight away). */
-export function nextStory(done: readonly string[]): { ride: StoryMission } | { quest: Quest } | null {
-  const id = STORY_ORDER.find((i) => !done.includes(i));
+/** Is game hour `h` inside [from, to) (wrapping past midnight when to < from)? */
+export const inHours = (h: number, [a, b]: [number, number]) => (a <= b ? h >= a && h < b : h >= a || h < b);
+
+/**
+ * The next story mission to hand out: a ride (phone order) or a quest (started straight away).
+ * With `hour`, rides that only run at certain hours are skipped until their time comes.
+ */
+export function nextStory(done: readonly string[], hour?: number): { ride: StoryMission } | { quest: Quest } | null {
+  const fits = (i: string) => {
+    const h = STORY_MISSIONS.find((m) => m.id === i)?.hours;
+    return hour === undefined || !h || inHours(hour, h);
+  };
+  const id = STORY_ORDER.find((i) => !done.includes(i) && fits(i));
   if (!id) return null;
   const ride = STORY_MISSIONS.find((m) => m.id === id);
   if (ride) return { ride };

@@ -239,6 +239,16 @@ console.log('check: stops on pavements passed');
   const inside = (p: { x: number; z: number }) => solid.some((b) => p.x > b.x0 + 0.3 && p.x < b.x1 - 0.3 && p.z > b.z0 + 0.3 && p.z < b.z1 - 0.3);
   for (let i = 0; i < STORY_ORDER.length; i++) assert(nextStory(STORY_ORDER.slice(0, i)) !== null, `story mission "${STORY_ORDER[i]}" exists`);
   assert(nextStory(STORY_ORDER) === null, 'no story missions after the last');
+  // Timed rides wait for their hours: the nurse only at night (wrapping past midnight), others meanwhile.
+  const beforeNurse = STORY_ORDER.slice(0, STORY_ORDER.indexOf('nurse'));
+  const pick = (h: number) => {
+    const n = nextStory(beforeNurse, h);
+    return n && ('ride' in n ? n.ride.id : n.quest.id);
+  };
+  assert(pick(23) === 'nurse' && pick(2) === 'nurse' && pick(12) === 'lostbag', 'night ride only at night; the next mission comes meanwhile');
+  for (const q of QUESTS) {
+    for (const st of q.steps) if (st.kind === 'tail' && st.rider) assert(st.rider in q.people, `quest ${q.id}: tail rider ${st.rider}`);
+  }
   for (const q of QUESTS) {
     assert(STORY_ORDER.includes(q.id), `quest ${q.id} is in STORY_ORDER`);
     for (const st of q.steps) {

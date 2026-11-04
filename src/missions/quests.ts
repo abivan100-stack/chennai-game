@@ -31,7 +31,13 @@ export type Step =
   /** `who` runs off along the roads from where they stand to `to`: catch them (E close by on foot, or bump them with a vehicle). */
   | { kind: 'chase'; who: string; to: Pt; speed: number; text: string; caught: string; escaped: string; loseAfter: number; shout?: [string, string][] }
   /** Carry `item` to `to` within `limit` s; more than `maxJolts` hard knocks breaks it; onFoot = walking only. */
-  | { kind: 'carry'; item: 'box' | 'garland'; to: Pt; limit: number; maxJolts?: number; onFoot?: boolean; text: string; broken?: string; late: string };
+  | { kind: 'carry'; item: 'box' | 'garland' | 'bag'; to: Pt; limit: number; maxJolts?: number; onFoot?: boolean; text: string; broken?: string; late: string }
+  /**
+   * Follow a car from `from` to `to` along the roads in any vehicle: closer than `near` for
+   * SPOT_AFTER s and they spot you, further than `lose` for LOSE_AFTER s and you've lost them.
+   * `rider` (a quest person) is in your vehicle for the chase and steps out at the end.
+   */
+  | { kind: 'tail'; colour: number; from: Pt; to: Pt; speed: number; near: number; lose: number; rider?: string; text: string; spotted: string; lost: string; arrived: string; warnNear: string; warnFar: string };
 
 export interface Quest {
   id: string;
@@ -54,6 +60,9 @@ const fairGate = stop('Santhome beach fair');
 const market = stop('Mylapore vegetable market');
 const cinema = stop('Kamadhenu Cinemas');
 const flowers = stop('North Mada Street flower market');
+const luz = stop('Luz Corner');
+const elliots = stop("Elliot's Beach", 'kerb');
+const seshadri = stop('Alwarpet TTK Road');
 
 export const QUESTS: Quest[] = [
   {
@@ -144,5 +153,46 @@ export const QUESTS: Quest[] = [
     ],
     reward: 600,
     success: 'Mandapam: Maalai vandhaachu! Ponnu veettaar kitta irundhu ₹{reward}, kalyana saapadu-um saapdunga!',
+  },
+  {
+    id: 'follow',
+    title: 'Follow That Car!',
+    offer: '📖 A lady at Luz Corner wants you to follow a car. "En husband... office-nu solli enga poraar-nu paakanum!"',
+    people: {
+      rani: { name: 'Rani akka', look: 'woman', at: near(luz, 2, 0) },
+    },
+    steps: [
+      { kind: 'goto', at: luz, radius: 7, text: 'Go to Luz Corner' },
+      { kind: 'talk', who: 'rani', text: 'Talk to Rani akka (E)', line: 'Thambi! Andha silver car paathingala? En veetukaarar. Office-nu sonnaaru, aana office andha pakkam illa! Follow pannunga, aana avarukku theriya koodadhu!' },
+      {
+        kind: 'tail', colour: 0xb8bcc2, from: stop('Luz Corner', 'kerb'), to: elliots, speed: 9, near: 9, lose: 60, rider: 'rani',
+        text: "Follow the silver car in a vehicle: not too close, don't lose it!",
+        warnNear: 'Romba kitta poreenga! Avar mirror-la paathuduvaaru!',
+        warnFar: 'Kaanom! Seekiram, andha car poidum!',
+        spotted: 'Avar paathuttaaru! Car-a thirupi veetukku poraaru... ellaam waste.',
+        lost: 'Poyiduchu... enga ponaaru-nu theriyala.',
+        arrived: "Elliot's Beach-aa?! ... Oh. Cake, balloons... avar en birthday-ku surprise ready pannuraaru! (cries, laughs) Thambi, naan onnum paakala, seriyaa?",
+      },
+    ],
+    reward: 1200,
+    success: 'Rani: Indha ₹{reward}. Yaarkittayum sollaadheenga, surprise kedukka koodadhu!',
+  },
+  {
+    id: 'lostbag',
+    title: 'Kaanaama Pona Bag',
+    offer: '📖 Your last passenger left a black leather bag on the back seat. It is full of cash... and has an address card: Seshadri, TTK Road, Alwarpet.',
+    people: {
+      seshadri: { name: 'Seshadri sir', look: 'man', at: near(seshadri, 0, 2) },
+    },
+    steps: [
+      {
+        kind: 'carry', item: 'bag', to: seshadri, limit: 300,
+        text: 'Return the bag to Seshadri sir on TTK Road, Alwarpet (or keep it...)',
+        late: 'Bag innum unga kitta dhaan irukku... Seshadri sir kaathu irundhaaru. (It will come up again.)',
+      },
+      { kind: 'talk', who: 'seshadri', text: 'Give the bag to Seshadri sir (E)', line: 'En bag! ₹2 lakh irukku idhula... oru rupaai kooda kammi illa. Thambi, indha kaalathula unna maadhiri honest-aana aal paakave mudiyaadhu.' },
+    ],
+    reward: 5000,
+    success: 'Seshadri sir: Indha ₹{reward} vechukko. Naan 30 varusham transport business pannavan. Unakku oru auto podhumaa? Yosichu paaru... en card vechukko, oru naal vandhu paaru.',
   },
 ];

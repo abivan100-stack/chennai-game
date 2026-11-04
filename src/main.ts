@@ -1462,7 +1462,7 @@ async function main() {
     // Rides need the ride app online (you're in the auto); quests start wherever you are.
     if (story.chapter >= 2 && storyRideIn <= 0 && !jobs.storyOpen && !quests.active && downFor <= 0) {
       storyRideIn = 30;
-      const next = nextStory(storyDone);
+      const next = nextStory(storyDone, istTime(dayNight.timeMs).hours);
       if (next && 'ride' in next && jobs.phase !== 'off') jobs.addStory(next.ride);
       if (next && 'quest' in next) {
         quests.start(next.quest);
