@@ -699,17 +699,32 @@ async function main() {
   const curUpkeep = () => ownedNow()?.upkeep ?? upkeep;
   const dealerStock = DEALER_STOCK.map((s, i) => ({ s, veh: mine.some((m) => m.stock === s.id) ? null : traffic.addParked(s.kind, s.colour, dealer.spots[i].x, dealer.spots[i].z, dealer.spots[i].heading, true) }));
   /**
-   * Where an owned vehicle is delivered: your newest home's walled backyard (side by side), or at
-   * the rented Mandaveli house the open yard beside it, one behind another facing the road.
+   * Where an owned vehicle is delivered: the home you own nearest to you. At the rented Mandaveli
+   * house, the open yard beside it; at a bought house, its drive inside the car gate (under the
+   * porch). One behind another, facing the road, so they drive straight out.
    */
   const homeSpot = (n: number) => {
-    const bought = [...owned].filter((i) => i !== 0);
-    const idx = bought.length ? bought[bought.length - 1] : 0;
-    const f = frame(HOME_LOTS()[idx]);
-    const side = idx === 0;
-    const p = side ? f.at(9.3, 2.6 + (n % 3) * 5) : f.at(-4.5 + (n % 3) * 4.5, 14.9);
-    const dir = side ? f.at(0, -1).sub(f.at(0, 0)) : f.at(1, 0).sub(f.at(0, 0));
-    return { x: p.x, z: p.z, heading: Math.atan2(dir.x, dir.z) };
+    const lots = HOME_LOTS();
+    const mineHomes = [...owned];
+    const pp = player.position;
+    const idx = mineHomes.length
+      ? mineHomes.reduce((best, i) => {
+          const c = (k: number) => Math.hypot((lots[k].x0 + lots[k].x1) / 2 - pp.x, (lots[k].z0 + lots[k].z1) / 2 - pp.z);
+          return c(i) < c(best) ? i : best;
+        }, mineHomes[0])
+      : 0;
+    const f = frame(lots[idx]);
+    const toRoad = f.at(0, -1).sub(f.at(0, 0));
+    const across = f.at(1, 0).sub(f.at(0, 0));
+    const facing = (d: THREE.Vector3) => Math.atan2(d.x, d.z);
+    // Parking slots: two columns in the Mandaveli yard; the drive (under the porch) then the backyard of a bought house.
+    const slots = idx === 0
+      ? [7.7, 11.0].flatMap((u) => [2.6, 7.6, 12.6].map((v) => ({ p: f.at(u, v), h: facing(toRoad) })))
+      : [...[3.2, 8.2, 13.2].map((v) => ({ p: f.at(6.4, v), h: facing(toRoad) })), ...[-4.5, 0].map((u) => ({ p: f.at(u, 14.9), h: facing(across) }))];
+    // The first slot with room to spare; if they're all taken, the one with the most room.
+    const room = (sl: { p: THREE.Vector3 }) => Math.min(Infinity, ...mine.filter((_, j) => j !== n).map((m) => Math.hypot(m.veh.currPos.x - sl.p.x, m.veh.currPos.z - sl.p.z)));
+    const free = slots.find((sl) => room(sl) > 2.5) ?? slots.reduce((a, b) => (room(b) > room(a) ? b : a));
+    return { x: free.p.x, z: free.p.z, heading: free.h };
   };
   quests.onSay = (name, line) => hud.say(name, line);
   const heroFeet = new THREE.Vector3();
@@ -1191,7 +1206,7 @@ async function main() {
     if (input.wasPressed('KeyR')) weather.cycleOverride();
     // Traffic stops for the player and the player's auto (and honks at them).
     traffic.update(dt, [
-      { x: auto.group.position.x, z: auto.group.position.z, honk: !player.onFoot, player: ride.driving },
+      { x: auto.group.position.x, z: auto.group.position.z, honk: !player.onFoot, player: ride.driving, vx: auto.body.linvel().x, vz: auto.body.linvel().z },
       ...(player.onFoot ? [{ x: player.position.x, z: player.position.z, honk: true }] : []),
     ]);
     accumulator = Math.min(accumulator + dt, PHYSICS_STEP * MAX_STEPS);

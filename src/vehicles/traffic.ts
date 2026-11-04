@@ -25,7 +25,8 @@ const PLAYER_ACCEL = 1.25;
  * Your fault, now and then: when you cut in close in front of a moving vehicle (or stop dead in
  * its lane) it reacts late this often, for LATE_SECONDS, and hits you.
  */
-const LATE_CHANCE = 0.12;
+const LATE_CHANCE = 0.06;
+const CUT_IN_SPEED = 1.5; // m/s sideways into its lane: a real cut-in (stopped / straight ahead never counts)
 const LATE_SECONDS = 0.9;
 const LATE_MIN_SPEED = 5; // m/s: slow traffic always stops in time
 /** Closing speed (m/s) that counts as a crash between a vehicle and yours. */
@@ -271,8 +272,10 @@ export interface Obstacle {
   x: number;
   z: number;
   honk: boolean;
-  /** The player's own vehicle (traffic may react late to it: see LATE_CHANCE). */
+  /** The player's own vehicle (traffic may react late to it: see LATE_CHANCE), and its velocity. */
   player?: boolean;
+  vx?: number;
+  vz?: number;
 }
 
 /**
@@ -527,12 +530,14 @@ export class Traffic {
       };
       veh.late = Math.max(0, veh.late - dt);
       let mine = false; // the player (or their vehicle) is in the lane ahead
+      let cutIn = 0; // how fast it's coming sideways into this lane (m/s)
       for (const o of obstacles) {
         const along = inLane(o.x, o.z);
         if (along < 0) continue;
         if (o.player) {
           mine = true;
           nearest = Math.min(nearest, along);
+          cutIn = Math.max(cutIn, Math.abs((o.vx ?? 0) * this.dir.z - (o.vz ?? 0) * this.dir.x));
           if (veh.late > 0) continue; // reacting late: doesn't brake for you
         }
         blocked = true;
@@ -543,14 +548,17 @@ export class Traffic {
       // queue a vehicle noses through (physics shoves whatever is really there).
       veh.pushOn = Math.max(0, veh.pushOn - dt);
       let blocker: Vehicle | null = null;
-      if (veh.pushOn <= 0) {
+      {
         for (const other of this.vehicles) {
           if (other === veh) continue;
+          if (veh.pushOn > 0 && other.mode !== 'player') continue; // nosing through a queue, but never through you
           const along = inLane(other.currPos.x, other.currPos.z);
           if (along < 0) continue;
           if (other.mode === 'player') {
             mine = true;
             nearest = Math.min(nearest, along);
+            const ov = other.body.linvel();
+            cutIn = Math.max(cutIn, Math.abs(ov.x * this.dir.z - ov.z * this.dir.x));
             if (veh.late > 0) continue;
           }
           if (other.mode === 'ai' && other.hx * this.dir.x + other.hz * this.dir.z < -0.3) continue;
@@ -561,7 +569,7 @@ export class Traffic {
       }
       veh.blocker = blocker;
       // You appeared suddenly and close in front (cut in / braked in their lane): now and then they're late.
-      if (mine && !veh.sawPlayer && veh.v > LATE_MIN_SPEED && nearest < reach * 0.55 && Math.random() < LATE_CHANCE) {
+      if (mine && !veh.sawPlayer && !turning && cutIn > CUT_IN_SPEED && veh.v > LATE_MIN_SPEED && nearest < reach * 0.55 && Math.random() < LATE_CHANCE) {
         veh.late = LATE_SECONDS;
         if (blocker?.mode === 'player') blocker = veh.blocker = null;
         blocked = obstacles.some((o) => !o.player && inLane(o.x, o.z) >= 0);
@@ -660,7 +668,8 @@ export class Traffic {
           if (other === yours && veh.mode !== 'player') {
             const b = yoursVel ?? other.parent()!.linvel();
             const closing = Math.hypot(veh.pvx - b.x, veh.pvz - b.z);
-            if (closing > CRASH_SPEED) {
+            const yoursMoving = Math.hypot(b.x, b.z) > 1.5;
+            if (closing > CRASH_SPEED && (veh.late > 0 || yoursMoving)) { // stopped and nobody cut in: not a crash of yours
               const theirs = veh.late > 0;
               // A hard knock shoves the lighter one more (on top of the contact itself).
               const t = veh.body.translation();
