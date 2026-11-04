@@ -247,16 +247,18 @@ export class Phone {
     const { jobs } = this.deps;
     const list = h('div', {}, h('div', { class: 'phone-title' }, `Orders (${jobs.orders.length})`));
     if (jobs.phase === 'off') {
-      list.append(h('p', {}, 'Get into the auto to go online.'));
+      list.append(h('p', {}, 'Get into the auto (or a car / bike you own) to go online.'));
       return list;
     }
     if (jobs.busy) list.append(h('div', { class: 'phone-card current' }, `On a ride: ${jobs.mission}`));
+    if (jobs.carrier.parcelOnly) list.append(h('p', { class: 'muted' }, `📦 On your ${jobs.carrier.name}: parcel deliveries only.`));
     const me = this.deps.auto();
     for (const o of jobs.orders) {
       const p = stopPoint(o.from, 'kerb');
       const away = Math.round(Math.hypot(p.x - me.x, p.z - me.z));
-      const accept = h('button', { class: 'phone-btn' }, jobs.busy ? 'Busy' : 'Accept');
-      if (jobs.busy) accept.setAttribute('disabled', '');
+      const fits = jobs.canTake(o);
+      const accept = h('button', { class: 'phone-btn' }, jobs.busy ? 'Busy' : fits ? 'Accept' : 'Needs a car or the auto');
+      if (jobs.busy || !fits) accept.setAttribute('disabled', '');
       accept.onclick = () => {
         if (jobs.accept(o.id)) this.show('map');
       };

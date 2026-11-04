@@ -24,6 +24,20 @@ const LEAVE_SECONDS = 3.5;
 const CHATTER_EVERY = 14; // s between passenger remarks while riding
 const BUMP_DECEL = 3.5; // m/s lost in one frame = a bump the passenger feels
 
+/**
+ * The vehicle the ride app runs in: the auto by default, or a vehicle you own. Passengers sit at
+ * `bench` (model space), get in / out `door` metres to the side; two-wheelers carry parcels only.
+ */
+export interface Carrier {
+  group: THREE.Object3D;
+  speed: () => number;
+  bench: THREE.Vector3;
+  door: number;
+  parcelAt: THREE.Vector3;
+  parcelOnly: boolean;
+  name: string;
+}
+
 type Phase = 'off' | 'idle' | 'waiting' | 'boarding' | 'seating' | 'riding' | 'alighting';
 
 /** A ride request on the phone. */
@@ -106,6 +120,8 @@ export class TaxiJobs {
   private readonly scene: THREE.Scene;
   private readonly assets: Map<NpcModelId, CharacterAsset>;
   private readonly auto: AutoRickshaw;
+  /** The vehicle rides are given in (see Carrier). */
+  carrier: Carrier;
   private readonly pickupMarker: Marker;
   private readonly dropMarker: Marker;
   private from!: Stop;
@@ -141,6 +157,7 @@ export class TaxiJobs {
     this.scene = scene;
     this.assets = assets;
     this.auto = auto;
+    this.carrier = { group: auto.group, speed: () => auto.speed, bench: BENCH, door: 1.05, parcelAt: new THREE.Vector3(0, BENCH.y - 0.25, BENCH.z), parcelOnly: false, name: 'auto' };
     this.pickupMarker = new Marker(scene, 0xffd21f);
     this.dropMarker = new Marker(scene, 0x35e06b);
     // Marigold garland across the front of the auto (wedding rides).
@@ -219,6 +236,29 @@ export class TaxiJobs {
     }
   }
 
+  /** The auto's carrier (rides go back to it when you get in the auto). */
+  get autoCarrier() {
+    return this.carrier.group === this.auto.group;
+  }
+
+  /**
+   * Run the app in another vehicle (or back in the auto). Ignored mid-ride: the passenger is in the
+   * old one. Two-wheelers turn the open orders into parcels.
+   */
+  useCarrier(c: Carrier) {
+    if (this.busy || c.group === this.carrier.group) return false;
+    this.carrier = c;
+    if (c.parcelOnly) {
+      for (let i = this.orders.length - 1; i >= 0; i--) if (this.orders[i].kind !== 'delivery' && !this.orders[i].story) this.orders.splice(i, 1);
+    }
+    return true;
+  }
+
+  /** Can this order be taken in the current vehicle? (Two-wheelers: parcels only.) */
+  canTake(o: Order) {
+    return !this.carrier.parcelOnly || o.kind === 'delivery';
+  }
+
   /** Turn the ride app on (first time in the auto). */
   start() {
     if (this.phase !== 'off') return;
@@ -234,7 +274,7 @@ export class TaxiJobs {
   /** Accept a ride request: its passenger starts waiting at the pickup. */
   accept(id: number) {
     const i = this.orders.findIndex((o) => o.id === id);
-    if (i < 0 || this.busy || this.phase === 'off') return false;
+    if (i < 0 || this.busy || this.phase === 'off' || !this.canTake(this.orders[i])) return false;
     const [o] = this.orders.splice(i, 1);
     this.from = o.from;
     this.to = o.to;
@@ -266,7 +306,7 @@ export class TaxiJobs {
     this.pickupMarker.update(dt);
     this.dropMarker.update(dt);
     this.animator?.update(dt);
-    const speed = Math.abs(this.auto.speed);
+    const speed = Math.abs(this.carrier.speed());
     const stopped = driving && speed < STOP_SPEED;
     // A sudden loss of speed = the passenger got thrown about (VIPs mind).
     if (this.phase === 'riding' && this.lastSpeed - speed > this.bumpDecel) {
@@ -275,7 +315,7 @@ export class TaxiJobs {
       if (this.story?.lines.bump) this.onSay(this.name, rand(this.story.lines.bump));
     }
     this.lastSpeed = speed;
-    const autoPos = this.auto.group.position;
+    const autoPos = this.carrier.group.position;
 
     switch (this.phase) {
       case 'idle':
@@ -286,8 +326,9 @@ export class TaxiJobs {
           const pp = this.parcel!.position;
           if (!stopped || Math.hypot(autoPos.x - pp.x, autoPos.z - pp.z) > PICKUP_RADIUS) return;
           // Parcel goes on the back bench; straight off to the customer.
-          this.auto.group.attach(this.parcel!);
-          this.parcel!.position.set(0, BENCH.y - 0.25, BENCH.z);
+          this.carrier.group.attach(this.parcel!);
+          this.parcel!.position.copy(this.carrier.parcelAt);
+          this.parcel!.rotation.set(0, 0, 0);
           this.pickupMarker.hide();
           this.dropMarker.show(stopPoint(this.to, 'kerb'));
           this.onSay(this.from.name, 'Parcel ready! Sooda irukkum bodhe kudunga.');
@@ -302,7 +343,7 @@ export class TaxiJobs {
         }
         this.faceTowards(autoPos, dt);
         if (stopped && d < PICKUP_RADIUS) {
-          this.side = this.auto.group.worldToLocal(this.root!.position.clone()).x >= 0 ? 1 : -1;
+          this.side = this.carrier.group.worldToLocal(this.root!.position.clone()).x >= 0 ? 1 : -1;
           const line = this.story ? this.story.lines.pickup : this.kind === 'urgent' ? URGENT_PICKUP : this.kind === 'vip' ? VIP_PICKUP : rand(PICKUP_LINES);
           this.onSay(this.name, line.replace('{place}', this.to.name));
           this.animator!.play('walk');
@@ -318,7 +359,7 @@ export class TaxiJobs {
           this.go('waiting');
           return;
         }
-        const target = this.auto.group.localToWorld(this.tmp.set(this.side * 1.05, 0, BENCH.z));
+        const target = this.carrier.group.localToWorld(this.tmp.set(this.side * this.carrier.door, 0, this.carrier.bench.z));
         const p = this.root!.position;
         const dx = target.x - p.x;
         const dz = target.z - p.z;
@@ -332,9 +373,9 @@ export class TaxiJobs {
           return;
         }
         // Climb in: hand the passenger to the auto, sit down facing out, then swivel forward.
-        this.auto.group.attach(this.root!);
+        this.carrier.group.attach(this.root!);
         this.root!.updateMatrixWorld(true);
-        this.auto.group.worldToLocal(this.hips!.getWorldPosition(this.hipStart));
+        this.carrier.group.worldToLocal(this.hips!.getWorldPosition(this.hipStart));
         this.animator!.play('sit_down', { once: true, fade: 0.25 });
         this.pickupMarker.hide();
         this.dropMarker.show(stopPoint(this.to, 'kerb'));
@@ -344,7 +385,7 @@ export class TaxiJobs {
 
       case 'seating': {
         const k = this.t / SIT_SECONDS;
-        this.hipTarget.copy(this.hipStart).lerp(BENCH, smooth(k));
+        this.hipTarget.copy(this.hipStart).lerp(this.carrier.bench, smooth(k));
         const swivel = smooth((this.t - SIT_SECONDS) / SWIVEL_SECONDS);
         this.pin((this.side * Math.PI / 2) * (1 - swivel));
         if (this.t < SIT_SECONDS + SWIVEL_SECONDS) return;
@@ -357,7 +398,7 @@ export class TaxiJobs {
       case 'riding': {
         this.rideTime += dt;
         if (this.kind !== 'delivery') {
-          this.hipTarget.copy(BENCH);
+          this.hipTarget.copy(this.carrier.bench);
           this.pin(0);
         }
         this.chatter -= dt;
@@ -432,7 +473,7 @@ export class TaxiJobs {
         const root = this.root!;
         if (this.t < HOP_OUT_SECONDS) {
           // Hop off the bench to the ground beside the auto.
-          const out = this.auto.group.localToWorld(this.tmp.set(this.side * 1.3, 0, BENCH.z));
+          const out = this.carrier.group.localToWorld(this.tmp.set(this.side * (this.carrier.door + 0.25), 0, this.carrier.bench.z));
           root.position.lerpVectors(this.leaveFrom, out, smooth(this.t / HOP_OUT_SECONDS));
           return;
         }
@@ -463,8 +504,8 @@ export class TaxiJobs {
   /** New order (ride / urgent / VIP / parcel) between two stops at least MIN_TRIP apart. */
   private addOrder(notify: boolean, fromStop?: Stop, forceKind?: OrderKind) {
     let r = Math.random();
-    let kind: OrderKind = forceKind ?? 'ride';
-    for (const [k, w] of forceKind ? [] : Object.entries(ORDER_WEIGHTS) as [OrderKind, number][]) {
+    let kind: OrderKind = forceKind ?? (this.carrier.parcelOnly ? 'delivery' : 'ride');
+    for (const [k, w] of forceKind || this.carrier.parcelOnly ? [] : Object.entries(ORDER_WEIGHTS) as [OrderKind, number][]) {
       if ((r -= w) < 0) {
         kind = k;
         break;
@@ -551,9 +592,9 @@ export class TaxiJobs {
   private pin(yaw: number) {
     const r = this.root!;
     r.rotation.set(0, yaw, 0);
-    this.auto.group.updateMatrixWorld();
+    this.carrier.group.updateMatrixWorld();
     r.updateMatrixWorld(true);
-    const hipsLocal = this.auto.group.worldToLocal(this.hips!.getWorldPosition(this.tmp));
+    const hipsLocal = this.carrier.group.worldToLocal(this.hips!.getWorldPosition(this.tmp));
     r.position.add(hipsLocal.subVectors(this.hipTarget, hipsLocal));
   }
 }

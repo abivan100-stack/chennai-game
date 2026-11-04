@@ -113,6 +113,7 @@ export const PLACE_LINES = {
   healed: '{item} saapteenga. Konjam better-aa irukku.',
   standGreet: 'Stand-la line-la nikkiravanga irukaanga. Sawaari venuma?',
   standBusy: 'Ippo oru sawaari irukke anna, adha mudinga first.',
+  standBike: 'Bike-la sawaari ethi poga mudiyaadhu anna! Auto illa car-la vaanga. (Bike-la parcel mattum dhaan.)',
   standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
   showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
   tidelRush: '💻 Tidel Park shift mudinjiduchu! IT makkal auto-ku wait pannuraanga.',

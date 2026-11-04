@@ -75,7 +75,8 @@ import { Police } from './combat/police';
 import { Melee, type Target } from './combat/melee';
 import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
-import { RIDER_POSE, SPEC, VEHICLE_NAMES, type Vehicle } from './vehicles/traffic';
+import { PARCEL_SPOT, PASSENGER_SEAT, RIDER_POSE, SPEC, VEHICLE_NAMES, type Vehicle } from './vehicles/traffic';
+import type { Carrier } from './missions/jobs';
 import { poseRider } from './characters/rider';
 import { BEATEN, HORN_LINES } from './npcs/dialogue';
 import { MSG_HOME_HINT, RECOVER_LINE, SLEEPY_LINE, SLEEP_SUB, SLEEP_TITLE } from './missions/data';
@@ -428,6 +429,7 @@ async function main() {
             label: 'Sawaari edu (take a passenger)', price: 0, note: 'ride from the stand',
             run: () => {
               if (jobs.busy) return PLACE_LINES.standBusy;
+              if (jobs.carrier.parcelOnly) return PLACE_LINES.standBike;
               if (jobs.phase === 'off') jobs.start();
               const o = jobs.addOrderFrom(STAND, false);
               jobs.accept(o.id);
@@ -519,7 +521,7 @@ async function main() {
     police: () => police.blips(),
     clock: () => dayNight.clockLabel,
     player: () => ({ x: player.position.x, z: player.position.z, yaw: ride.driving ? auto.heading : player.mesh.rotation.y }),
-    auto: () => auto.group.position,
+    auto: () => jobs.carrier.group.position as THREE.Vector3,
     guide: () => guide,
     view: () => cam.yaw,
     places: () => navPlaces(),
@@ -626,6 +628,17 @@ async function main() {
   };
   jobs.onStory = storyFinished;
   const quests = new QuestRunner(scene, world, characters.npcs);
+  // ---- Rides in vehicles you own: cars / van / taxi carry passengers, two-wheelers parcels ----
+  const autoCarrier = jobs.carrier;
+  const carrierFor = (v: Vehicle): Carrier | null => {
+    const parcel = PARCEL_SPOT[v.kind];
+    const seat = PASSENGER_SEAT[v.kind];
+    if (!parcel && !seat) return null;
+    const speed = () => Math.hypot(v.body.linvel().x, v.body.linvel().z);
+    const name = DEALER_STOCK.find((d) => d.kind === v.kind)?.name ?? VEHICLE_NAMES[v.kind];
+    if (parcel) return { group: v.group, speed, bench: parcel, door: 0.9, parcelAt: parcel, parcelOnly: true, name };
+    return { group: v.group, speed, bench: seat!, door: SPEC[v.kind].width / 2 + 0.45, parcelAt: seat!.clone().setY(seat!.y - 0.22), parcelOnly: false, name };
+  };
   // ---- Your vehicles (Chapter 2): auto upgrades, the dealer's stock, vehicles you bought ----
   const upgrades: string[] = [...(saved?.garage?.upgrades ?? [])];
   let paintColour = saved?.garage?.paint ?? PAINTS[0].colour;
@@ -694,6 +707,7 @@ async function main() {
     cam.mode = driving ? 'drive' : 'foot';
     cam.ignore = driving ? auto.collider : player.collider;
     hud.setSpeed(driving ? 0 : null);
+    if (driving) jobs.useCarrier(autoCarrier);
     if (driving && !online) {
       online = true;
       jobs.start();
@@ -713,7 +727,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -730,6 +744,11 @@ async function main() {
     cam.mode = 'drive';
     cam.ignore = v.collider;
     hud.setSpeed(0);
+    const own = mine.some((m) => m.veh === v) ? carrierFor(v) : null;
+    if (own && jobs.useCarrier(own)) {
+      if (jobs.phase === 'off') jobs.start();
+      phone.notify(own.parcelOnly ? `📦 ${own.name}: parcel orders only (Phone > Orders)` : `🚖 Ride app on in your ${own.name} (Phone > Orders)`);
+    }
     if (theft) {
       wanted.report('theft');
       hud.say(POLICE, MSG_THEFT_WARNING);
@@ -1179,7 +1198,7 @@ async function main() {
     if (stolen) poseRider(player.model, player.model, stolen.group, RIDER_POSE[stolen.kind]); // seat, bars / wheel, pegs / pedals
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     meal.lateUpdate(); // seated hips + hand-to-mouth
-    jobs.update(dt, ride.driving);
+    jobs.update(dt, jobs.autoCarrier ? ride.driving : !!stolen && stolen.group === jobs.carrier.group);
     ride.syncPosition();
     if (stolen) {
       player.position.copy(stolen.group.position);
@@ -1303,8 +1322,8 @@ async function main() {
     hospital.setNight(dayNight.night);
     signals.update(dt);
     flood.update(dt, weather.rain);
-    jobs.fareBoost = (weather.rain > 0.5 ? RAIN_SURCHARGE : 1) * fareFactor(upgrades);
-    jobs.bumpDecel = bumpDecel(upgrades);
+    jobs.fareBoost = (weather.rain > 0.5 ? RAIN_SURCHARGE : 1) * (jobs.autoCarrier ? fareFactor(upgrades) : 1); // upgrades are the auto's
+    jobs.bumpDecel = jobs.autoCarrier ? bumpDecel(upgrades) : 3.5;
     const drivingAny = ride.driving || !!stolen;
     const vPos = stolen ? stolen.group.position : ride.driving ? auto.group.position : player.position;
     const vSpeed = stolen ? Math.abs(stolenSpeed) : ride.driving ? Math.abs(auto.speed) : player.speed;

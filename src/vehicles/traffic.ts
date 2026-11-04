@@ -6,7 +6,7 @@ import { pair, pairAt, poseRider, type RiderPose } from '../characters/rider';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { RIVER, block, blocks, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
-import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel, suvModel, hatchModel, tankerModel, deliveryModel, driverOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
+import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel, suvModel, hatchModel, tankerModel, deliveryModel, driverOf, rearOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
 import { randomPlate } from './plates';
 
 const LANE = SETBACK - 2.5; // lane centre: 2.5 m left of the road centre line (we drive on the left)
@@ -105,6 +105,20 @@ const carPose = (hips: THREE.Vector3, wheel: THREE.Vector3): RiderPose => ({
   feet: pairAt(hips.x, 0.13, Math.max(hips.y - 0.42, 0.3), hips.z + 0.7),
   lean: 0,
 });
+/** Rear seat (passenger hips, model space) of the cars you can own and run rides in. */
+export const PASSENGER_SEAT: Partial<Record<Kind, THREE.Vector3>> = {
+  car: rearOf(SEDAN),
+  hatch: rearOf(HATCH),
+  suv: rearOf(SUV),
+  taxi: rearOf(MPV),
+  van: new THREE.Vector3(0.36, 0.86, -0.25),
+};
+/** Where a parcel rides on a two-wheeler (bike carrier rack / scooter pillion seat). */
+export const PARCEL_SPOT: Partial<Record<Kind, THREE.Vector3>> = {
+  bike: new THREE.Vector3(0, 0.98, -0.72),
+  scooter: new THREE.Vector3(0, 0.98, -0.66),
+  delivery: new THREE.Vector3(0, 0.98, -0.66),
+};
 /** Where everything goes when someone rides each kind (model space; see characters/rider.ts). */
 export const RIDER_POSE: Record<Kind, RiderPose> = {
   auto: { hips: SEAT, hands: pair(0.27, 1.25, 0.54), feet: pair(0.14, 0.55, 0.62), lean: 0.05 },
