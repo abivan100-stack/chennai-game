@@ -777,6 +777,7 @@ async function main() {
     onFoot: player.onFoot && !stolen && ride.phase === 'onFoot',
     vehicle: stolen ? stolen.group.position : ride.driving ? auto.group.position : null,
     jolt,
+    stolen: !!stolen && !mine.some((m) => m.veh === stolen),
   });
   quests.onDone = (id, passed, reward) => {
     if (reward) {
@@ -857,6 +858,7 @@ async function main() {
       phone.notify(own.parcelOnly ? `📦 ${own.name}: parcel orders only (Phone > Orders)` : `🚖 Ride app on in your ${own.name} (Phone > Orders)`);
     }
     if (theft) {
+      if (quests.active || jobs.busy) hud.say('Auto Anna', 'Thirutu vandi-la ride / mission edhuvum odaadhu! Un vandi illa nadandhu po.');
       wanted.report('theft');
       hud.say(POLICE, MSG_THEFT_WARNING);
       phone.addMessage(POLICE, MSG_THEFT_WARNING);
@@ -1375,6 +1377,7 @@ async function main() {
     if (stolen) poseRider(player.model, player.model, stolen.group, RIDER_POSE[stolen.kind]); // seat, bars / wheel, pegs / pedals
     ride.lateUpdate(); // pin the driver's hips after the animation has posed them
     meal.lateUpdate(); // seated hips + hand-to-mouth
+    jobs.inStolen = !!stolen && !mine.some((m) => m.veh === stolen);
     jobs.update(dt, jobs.autoCarrier ? ride.driving : !!stolen && stolen.group === jobs.carrier.group);
     ride.syncPosition();
     if (stolen) {

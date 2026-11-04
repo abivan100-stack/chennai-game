@@ -254,8 +254,12 @@ export class TaxiJobs {
     return true;
   }
 
-  /** Can this order be taken in the current vehicle? (Two-wheelers: parcels only.) */
+  /** Driving a stolen vehicle: no orders can be taken (set by main.ts each frame). */
+  inStolen = false;
+
+  /** Can this order be taken in the current vehicle? (Two-wheelers: parcels only; never in a stolen one.) */
   canTake(o: Order) {
+    if (this.inStolen) return false;
     return !this.carrier.parcelOnly || o.kind === 'delivery';
   }
 

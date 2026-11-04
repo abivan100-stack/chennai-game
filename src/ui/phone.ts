@@ -251,13 +251,14 @@ export class Phone {
       return list;
     }
     if (jobs.busy) list.append(h('div', { class: 'phone-card current' }, `On a ride: ${jobs.mission}`));
-    if (jobs.carrier.parcelOnly) list.append(h('p', { class: 'muted' }, `📦 On your ${jobs.carrier.name}: parcel deliveries only.`));
+    if (jobs.inStolen) list.append(h('p', { class: 'muted' }, '🚨 Stolen vehicle: no rides or deliveries until you get out.'));
+    else if (jobs.carrier.parcelOnly) list.append(h('p', { class: 'muted' }, `📦 On your ${jobs.carrier.name}: parcel deliveries only.`));
     const me = this.deps.auto();
     for (const o of jobs.orders) {
       const p = stopPoint(o.from, 'kerb');
       const away = Math.round(Math.hypot(p.x - me.x, p.z - me.z));
       const fits = jobs.canTake(o);
-      const accept = h('button', { class: 'phone-btn' }, jobs.busy ? 'Busy' : fits ? 'Accept' : 'Needs a car or the auto');
+      const accept = h('button', { class: 'phone-btn' }, jobs.busy ? 'Busy' : fits ? 'Accept' : jobs.inStolen ? 'Not in a stolen vehicle' : 'Needs a car or the auto');
       if (jobs.busy || !fits) accept.setAttribute('disabled', '');
       accept.onclick = () => {
         if (jobs.accept(o.id)) this.show('map');

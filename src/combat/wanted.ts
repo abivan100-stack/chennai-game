@@ -9,7 +9,7 @@
 export type Crime = 'theft' | 'keepStolen' | 'assault' | 'assaultPolice';
 
 export const MAX_STARS = 3;
-export const LOSE_SECONDS = 20;
+export const LOSE_SECONDS = 8; // per star: 3 stars are gone in ~24 s out of sight
 /** Driving a stolen vehicle this long after the warning escalates to 2 stars. */
 export const KEEP_STOLEN_SECONDS = 15;
 

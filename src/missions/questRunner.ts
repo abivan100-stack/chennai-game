@@ -47,6 +47,8 @@ export interface QuestCtx {
   vehicle: THREE.Vector3 | null;
   /** A hard knock this frame (crash / sudden stop) while driving. */
   jolt: boolean;
+  /** Driving a stolen vehicle: missions don't count (the clock still runs). */
+  stolen?: boolean;
 }
 
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -189,6 +191,11 @@ export class QuestRunner {
     const s = this.cur;
     if (!s) return;
     this.t += dt;
+    if (ctx.stolen) {
+      for (const a of this.people.values()) a.animator.update(dt);
+      this.prompt = 'Stolen vandi: missions need your own vehicle (or go on foot)';
+      return;
+    }
     const me = ctx.vehicle ?? ctx.hero;
     for (const a of this.people.values()) a.animator.update(dt);
     // People who aren't busy turn to face you when you're close.
