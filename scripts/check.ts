@@ -98,6 +98,15 @@ assert(w.level === 3, 'being seen resets the escape timer');
 w.update(0.2, false);
 assert(w.level === 2, 'out of sight long enough: lose a star');
 w.clear();
+{
+  const { SEARCH_SECONDS } = await import('../src/combat/wanted.ts');
+  w.report('theft');
+  w.update(LOSE_SECONDS * 2, false);
+  assert(w.level === 1, 'stars stay while the police are still coming to find you');
+  w.update(SEARCH_SECONDS, false);
+  w.update(LOSE_SECONDS, false);
+  assert(w.level === 0, 'they give up if they never find you');
+}
 assert(w.report('assault') === 1, 'first assault = 1 star');
 
 // --- Energy + food ---
