@@ -31,6 +31,8 @@ const LATE_SECONDS = 0.9;
 const LATE_MIN_SPEED = 5; // m/s: slow traffic always stops in time
 /** Closing speed (m/s) that counts as a crash between a vehicle and yours. */
 const CRASH_SPEED = 2.5;
+/** The body box starts this high, so it clears kerbs (pavements are 0.15 m); heights are set, not left to gravity. */
+const CLEARANCE = 0.22;
 const STUCK_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
@@ -445,12 +447,13 @@ export class Traffic {
         .setTranslation(this.pos.x, 0.02, this.pos.z)
         .setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w })
         .enabledRotations(false, true, false)
+        .enabledTranslations(true, false, true) // height comes from the ground under it (see step)
         .setLinearDamping(0.6)
         .setAngularDamping(2)
         .setCanSleep(false),
     );
     const collider = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(sp.width / 2, sp.height / 2, sp.length / 2).setTranslation(0, sp.height / 2 + 0.03, 0).setMass(sp.mass).setFriction(0.3),
+      RAPIER.ColliderDesc.cuboid(sp.width / 2, (sp.height - CLEARANCE) / 2, sp.length / 2).setTranslation(0, CLEARANCE + (sp.height - CLEARANCE) / 2, 0).setMass(sp.mass).setFriction(0.3),
       body,
     );
     const veh: Vehicle = {
@@ -621,6 +624,7 @@ export class Traffic {
       if (veh.mode === 'parked') continue; // abandoned: just friction and damping
       if (veh.mode === 'player') {
         this.drivePlayer(veh, dt);
+        this.followGround(veh, dt);
         continue;
       }
       if (veh.knocked > 0) {
@@ -790,6 +794,22 @@ export class Traffic {
   headingOf(v: Vehicle) {
     const f = this.dir.set(0, 0, 1).applyQuaternion(v.group.quaternion);
     return Math.atan2(f.x, f.z);
+  }
+
+  /** The vehicle you drive rides up onto pavements / yards and back down (its box clears the kerb). */
+  private readonly groundRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+  private followGround(v: Vehicle, dt: number) {
+    const t = v.body.translation();
+    let top = 0;
+    // The highest ground under the nose, middle and tail (so the front climbs the kerb first).
+    const f = this.dir.set(0, 0, 1).applyQuaternion(v.group.quaternion);
+    for (const k of [-0.4, 0, 0.4]) {
+      this.groundRay.origin = { x: t.x + f.x * SPEC[v.kind].length * k, y: t.y + 0.6, z: t.z + f.z * SPEC[v.kind].length * k };
+      const hit = this.world.castRay(this.groundRay, 0.9, true, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC | RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC | RAPIER.QueryFilterFlags.EXCLUDE_SENSORS);
+      if (hit) top = Math.max(top, t.y + 0.6 - hit.timeOfImpact);
+    }
+    if (top > 0.45) top = t.y; // a wall, not a step: stay put (the body box stops you)
+    v.body.setTranslation({ x: t.x, y: t.y + (top - t.y) * Math.min(1, dt * 12), z: t.z }, true);
   }
 
   /** Arcade driving for a stolen vehicle: speed along the nose, yaw rate from steering. */
