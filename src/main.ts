@@ -36,7 +36,7 @@ import { QuestRunner } from './missions/questRunner';
 import { DEALER_STOCK, DELIVER_HOME, PAINTS, PAINT_PRICE, UPGRADES, bumpDecel, fareFactor, fuelFactor } from './vehicles/garage';
 import { createDealer } from './world/dealer';
 import { frame } from './world/kit';
-import { HOME_LOTS, SIDEWALK_WIDTH } from './world/layout';
+import { HOME_LOTS } from './world/layout';
 import { Sound } from './audio/sound';
 import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
@@ -607,12 +607,15 @@ async function main() {
   const dealer = createDealer(scene, world);
   const mine: { stock: string; veh: Vehicle }[] = (saved?.garage?.vehicles ?? []).map((v) => ({ stock: v.stock, veh: traffic.addParked(v.kind as Vehicle['kind'], v.colour, v.x, v.z, v.heading) }));
   const dealerStock = DEALER_STOCK.map((s, i) => ({ s, veh: mine.some((m) => m.stock === s.id) ? null : traffic.addParked(s.kind, s.colour, dealer.spots[i].x, dealer.spots[i].z, dealer.spots[i].heading, true) }));
-  /** Where an owned vehicle is delivered: in front of your newest home (or the rented one). */
+  /**
+   * Where an owned vehicle is delivered: parked side by side behind your newest home (or the rented
+   * one): the walled backyard on the big plots, the open strip behind the Mandaveli house.
+   */
   const homeSpot = (n: number) => {
     const bought = [...owned].filter((i) => i !== 0);
-    const lot = HOME_LOTS()[bought.length ? bought[bought.length - 1] : 0];
-    const f = frame(lot);
-    const p = f.at(-4 + (n % 3) * 4.5, -(SIDEWALK_WIDTH + 2));
+    const idx = bought.length ? bought[bought.length - 1] : 0;
+    const f = frame(HOME_LOTS()[idx]);
+    const p = idx === 0 ? f.at(-2.5 + (n % 3) * 4.5, 13.7) : f.at(-4.5 + (n % 3) * 4.5, 14.9);
     const along = f.at(1, 0).sub(f.at(0, 0));
     return { x: p.x, z: p.z, heading: Math.atan2(along.x, along.z) };
   };
