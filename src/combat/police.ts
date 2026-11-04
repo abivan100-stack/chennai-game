@@ -7,6 +7,7 @@ import { CHARACTER_HEIGHT, type CharacterAsset } from '../characters/catalog';
 import { route } from '../missions/route';
 import { BEACH_ROAD, X_LINES, Z_LINES } from '../world/layout';
 import { policeModel } from '../vehicles/models';
+import { ESCAPE_STEP, MAX_STARS } from './wanted';
 
 // ---- Tuning -------------------------------------------------------------------------------
 const CHASE_SPEED = 22;
@@ -14,7 +15,8 @@ const CORNER_SPEED = 9;
 const STOP_DIST = 13; // jeep stops and officers get out this close to you
 const REBOARD_DIST = 30; // you got away from the officers on foot: they get back in
 const SPAWN_DIST = [38, 55]; // dispatched units appear on a road this far from you, out of sight
-const DISPATCH_FROM = 60; // a unit further than this gets re-dispatched near you
+/** A unit further than this gets re-dispatched near you: past the last escape ring, so outrunning them works. */
+const DISPATCH_FROM = ESCAPE_STEP * MAX_STARS + 30;
 const SIGHT = 40; // police see you within this distance with a clear line of sight
 const STUCK_SECONDS = 2.5;
 const MASS = 1600;

@@ -4,7 +4,7 @@ import { PRESETS, stepDown, stepUp, type QualitySettings } from '../src/core/qua
 import { STOPS, fare, payment, stopPoint } from '../src/missions/data.ts';
 import { DAILY_DUE, Economy, LOAN_TOTAL } from '../src/missions/economy.ts';
 import { nextTurn, route, routeLength } from '../src/missions/route.ts';
-import { LOSE_SECONDS, Wanted } from '../src/combat/wanted.ts';
+import { DROP_SECONDS, ESCAPE_STEP, Wanted } from '../src/combat/wanted.ts';
 import { DRAIN, ENERGY_MAX, ENERGY_START, Energy } from '../src/player/energy.ts';
 import { BASKET_MAX, MENUS, SHELVES } from '../src/world/food.ts';
 import { SHOP_SIGNS } from '../src/world/textures.ts';
@@ -91,20 +91,24 @@ const w = new Wanted();
 assert(w.report('theft') === 1 && !w.shootOnSight, 'theft = warning star, no shooting');
 assert(w.report('keepStolen') === 2 && w.shootOnSight, 'keeping the stolen ride = shoot on sight');
 assert(w.report('assaultPolice') === 3 && w.report('assault') === 3, 'capped at 3 stars');
-w.update(LOSE_SECONDS - 1, false);
-w.update(0.5, true);
-w.update(LOSE_SECONDS - 0.1, false);
-assert(w.level === 3, 'being seen resets the escape timer');
-w.update(0.2, false);
-assert(w.level === 2, 'out of sight long enough: lose a star');
+w.update(0.5, 10); // they've reached you
+w.update(DROP_SECONDS * 3, ESCAPE_STEP - 1);
+assert(w.level === 3, 'close to the police: no stars drop');
+w.update(DROP_SECONDS + 0.1, ESCAPE_STEP + 5);
+assert(w.level === 2, 'past the first ring: one star drops');
+w.update(DROP_SECONDS * 5, ESCAPE_STEP + 5);
+assert(w.level === 2, 'one ring = one star, however long you wait there');
+w.update(DROP_SECONDS + 0.1, ESCAPE_STEP * 3 + 5);
+w.update(DROP_SECONDS + 0.1, ESCAPE_STEP * 3 + 5);
+assert(w.level === 0, 'far enough: the stars drop one by one');
 w.clear();
 {
   const { SEARCH_SECONDS } = await import('../src/combat/wanted.ts');
   w.report('theft');
-  w.update(LOSE_SECONDS * 2, false);
+  w.update(10, Infinity);
   assert(w.level === 1, 'stars stay while the police are still coming to find you');
-  w.update(SEARCH_SECONDS, false);
-  w.update(LOSE_SECONDS, false);
+  w.update(SEARCH_SECONDS, Infinity);
+  w.update(DROP_SECONDS + 0.1, Infinity);
   assert(w.level === 0, 'they give up if they never find you');
 }
 assert(w.report('assault') === 1, 'first assault = 1 star');

@@ -4,14 +4,18 @@
  *   1 star  - a warning: police come to arrest you (no shooting).
  *   2 stars - police shoot on sight.
  *   3 stars - police shoot, more aggressively (hit chance up).
- * Out of police sight for LOSE_SECONDS drops one star at a time.
+ * Distance from the police drops stars one by one (see ESCAPE_STEP).
  */
 export type Crime = 'theft' | 'keepStolen' | 'assault' | 'assaultPolice';
 
 export const MAX_STARS = 3;
-export const LOSE_SECONDS = 3; // per star, kept ESCAPE_DIST away once they've found you: stars drop one by one
-/** Further than this (m) from every police jeep / officer counts as getting away (main.ts judges it). */
-export const ESCAPE_DIST = 45;
+/**
+ * Getting away, star by star: every ESCAPE_STEP metres between you and the nearest police jeep /
+ * officer takes one star off (130 m: max 2, 260 m: max 1, 390 m: clear). Each drop needs you
+ * to stay past that ring for DROP_SECONDS, one star at a time.
+ */
+export const ESCAPE_STEP = 130;
+export const DROP_SECONDS = 1;
 /** The police haven't found you yet: they keep looking this long before giving up. */
 export const SEARCH_SECONDS = 45;
 /** Driving a stolen vehicle this long after the warning escalates to 2 stars. */
@@ -50,20 +54,28 @@ export class Wanted {
     return this.level;
   }
 
-  /** seen: police are close (within ESCAPE_DIST) or have eyes on the player this frame. */
-  update(dt: number, seen: boolean) {
+  /** Most stars you can still have this far (m) from the nearest police. */
+  static allowedAt(dist: number) {
+    return Math.max(0, MAX_STARS - Math.floor(dist / ESCAPE_STEP));
+  }
+
+  /** dist: metres to the nearest police jeep / officer (Infinity if none are out). */
+  update(dt: number, dist: number) {
     if (this.level === 0) return;
-    if (seen) this.spotted = true;
-    // Until they've found you the police are on their way: stars don't fade (unless they search in vain too long).
+    if (dist < ESCAPE_STEP) this.spotted = true;
+    // Until they've reached you the police are on their way: stars stay (unless they search in vain too long).
     if (!this.spotted) {
       this.searching += dt;
       if (this.searching < SEARCH_SECONDS) return;
+      dist = Infinity;
     }
-    this.hidden = seen ? 0 : this.hidden + dt;
-    if (this.hidden >= LOSE_SECONDS) {
-      this.level--;
-      this.hidden = 0;
-    }
+    if (Wanted.allowedAt(dist) < this.level) {
+      this.hidden += dt;
+      if (this.hidden >= DROP_SECONDS) {
+        this.level--;
+        this.hidden = 0;
+      }
+    } else this.hidden = 0;
   }
 
   get shootOnSight() {
