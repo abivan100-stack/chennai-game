@@ -49,7 +49,7 @@ export interface TownMap {
   pois: Poi[];
 }
 
-export type PoiCat = 'fuel' | 'mechanic' | 'atm' | 'medical' | 'police' | 'transport' | 'food' | 'shop' | 'place' | 'stop';
+export type PoiCat = 'fuel' | 'mechanic' | 'atm' | 'medical' | 'police' | 'transport' | 'food' | 'shop' | 'place' | 'stop' | 'home';
 /** A place on the map: an icon drawn at screen size over the town picture, and a navigation destination. */
 export interface Poi {
   name: string;
@@ -357,7 +357,9 @@ export function drawTownMap(data: MapData): TownMap {
     g.fillStyle = '#e6f0d8';
     g.fillRect(P(lot.x0), P(lot.z0), M(lot.x1 - lot.x0), M(lot.z1 - lot.z0));
     const h = HOMES[i];
-    poi(h.price ? `${h.name} (₹${(h.price / 100000).toFixed(1)} lakh)` : h.name, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, h.price ? '#558b2f' : '#2e7d32', '⌂', 'place', h.price ? 2 : 1);
+    // Your rented house stands out on every map (and the phone's Home chip routes you there).
+    if (h.price) poi(`${h.name} (₹${(h.price / 100000).toFixed(1)} lakh)`, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#558b2f', '⌂', 'home', 2);
+    else poi(`My house (${h.area})`, (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2, '#d84315', '🏠', 'home', 1);
   });
   HOTEL_LOTS().forEach((lot, i) => {
     g.fillStyle = '#e8dcc0';

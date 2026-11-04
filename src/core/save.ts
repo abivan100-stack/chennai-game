@@ -16,6 +16,8 @@ export interface SaveData {
   /** Uncle's auto: petrol (litres) and condition (older saves: full / new). */
   upkeep?: { fuel: number; condition: number };
   energy: number;
+  /** Game hours since you last slept (older saves: rested). */
+  awake?: number;
   health: number;
   player: { x: number; y: number; z: number; yaw: number };
   auto: { x: number; y: number; z: number; heading: number };

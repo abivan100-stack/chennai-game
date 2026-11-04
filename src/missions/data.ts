@@ -213,6 +213,7 @@ export const MSG_WELCOME_BACK = 'Thirumba vandhutta thambi! Auto, kaasu, kadan e
 export const MSG_FINE_ON_LOAN = 'Fine kattaradhukku un kitta kaasu illa. ₹{owed} naan kattitten, un kadan-la serthutten. Ippo total kadan ₹{loan}.';
 export const MSG_WELCOME =
   'Thambi, en auto ippo unnodadhu. Kandasamy kitta ₹15,000 kadan irukku. Daily ₹500 kattu, illana auto-va eduthuttu poiduvaan. Nalla ottu, nalla per vaangu!';
+export const MSG_HOME_HINT = 'Un veedu Mandaveli-la irukku (map-la 🏠 My house). Phone > Map > 🏠 Home - vazhi kaattum. Daily bed-la thoonganum (E), illana mayangi vizhuva!';
 export const MSG_LENDER_HELLO = 'Naan dhaan Kandasamy. Un chithappa auto-ku ₹15,000 baaki. Daily ₹500 — marakkaadha!';
 export const MSG_MISSED = ['Dei! Nethu kattala. Inniku double-aa kattu!', 'Rendu naal aachu kattala. Ippadiye pona auto en kitta dhaan!', 'Kadaisi warning thambi. Naalaiku auto-va eduthuduven!'];
 /** {cost} */
@@ -236,6 +237,10 @@ export const WASTED_TITLE = 'SUTTUTAANGA!';
 export const BUSTED_SUB = 'Police pidichitaanga. ₹{fine} fine kattitu station-la irundhu veliya vandheenga.';
 export const STARVED_TITLE = 'PASI-LA VIZHUNDHUTEENGA!';
 export const STARVED_SUB = 'Saapdaama suthuneenga, mayangi vizhundhuteenga. Hospital bill ₹{fine}. Ini time-ku saapdunga!';
+export const SLEEP_TITLE = 'THOOKAM ILLAAMA VIZHUNDHUTEENGA!';
+export const SLEEP_SUB = 'Oru naal muzhukka thoongala, nadu road-la mayangi vizhundhuteenga. Isabel Hospital-la 8 mani neram thoongi ezhundheenga. Bill ₹{fine}.';
+export const SLEEPY_LINE = '18 mani neram thoongala... kann moodudhu. Veetukku poi thoonga venum! (bed-la E)';
+export const RECOVER_LINE = 'Udambu innum thalarchi-aa irukku... mella nadakkalaam.';
 export const HUNGRY_LINE = 'Vayiru kaththudhu... edhavadhu saapdanum. (Hotel / store pakkathula E)';
 export const TIRED_LINE = 'Kaal thalarudhu, oda mudiyala. Seekiram saapdunga!';
 export const WASTED_SUB = 'Gun shot-la vizhundhuteenga. Hospital bill ₹{fine}. Isabel Hospital-la kanna muzhichuteenga.';

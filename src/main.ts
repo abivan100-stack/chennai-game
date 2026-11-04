@@ -76,6 +76,9 @@ import { KEEP_STOLEN_SECONDS, Wanted } from './combat/wanted';
 import { createPoliceStation } from './world/policeStation';
 import { DRIVER_SEAT, SPEC, VEHICLE_NAMES, type Vehicle } from './vehicles/traffic';
 import { BEATEN, HORN_LINES } from './npcs/dialogue';
+import { MSG_HOME_HINT, RECOVER_LINE, SLEEPY_LINE, SLEEP_SUB, SLEEP_TITLE } from './missions/data';
+import { HOSPITAL_SLEEP, Sleep } from './player/sleep';
+import { TIME_SCALE } from './world/sky';
 import { BUSTED_SUB, BUSTED_TITLE, HUNGRY_LINE, MSG_ESCALATE, MSG_THEFT_WARNING, POLICE, STARVED_SUB, STARVED_TITLE, TIRED_LINE, WASTED_SUB, WASTED_TITLE } from './missions/data';
 import { ATTACK_COST, Energy, type Activity } from './player/energy';
 import { Meal } from './player/meal';
@@ -237,6 +240,13 @@ async function main() {
   let lightsOn = false;
   let wasNight = false;
   const energy = new Energy();
+  const sleep = new Sleep();
+  let recoverFor = 0; // s of walking slowly after a night in hospital
+  /** Extra energy drain per real second while drowsy. */
+  const DROWSY_DRAIN = 0.35;
+  const DROWSY_SLOW = 0.85;
+  const RECOVER_SECONDS = 45;
+  const RECOVER_SLOW = 0.55;
   crowd.onSay = (name, line) => hud.say(name, line);
 
   // Start outside the temple's main gopuram on East Mada Street; uncle's auto at the kerb,
@@ -273,6 +283,7 @@ async function main() {
   if (saved) {
     economy.restore({ ...saved.economy, seized: saved.economy.seized ?? false, savings: saved.economy.savings ?? 0 }); // older saves lack these
     energy.value = saved.energy;
+    sleep.awake = saved.awake ?? 0;
     health = saved.health;
     dayNight.timeMs = saved.gameMs;
     if (saved.upkeep) Object.assign(upkeep, saved.upkeep);
@@ -672,7 +683,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -732,11 +743,17 @@ async function main() {
   let hitReactCooldown = 0;
   if (economy.seized) seizeAuto(); // loaded a save where it had been taken
   /** Arrested or shot down: fine, then released outside the station. */
-  const knockOut = (cause: 'busted' | 'shot' | 'starved') => {
+  const knockOut = (cause: 'busted' | 'shot' | 'starved' | 'sleep') => {
     const fine = cause === 'busted' ? 500 * Math.max(1, wanted.level) : 300;
     const { owed } = economy.charge(fine); // short of cash: Kandasamy pays the rest and adds it to the kadan
     showMoney();
-    const [title, sub] = cause === 'busted' ? [BUSTED_TITLE, BUSTED_SUB] : cause === 'shot' ? [WASTED_TITLE, WASTED_SUB] : [STARVED_TITLE, STARVED_SUB];
+    const [title, sub] = cause === 'busted' ? [BUSTED_TITLE, BUSTED_SUB] : cause === 'shot' ? [WASTED_TITLE, WASTED_SUB] : cause === 'sleep' ? [SLEEP_TITLE, SLEEP_SUB] : [STARVED_TITLE, STARVED_SUB];
+    if (cause === 'sleep') {
+      // A night in the hospital: the clock moves on, you've slept, and you'll be slow for a while.
+      dayNight.timeMs += HOSPITAL_SLEEP * 3600 * 1000;
+      sleep.rest();
+      recoverFor = RECOVER_SECONDS;
+    }
     const onLoan = owed > 0 ? ` Kaasu pathala: ₹${owed} kadan-la serthaachu.` : '';
     const lifted = cause === 'busted' ? 0 : economy.pickpocket(PICKPOCKET_SHARE); // bank money is safe
     showMoney();
@@ -769,6 +786,7 @@ async function main() {
 
   showMoney();
   phone.addMessage(UNCLE, saved ? MSG_WELCOME_BACK : MSG_WELCOME);
+  if (!saved) phone.addMessage(UNCLE, MSG_HOME_HINT);
 
   // Autosave every few seconds and when the tab closes.
   let resetting = false;
@@ -789,6 +807,7 @@ async function main() {
       gameMs: dayNight.timeMs,
       economy: economy.snapshot(),
       energy: energy.value,
+      awake: sleep.awake,
       health: Math.max(1, health),
       player: { x: p.x, y: p.y, z: p.z, yaw },
       auto: { x: a.x, y: a.y, z: a.z, heading: auto.heading },
@@ -943,6 +962,7 @@ async function main() {
       dayNight.timeMs += skip * 3600 * 1000;
       health = 100;
       energy.spend(skip * 2);
+      sleep.rest();
       hud.say('You', skip > 3 ? HOME_LINES.slept : HOME_LINES.napped);
       saveNow();
     }
@@ -1314,7 +1334,7 @@ async function main() {
       }
       lastShowHour = hour;
     }
-    player.speedScale = flood.slowAt(player.position.x, player.position.z);
+    player.speedScale = flood.slowAt(player.position.x, player.position.z) * (sleep.tired ? DROWSY_SLOW : 1) * (recoverFor > 0 && downFor <= 0 ? RECOVER_SLOW : 1);
     const wet = flood.depthAt(vPos.x, vPos.z) > 0.05;
     if (wet && !wasWet && vSpeed > 2) sound.splash();
     wasWet = wet;
@@ -1385,7 +1405,21 @@ async function main() {
     energy.eat(meal.energyRate * dt);
     if (energy.low && !wasLow) hud.say('Vayiru', HUNGRY_LINE);
     if (energy.tired && !wasTired) hud.say('Vayiru', TIRED_LINE);
-    player.canRun = !energy.tired;
+    // Sleep: hours awake tick with the game clock (not while down / in the hospital).
+    if (downFor <= 0) {
+      const sev = sleep.add((dt * TIME_SCALE) / 3600);
+      if (sev === 'tired') {
+        hud.say('Kann', SLEEPY_LINE);
+        phone.addMessage('Auto Anna', SLEEPY_LINE);
+      }
+      if (sev === 'collapse') knockOut('sleep');
+    }
+    if (sleep.tired) energy.spend(dt * DROWSY_DRAIN);
+    if (recoverFor > 0 && downFor <= 0) {
+      if (recoverFor === RECOVER_SECONDS) hud.say('You', RECOVER_LINE);
+      recoverFor = Math.max(0, recoverFor - dt);
+    }
+    player.canRun = !energy.tired && !sleep.tired && recoverFor <= 0;
     hud.setEnergy(energy.value, energy.low);
     if (input.wasPressed('F3')) debug.toggle();
     if (economy.seized) hud.setMission(MISSION_SEIZED.replace('{cost}', economy.redeemCost.toLocaleString('en-IN')));

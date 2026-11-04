@@ -64,6 +64,7 @@ const PM_W = 252; // phone map size (CSS px)
 const PM_H = 250;
 /** Search chips: key, label, which place kinds they list. */
 const SEARCH: [string, string, PoiCat[]][] = [
+  ['home', '🏠 Home', ['home']],
   ['fuel', '⛽ Petrol', ['fuel']],
   ['mechanic', '🔧 Mechanic', ['mechanic']],
   ['atm', '₹ ATM', ['atm']],

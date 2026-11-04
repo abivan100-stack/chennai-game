@@ -259,3 +259,16 @@ console.log('check: quests passed');
   assert(new Set(UPGRADES.map((u) => u.id)).size === UPGRADES.length && new Set(DEALER_STOCK.map((d) => d.id)).size === DEALER_STOCK.length, 'ids are unique');
 }
 console.log('check: garage passed');
+
+// --- Sleep: drowsy after 18 h awake, collapse at 24, a bed resets it ---
+{
+  const { Sleep, TIRED_AFTER, COLLAPSE_AFTER } = await import('../src/player/sleep.ts');
+  const sl = new Sleep();
+  assert(sl.add(TIRED_AFTER - 0.1) === null && !sl.tired, 'fine before 18 h');
+  assert(sl.add(0.2) === 'tired' && sl.tired, 'drowsy at 18 h (told once)');
+  assert(sl.add(1) === null, 'only told once');
+  assert(sl.add(COLLAPSE_AFTER) === 'collapse', 'collapse at 24 h');
+  sl.rest();
+  assert(sl.awake === 0 && !sl.tired && sl.add(TIRED_AFTER) === 'tired', 'a sleep resets it (and the warning)');
+}
+console.log('check: sleep passed');
