@@ -29,6 +29,8 @@ export const REPAIR = 800;
 export const RIVAL_FROM = 2;
 export const RIVAL_CHANCE = 0.12;
 export const RIVAL_COST = 500;
+/** The Tidel staff contract (story mission 'tidel') lifts every driver's takings. */
+export const CONTRACT_BONUS = 1.2;
 
 export const DRIVERS: Driver[] = [
   { id: 'murugan', name: 'Murugan', trait: 'honest', blurb: '20 years on Mylapore roads. Never misses a day.' },
@@ -57,6 +59,10 @@ export class Fleet {
   earned = 0;
   /** Last game day settled (each day is settled once). */
   private seen: number | null = null;
+  /** Won the Tidel contract: takings x CONTRACT_BONUS. */
+  contract = false;
+  /** Ganesh warned off by the police (story mission 'complaint'): no more slashed tyres. */
+  peace = false;
 
   get hired() {
     return this.autos.filter((a) => a.driver).map((a) => a.driver!);
@@ -102,7 +108,7 @@ export class Fleet {
 
   private settle(rand: () => number): DayReport {
     const r: DayReport = { income: 0, lines: [] };
-    const rival = this.autos.length >= RIVAL_FROM && rand() < RIVAL_CHANCE;
+    const rival = !this.peace && this.autos.length >= RIVAL_FROM && rand() < RIVAL_CHANCE;
     this.autos.forEach((a, i) => {
       if (!a.driver) return;
       const dr = driver(a.driver);
@@ -116,7 +122,7 @@ export class Fleet {
         r.lines.push(`😴 ${dr.name} didn't turn up today.`);
         return;
       }
-      let net = t.takings * (0.8 + rand() * 0.4) * (1 - DRIVER_SHARE);
+      let net = t.takings * (this.contract ? CONTRACT_BONUS : 1) * (0.8 + rand() * 0.4) * (1 - DRIVER_SHARE);
       let note = '';
       if (rand() < t.fine) {
         net -= FINE;
@@ -134,12 +140,14 @@ export class Fleet {
   }
 
   snapshot() {
-    return { autos: this.autos.map((a) => ({ ...a })), earned: this.earned, seen: this.seen };
+    return { autos: this.autos.map((a) => ({ ...a })), earned: this.earned, seen: this.seen, contract: this.contract, peace: this.peace };
   }
 
-  restore(s: { autos: FleetAuto[]; earned: number; seen: number | null }) {
+  restore(s: { autos: FleetAuto[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean }) {
     this.autos = s.autos.map((a) => ({ driver: a.driver && DRIVERS.some((d) => d.id === a.driver) ? a.driver : null }));
     this.earned = s.earned;
     this.seen = s.seen;
+    this.contract = !!s.contract;
+    this.peace = !!s.peace;
   }
 }

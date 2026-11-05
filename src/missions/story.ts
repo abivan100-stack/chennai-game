@@ -1,4 +1,4 @@
-import { STORY_ORDER } from './storyMissions.ts';
+import { GANESH_ORDER, STORY_ORDER } from './storyMissions.ts';
 
 /**
  * The story, chapter by chapter (see CLAUDE.md "Story roadmap"). Pure logic (no DOM / three.js)
@@ -16,6 +16,7 @@ export interface StoryState {
   seshadri: boolean; // returned Seshadri sir's lost bag (story mission 'lostbag')
   fleet: number; // autos in Anna Travels (missions/fleet.ts)
   fleetEarned: number; // what the fleet has paid you so far
+  ganesh: number; // Chapter 3 story missions passed (storyMissions.ts GANESH_ORDER)
 }
 
 export interface Goal {
@@ -72,8 +73,9 @@ export const CHAPTERS: Chapter[] = [
       { text: 'Run 3 autos in Anna Travels (Phone > Business)', done: (s) => s.fleet >= 3, progress: (s) => `${Math.min(s.fleet, 3)}/3` },
       { text: 'Earn ₹10,000 from the fleet', done: (s) => s.fleetEarned >= 10000, progress: (s) => `${rupees(s.fleetEarned)} / ₹10,000` },
       { text: 'Save ₹25,000 in the bank', done: (s) => s.savings >= 25000, progress: (s) => `${rupees(s.savings)} / ₹25,000` },
+      { text: 'Stand up to Ganesh (story missions)', done: (s) => s.ganesh >= GANESH_ORDER.length, progress: (s) => `${Math.min(s.ganesh, GANESH_ORDER.length)}/${GANESH_ORDER.length}` },
     ],
-    needed: [0, 1, 2],
+    needed: [0, 1, 2, 3],
   },
   {
     n: 4,

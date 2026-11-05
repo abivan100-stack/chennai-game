@@ -169,6 +169,9 @@ export function nextMission(done: readonly string[]) {
 /** Chapter 2's story missions in the order they come up: auto rides and quests (missions/quests.ts) mixed. */
 export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 'film', 'flowers', 'lostbag', 'tourist', 'follow', 'match', 'nurse'];
 
+/** Chapter 3's story missions (Ganesh, the rival fleet): offered first from Chapter 3, then any Chapter 2 leftovers. */
+export const GANESH_ORDER = ['tyres', 'tidel', 'complaint'];
+
 /** Is game hour `h` inside [from, to) (wrapping past midnight when to < from)? */
 export const inHours = (h: number, [a, b]: [number, number]) => (a <= b ? h >= a && h < b : h >= a || h < b);
 
@@ -176,12 +179,13 @@ export const inHours = (h: number, [a, b]: [number, number]) => (a <= b ? h >= a
  * The next story mission to hand out: a ride (phone order) or a quest (started straight away).
  * With `hour`, rides that only run at certain hours are skipped until their time comes.
  */
-export function nextStory(done: readonly string[], hour?: number): { ride: StoryMission } | { quest: Quest } | null {
+export function nextStory(done: readonly string[], hour?: number, chapter = 2): { ride: StoryMission } | { quest: Quest } | null {
   const fits = (i: string) => {
     const h = STORY_MISSIONS.find((m) => m.id === i)?.hours;
     return hour === undefined || !h || inHours(hour, h);
   };
-  const id = STORY_ORDER.find((i) => !done.includes(i) && fits(i));
+  const order = chapter >= 3 ? [...GANESH_ORDER, ...STORY_ORDER] : STORY_ORDER;
+  const id = order.find((i) => !done.includes(i) && fits(i));
   if (!id) return null;
   const ride = STORY_MISSIONS.find((m) => m.id === id);
   if (ride) return { ride };

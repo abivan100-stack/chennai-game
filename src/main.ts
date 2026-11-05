@@ -31,7 +31,7 @@ import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
 import { RENT, Rent } from './missions/rent';
-import { nextStory, storyTitle } from './missions/storyMissions';
+import { GANESH_ORDER, STORY_ORDER, nextStory, storyTitle } from './missions/storyMissions';
 import { QuestRunner } from './missions/questRunner';
 import { BAG_PRICE, BAG_SLOTS, Bag } from './player/bag';
 import { BAG_LINES } from './world/food';
@@ -298,8 +298,9 @@ async function main() {
   const fleet = new Fleet();
   if (saved?.fleet) fleet.restore(saved.fleet);
   const storyState = () => ({
-    loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.length,
+    loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.filter((i) => STORY_ORDER.includes(i)).length,
     seshadri: storyDone.includes('lostbag'), fleet: fleet.autos.length, fleetEarned: fleet.earned,
+    ganesh: storyDone.filter((i) => GANESH_ORDER.includes(i)).length,
   });
   let storyCheck = 0;
   if (rent.evicted) owned.delete(0); // locked out of the rented house until the rent is paid
@@ -673,6 +674,9 @@ async function main() {
   /** A story mission (ride or quest) ended. */
   const storyFinished = (id: string, passed: boolean) => {
     if (passed && !storyDone.includes(id)) storyDone.push(id);
+    // Chapter 3 wins change how the fleet runs.
+    if (passed && id === 'tidel') fleet.contract = true;
+    if (passed && id === 'complaint') fleet.peace = true;
     storyRideIn = 90;
     phone.addMessage('Auto Anna', (passed ? STORY_RIDE_LINES.passed : STORY_RIDE_LINES.failed).replace('{title}', storyTitle(id)));
     saveNow();
@@ -1714,7 +1718,7 @@ async function main() {
     // Rides need the ride app online (you're in the auto); quests start wherever you are.
     if (story.chapter >= 2 && storyRideIn <= 0 && !jobs.storyOpen && !quests.active && downFor <= 0) {
       storyRideIn = 30;
-      const next = nextStory(storyDone, istTime(dayNight.timeMs).hours);
+      const next = nextStory(storyDone, istTime(dayNight.timeMs).hours, story.chapter);
       if (next && 'ride' in next && jobs.phase !== 'off') jobs.addStory(next.ride);
       if (next && 'quest' in next) {
         quests.start(next.quest);

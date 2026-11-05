@@ -63,6 +63,9 @@ const flowers = stop('North Mada Street flower market');
 const luz = stop('Luz Corner');
 const elliots = stop("Elliot's Beach", 'kerb');
 const seshadri = stop('Alwarpet TTK Road');
+const stand = stop('Mylapore auto stand');
+const station = near(stop('Kutchery Road'), -15, 0); // Mylapore Police Station gate
+const tidel = stop('Tidel Park');
 
 export const QUESTS: Quest[] = [
   {
@@ -194,5 +197,77 @@ export const QUESTS: Quest[] = [
     ],
     reward: 5000,
     success: 'Seshadri sir: Indha ₹{reward} vechukko. Naan 30 varusham transport business pannavan. Unakku oru auto podhumaa? Yosichu paaru... en card vechukko, oru naal vandhu paaru.',
+  },
+  // ---- Chapter 3: Ganesh, Kandasamy's nephew, and his rival fleet ----
+  {
+    id: 'tyres',
+    title: 'Tyre Kizhippu',
+    offer: '📖 Murugan (phone): Anna! Yaaro namma autos pakkathula knife-oda nikkiraan! Mylapore auto stand-ku seekiram vaanga!',
+    people: {
+      murugan: { name: 'Murugan (your driver)', look: 'man', at: near(stand, 2.5, 0) },
+      goon: { name: "Ganesh's aal", look: 'man', at: near(stand, -6, 0) },
+    },
+    steps: [
+      { kind: 'goto', at: stand, radius: 9, text: 'Get to the Mylapore auto stand (South Mada Street)' },
+      {
+        kind: 'chase', who: 'goon', to: stop('Luz Corner'), speed: 5.3, loseAfter: 6,
+        shout: [['Murugan', 'Avan dhaan anna! Tyre-la knife vechaan!'], ["Ganesh's aal", 'Ganesh anna sonnaru, naan enna panna!! (runs)']],
+        text: "Catch Ganesh's man! (E when close, or bump him with a vehicle)",
+        caught: "Ganesh's aal: Vidunga vidunga! Ganesh anna dhaan anuppinaaru... ini varamaaten!",
+        escaped: 'Luz Corner crowd-la maraindhuttaan... Ganesh-ku ippo theriyum, neenga kaathukittu irukeenga.',
+      },
+      { kind: 'talk', who: 'murugan', text: 'Go back to Murugan at the auto stand (E)', line: 'Anna, neenga illana moonu auto-um tyre illaama nikkum! Ganesh-ku idhu first warning dhaan... avan vida maattaan.' },
+    ],
+    reward: 1500,
+    success: 'Murugan: Indha ₹{reward}, stand drivers ellarum serndhu kuduthaanga. "Anna Travels-a thoda mudiyaadhu!"',
+  },
+  {
+    id: 'tidel',
+    title: 'Tidel Contract',
+    offer: '📖 Seshadri sir: Tidel Park-la oru company staff-ku auto contract kudukka poraanga. Ganesh-um try panraan. Priya madam-a poi paaru!',
+    people: {
+      priya: { name: 'Priya madam (HR, Tidel)', look: 'woman', at: near(tidel, 2.5, 0) },
+    },
+    steps: [
+      { kind: 'goto', at: tidel, radius: 9, text: 'Go to Tidel Park (Taramani)' },
+      { kind: 'talk', who: 'priya', text: 'Talk to Priya madam at the gate (E)', line: "Ganesh's drivers double meter podraanga, staff complaint pannuraanga. Neenga better-a? Prove pannunga: indha server box Grand Lake Residences-la en CEO veetuku, time-ku, odaiyaama!" },
+      {
+        kind: 'carry', item: 'box', to: stop('Grand Lake Residences'), limit: 80, maxJolts: 2,
+        text: 'Deliver the server box to Grand Lake Residences: on time, no hard knocks!',
+        broken: 'Priya (phone): Box-la crack sound?! Sorry, contract Ganesh-ku dhaan...',
+        late: "Priya (phone): CEO wait panni poittaaru. Ganesh-oda aal munnaadiye vandhuttaan...",
+      },
+    ],
+    reward: 2000,
+    success: 'Priya (phone): CEO impressed! Contract Anna Travels-ku: Tidel staff ellam ungal autos-la dhaan. (Fleet takings +20%) Indha ₹{reward} advance.',
+  },
+  {
+    id: 'complaint',
+    title: 'Poi Complaint',
+    offer: '📖 Police station (phone): Ungal driver Selvam mela complaint vandhirukku - Ganesh auto-va idichaaraam. Mylapore Police Station-ku vaanga, illana permit cancel!',
+    people: {
+      inspector: { name: 'Inspector Durai', look: 'man', at: near(station, -2, 0) },
+      ganesh: { name: 'Ganesh', look: 'man', at: near(station, 3.5, 0) },
+      mani: { name: 'Tea master Mani', look: 'man', at: { x: 0, z: 0 }, hidden: true },
+      paati: { name: 'Poo vikkara paati', look: 'woman', at: near(stand, 4, 0) },
+      paper: { name: 'Paper paiyan', look: 'man', at: near(stand, -14, 0) },
+    },
+    steps: [
+      { kind: 'goto', at: station, radius: 8, text: 'Go to the Mylapore Police Station (Kutchery Road)' },
+      { kind: 'talk', who: 'inspector', text: 'Talk to Inspector Durai (E)', line: 'Ganesh sollraan, nethu auto stand-la Selvam avan auto-va idichaan-nu. Witness illana permit cancel. Yaaraavadhu paathaangala?' },
+      {
+        kind: 'search', who: 'mani', text: 'Find a witness near the auto stand (ask around: E)',
+        spots: [near(stand, 8, 0), near(stand, -10, 0), near(stand, -22, 0)],
+        found: 'Mani: Paathen paathen! Ganesh-e dhaan avan auto-va post-la mothinaan, aprom Selvam mela pazhi pottaan. Vaanga, naan solren!',
+        clues: [
+          { who: 'paati', line: 'Nethu saayangaalam-aa? Tea kadai Mani ellaathayum paathukittu irundhaan pa.' },
+          { who: 'paper', line: 'Mani anna? Market pakkam, kadai-ku paal vaanga ponaaru.' },
+        ],
+      },
+      { kind: 'escort', who: 'mani', to: near(station, 0.5, 0), text: 'Walk Mani to the police station', done: 'Inspector Durai: Seri, sollunga... (writes it all down)' },
+      { kind: 'talk', who: 'ganesh', text: 'Face Ganesh (E)', line: 'Ganesh: ... Seri, indha thadava nee jeichitta. Kandasamy maama-voda auto-va vechu mudhalaali aayitta, aana idhu mudivu illa. (walks off)' },
+    ],
+    reward: 2500,
+    success: 'Inspector Durai: Poi complaint-ku Ganesh-ku warning kuduthaachu. Ungal drivers-a ini thoda maattaan. (No more slashed tyres.) Seshadri sir sends ₹{reward}: "Shabash!"',
   },
 ];
