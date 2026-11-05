@@ -297,6 +297,7 @@ async function main() {
   const homesBought = () => [...owned].filter((i) => i !== 0).length;
   const fleet = new Fleet();
   if (saved?.fleet) fleet.restore(saved.fleet);
+  traffic.setFleet(fleet.hired.length);
   const storyState = () => ({
     loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.filter((i) => STORY_ORDER.includes(i)).length,
     seshadri: storyDone.includes('lostbag'), fleet: fleet.autos.length, fleetEarned: fleet.earned,
@@ -612,6 +613,7 @@ async function main() {
     },
     hire: (i, id) => {
       if (!fleet.hire(i, id)) return;
+      traffic.setFleet(fleet.hired.length);
       const d = DRIVERS.find((x) => x.id === id)!;
       phone.addMessage(SESHADRI, FLEET_LINES.hired.replace('{name}', d.name).replace('{trait}', TRAITS[d.trait].label));
       saveNow();
@@ -619,6 +621,7 @@ async function main() {
     fire: (i) => {
       const d = DRIVERS.find((x) => x.id === fleet.autos[i]?.driver);
       fleet.fire(i);
+      traffic.setFleet(fleet.hired.length);
       if (d) phone.addMessage(SESHADRI, FLEET_LINES.fired.replace('{name}', d.name));
       saveNow();
     },

@@ -54,6 +54,8 @@ const AMBIENT_FLEET: [Kind, number?][] = [
   ['scooter', 0x90caf9], ['scooter', 0xf48fb1], ['bike', 0x212121], ['bike', 0xb71c1c],
   ['delivery'], ['delivery'], ['bus'], ['bus'], ['tanker'], ['tempo', 0x43a047], ['van', 0xfafafa], ['lorry', 0xf57c00],
 ];
+/** Anna Travels autos (Chapter 3) wear this colour so you can spot your fleet on the road. */
+export const FLEET_COLOUR = 0x1f9d55;
 const SIGNAL_LOOK = 25; // m: start slowing for a red this far before the stop line
 
 export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry' | 'suv' | 'hatch' | 'shareauto' | 'tanker' | 'delivery';
@@ -382,6 +384,29 @@ export class Traffic {
 
   private readonly driverModels: CharacterAsset[];
   private readonly ambient: Vehicle[] = [];
+  private readonly fleetAutos: Vehicle[] = [];
+
+  /**
+   * Keep `n` Anna Travels autos (your hired drivers) on the road: they join the ambient pool, so
+   * they keep turning up round you. Fewer drivers = autos taken off (not one you're driving).
+   */
+  setFleet(n: number) {
+    while (this.fleetAutos.length < n) {
+      const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
+      const v = this.spawn(this.world, 'auto', blockRoute(b.i, b.j), Math.random(), FLEET_COLOUR);
+      this.ambient.push(v);
+      this.fleetAutos.push(v);
+    }
+    while (this.fleetAutos.length > n) {
+      const v = this.fleetAutos.pop()!;
+      this.ambient.splice(this.ambient.indexOf(v), 1);
+      if (v.mode !== 'ai') continue; // stolen / driven: it stays where it is
+      this.world.removeRigidBody(v.body);
+      this.scene.remove(v.group);
+      this.vehicles.splice(this.vehicles.indexOf(v), 1);
+      for (const o of this.vehicles) if (o.blocker === v) o.blocker = null;
+    }
+  }
   private ambientCheck = 0;
   /** Blocks with a road on every side, away from the river: loops traffic can drive round. */
   private readonly streetBlocks = blocks().filter((b) => b.kind !== 'beach' && b.road.w && b.road.e && b.road.n && b.road.s && !(b.z0 < RIVER.z1 + 10 && b.z1 > RIVER.z0 - 10));
@@ -426,6 +451,7 @@ export class Traffic {
         group.add(holder);
       }
       const m = buildAutoModel(holder, randomPlate('commercial'));
+      if (colour !== undefined) m.paint.color.setHex(colour);
       wheelMeshes = m.wheels;
       if (holder !== group) wheelR *= 1.15;
       lights = [m.headlight, m.tail];
