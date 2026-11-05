@@ -788,6 +788,7 @@ async function main() {
     stolen: !!stolen && !mine.some((m) => m.veh === stolen),
   });
   quests.onDone = (id, passed, reward) => {
+    hud.setMission(''); // on foot nothing else rewrites the line, so the finished quest would stay up
     if (reward) {
       economy.cash += reward;
       economy.earnedToday += reward;
@@ -843,7 +844,7 @@ async function main() {
   const debug = new DebugPanel(quality);
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, homes, owned, storyDone, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
