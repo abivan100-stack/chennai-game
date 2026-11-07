@@ -17,6 +17,8 @@ export const UNITS: Record<UnitKind, { price: number; mult: number; name: string
 };
 /** The Guindy warehouse lease (Chapter 4): the base the delivery vans run from. */
 export const WAREHOUSE_PRICE = 15000;
+/** The Tidel staff bus contract (story mission 'staffbus'): paid every day. */
+export const BUS_CONTRACT = 3000;
 
 export interface Driver {
   id: string;
@@ -81,6 +83,8 @@ export class Fleet {
   peace = false;
   /** Leased the Guindy warehouse (Chapter 4). */
   warehouse = false;
+  /** Won the Tidel staff bus contract (Chapter 4). */
+  busContract = false;
 
   get hired() {
     return this.autos.filter((a) => a.driver).map((a) => a.driver!);
@@ -131,6 +135,10 @@ export class Fleet {
 
   private settle(rand: () => number): DayReport {
     const r: DayReport = { income: 0, lines: [] };
+    if (this.busContract) {
+      r.income += BUS_CONTRACT;
+      r.lines.push(`🚌 Tidel staff bus contract: ${rupees(BUS_CONTRACT)}.`);
+    }
     const rival = !this.peace && this.autos.length >= RIVAL_FROM && rand() < RIVAL_CHANCE;
     this.autos.forEach((a, i) => {
       if (!a.driver) return;
@@ -164,15 +172,16 @@ export class Fleet {
   }
 
   snapshot() {
-    return { autos: this.autos.map((a) => ({ ...a })), earned: this.earned, seen: this.seen, contract: this.contract, peace: this.peace, warehouse: this.warehouse };
+    return { autos: this.autos.map((a) => ({ ...a })), earned: this.earned, seen: this.seen, contract: this.contract, peace: this.peace, warehouse: this.warehouse, busContract: this.busContract };
   }
 
-  restore(s: { autos: FleetAuto[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean; warehouse?: boolean }) {
+  restore(s: { autos: FleetAuto[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean; warehouse?: boolean; busContract?: boolean }) {
     this.autos = s.autos.map((a) => ({ driver: a.driver && DRIVERS.some((d) => d.id === a.driver) ? a.driver : null, kind: a.kind ?? 'auto' }));
     this.earned = s.earned;
     this.seen = s.seen;
     this.contract = !!s.contract;
     this.peace = !!s.peace;
     this.warehouse = !!s.warehouse;
+    this.busContract = !!s.busContract;
   }
 }

@@ -172,7 +172,7 @@ export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 
 /** Chapter 3's story missions (Ganesh, the rival fleet): offered first from Chapter 3, then any Chapter 2 leftovers. */
 export const GANESH_ORDER = ['tyres', 'tidel', 'complaint'];
 /** Chapter 4's story missions (Anna Travels & Logistics): offered first from Chapter 4. */
-export const LOGISTICS_ORDER = ['poach', 'firstload'];
+export const LOGISTICS_ORDER = ['poach', 'firstload', 'staffbus'];
 
 /** Is game hour `h` inside [from, to) (wrapping past midnight when to < from)? */
 export const inHours = (h: number, [a, b]: [number, number]) => (a <= b ? h >= a && h < b : h >= a || h < b);

@@ -37,6 +37,11 @@ export type Step =
    * SPOT_AFTER s and they spot you, further than `lose` for LOSE_AFTER s and you've lost them.
    * `rider` (a quest person) is in your vehicle for the chase and steps out at the end.
    */
+  /**
+   * Drive a `vehicle` kind (e.g. the company bus) round `stops` in order: stop within 9 m for 2 s
+   * and `board` people get on (negative = get off). All within `limit` s.
+   */
+  | { kind: 'shuttle'; vehicle: string; stops: { at: Pt; name: string; board: number }[]; limit: number; text: string; wrong: string; late: string }
   | { kind: 'tail'; colour: number; from: Pt; to: Pt; speed: number; near: number; lose: number; rider?: string; text: string; spotted: string; lost: string; arrived: string; warnNear: string; warnFar: string };
 
 export interface Quest {
@@ -295,6 +300,31 @@ export const QUESTS: Quest[] = [
     ],
     reward: 2500,
     success: 'Priya madam: Indha ₹{reward}, first month cab advance. Ganesh-oda drivers-ku Tidel gate-la entry illa ini!',
+  },
+  {
+    id: 'staffbus',
+    title: 'Staff Bus Trial',
+    offer: '📖 Supervisor Ravi: Seshadri sir oru company bus vaangi warehouse-la niruthirukkaaru! Tidel staff bus contract-ku trial run. Warehouse-ku vaanga!',
+    people: {
+      ravi: { name: 'Supervisor Ravi', look: 'man', at: near(warehouse, 2, 0) },
+    },
+    steps: [
+      { kind: 'goto', at: warehouse, radius: 9, text: 'Go to your warehouse (Guindy Industrial Estate)' },
+      { kind: 'talk', who: 'ravi', text: 'Talk to Supervisor Ravi (E)', line: 'Bus yard-la ready, saavi idho! Tidel gate-la staff ethunga, Taramani Road-la innum konjam per, ellarayum Grand Lake Residences-la irakkunga. 5 nimishathula mudichaa contract namakku!' },
+      {
+        kind: 'shuttle', vehicle: 'bus', limit: 300,
+        stops: [
+          { at: stop('Tidel Park', 'kerb'), name: 'Tidel Park gate', board: 18 },
+          { at: stop('Taramani Road', 'kerb'), name: 'Taramani Road', board: 9 },
+          { at: stop('Grand Lake Residences', 'kerb'), name: 'Grand Lake Residences', board: -27 },
+        ],
+        text: 'Drive the company bus: stop at each bus stop (stand still a moment)',
+        wrong: 'Company bus-la dhaan staff ethanum! Warehouse yard-la irukku.',
+        late: 'Priya madam (phone): Staff late-aa office-ku vandhaanga... trial fail. Innoru chance tharen.',
+      },
+    ],
+    reward: 3500,
+    success: 'Priya madam (phone): Ellarum correct time-la veedu poi saerndhaanga! Staff bus contract Anna Travels-ku: daily ₹3,000. Indha ₹{reward} first payment.',
   },
   {
     id: 'firstload',

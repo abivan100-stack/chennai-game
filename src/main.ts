@@ -99,6 +99,8 @@ const ENTER_RADIUS = 3; // metres from the auto to show "F - Get in"
 const PUSH_SPOT = new THREE.Vector3(0, 0, -2.05);
 const PUSH_CLIP_SPEED = 1.2; // m/s the Pushing clip's steps are made for
 const PUSH_LOSE = 3.5;
+/** Where the company bus parks: the estate road inside the Guindy warehouse block (layout.GUINDY.estate()[1]). */
+const WAREHOUSE_YARD = { x: -481.25, z: 637.5 };
 /** Navigation ends this close to the destination (metres). */
 const ARRIVE_M = 14;
 /** Lines for buying a home and sleeping (Tanglish). */
@@ -659,7 +661,7 @@ async function main() {
     },
     deliver: (i) => {
       const m = mine[i];
-      if (!m || stolen === m.veh || !economy.spend(DELIVER_HOME)) return;
+      if (!m || stolen === m.veh || m.veh.kind === 'bus' || !economy.spend(DELIVER_HOME)) return; // the bus lives at the warehouse
       const p = homeSpot(i);
       traffic.place(m.veh, p.x, p.z, p.heading);
       showMoney();
@@ -712,6 +714,7 @@ async function main() {
     // Chapter 3 wins change how the fleet runs.
     if (passed && id === 'tidel') fleet.contract = true;
     if (passed && id === 'complaint') fleet.peace = true;
+    if (passed && id === 'staffbus') fleet.busContract = true;
     storyRideIn = 90;
     phone.addMessage('Auto Anna', (passed ? STORY_RIDE_LINES.passed : STORY_RIDE_LINES.failed).replace('{title}', storyTitle(id)));
     saveNow();
@@ -751,6 +754,13 @@ async function main() {
     ownPlates(veh);
     return { stock: v.stock, veh, upkeep: ownUpkeep(v.kind, v.fuel, v.condition) };
   });
+  /** The company bus (Chapter 4 staff bus trial): parked in the warehouse yard, yours to keep. */
+  const giveCompanyBus = () => {
+    if (mine.some((m) => m.stock === 'staffbus')) return;
+    const veh = traffic.addParked('bus', undefined, WAREHOUSE_YARD.x, WAREHOUSE_YARD.z, Math.PI);
+    mine.push({ stock: 'staffbus', veh, upkeep: ownUpkeep('bus') });
+    saveNow();
+  };
   /** The owned vehicle you're driving, if any. */
   const ownedNow = () => (stolen ? mine.find((m) => m.veh === stolen) ?? null : null);
   /**
@@ -818,6 +828,8 @@ async function main() {
     vehicle: stolen ? stolen.group.position : ride.driving ? auto.group.position : null,
     jolt,
     stolen: !!stolen && !mine.some((m) => m.veh === stolen),
+    vehicleKind: stolen ? stolen.kind : ride.driving ? 'auto' : null,
+    speed: stolen ? Math.abs(traffic.speedOf(stolen)) : ride.driving ? Math.abs(auto.speed) : 0,
   });
   quests.onDone = (id, passed, reward) => {
     hud.setMission(''); // on foot nothing else rewrites the line, so the finished quest would stay up
@@ -892,6 +904,7 @@ async function main() {
     player.animator.play('drive', { fade: 0.2 });
     cam.mode = 'drive';
     cam.ignore = v.collider;
+    cam.size = Math.max(1, SPEC[v.kind].length / 4.4); // buses / lorries: pull the camera back
     hud.setSpeed(0);
     const own = mine.some((m) => m.veh === v) ? carrierFor(v) : null;
     if (own && jobs.useCarrier(own)) {
@@ -919,6 +932,7 @@ async function main() {
     player.setAway(false);
     cam.mode = 'foot';
     cam.ignore = player.collider;
+    cam.size = 1;
     hud.setSpeed(null);
   };
   // ---- Kandasamy takes the auto after too many missed days ------------------------------
@@ -1774,7 +1788,8 @@ async function main() {
       const next = nextStory(storyDone, istTime(dayNight.timeMs).hours, story.chapter);
       if (next && 'ride' in next && jobs.phase !== 'off') jobs.addStory(next.ride);
       // Your first warehouse load waits until you've leased the warehouse.
-      if (next && 'quest' in next && !(next.quest.id === 'firstload' && !fleet.warehouse)) {
+      if (next && 'quest' in next && !(['firstload', 'staffbus'].includes(next.quest.id) && !fleet.warehouse)) {
+        if (next.quest.id === 'staffbus') giveCompanyBus();
         quests.start(next.quest);
         phone.notify(next.quest.offer);
         phone.addMessage('Auto Anna', next.quest.offer);

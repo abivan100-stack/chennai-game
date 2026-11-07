@@ -198,7 +198,7 @@ console.log('check: all passed');
   const ch3 = { ...base, loan: 0, savings: 60000, fleet: 5, fleetEarned: 20000 };
   assert(st.update({ ...ch3, ganesh: 2 }) === null && st.chapter === 3, 'chapter 3 waits for the Ganesh missions');
   assert(st.update({ ...ch3, ganesh: 3 })?.n === 4 && st.chapter === 4, 'fleet + savings + Ganesh open chapter 4');
-  const ch4 = { ...ch3, ganesh: 3, warehouse: true, cabs: 2, vans: 1, fleetEarned: 40000, logistics: 2 };
+  const ch4 = { ...ch3, ganesh: 3, warehouse: true, cabs: 2, vans: 1, fleetEarned: 40000, logistics: 3 };
   assert(st.update({ ...ch4, warehouse: false }) === null && st.update({ ...ch4, vans: 0 }) === null, 'chapter 4 needs the warehouse and a van');
   assert(st.update(ch4) === null && st.chapter === 4, 'chapter 4 waits while chapter 5 is not built');
   assert(new Story({ chapter: 99 }).chapter === 4, 'a saved chapter is clamped to the last one that is built');
@@ -365,6 +365,9 @@ console.log('check: bag passed');
   const w = new Fleet();
   w.restore(u.snapshot());
   assert(w.warehouse && w.count('van') === 1, 'unit kinds + the warehouse are saved');
+  w.busContract = true;
+  const withBus = w.tick(2, always(0.5))!;
+  assert(withBus.lines.some((l) => l.includes('staff bus')) && new Fleet().snapshot().busContract === false, 'the staff bus contract pays daily');
 }
 console.log('check: fleet passed');
 

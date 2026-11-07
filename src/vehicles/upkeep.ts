@@ -22,6 +22,7 @@ export const FUEL_SPEC: Record<string, { tank: number; perKm: number }> = {
   van: { tank: 40, perKm: 0.7 },
   taxi: { tank: 45, perKm: 0.7 },
   suv: { tank: 50, perKm: 0.8 },
+  bus: { tank: 150, perKm: 1.2 },
 };
 
 export class Upkeep {

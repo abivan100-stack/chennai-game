@@ -35,6 +35,8 @@ export class FollowCamera {
   private readonly goal = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
   private readonly probe = new RAPIER.Ball(PROBE_RADIUS);
+  /** Framing scale for big vehicles (a bus needs the camera much further back). */
+  size = 1;
   private distance: number = MODES.foot.distance;
   private height: number = MODES.foot.height;
   private idle = 0;
@@ -66,7 +68,8 @@ export class FollowCamera {
   }
 
   update(dt: number, target: THREE.Vector3, behindYaw?: number) {
-    const m = MODES[this.mode];
+    const base = MODES[this.mode];
+    const m = { distance: base.distance * this.size, height: base.height * this.size };
     this.height += (m.height - this.height) * (1 - Math.exp(-4 * dt));
     this.idle += dt;
     if (behindYaw !== undefined && this.idle > AUTO_ALIGN_AFTER) {

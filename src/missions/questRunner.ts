@@ -49,6 +49,9 @@ export interface QuestCtx {
   jolt: boolean;
   /** Driving a stolen vehicle: missions don't count (the clock still runs). */
   stolen?: boolean;
+  /** What you're driving (traffic Kind, 'auto' for the auto) and how fast (m/s). */
+  vehicleKind?: string | null;
+  speed?: number;
 }
 
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -83,6 +86,7 @@ export class QuestRunner {
   private warned = false;
   private caught = false;
   private gap = -1; // m to the tailed car (HUD)
+  private aboard = 0; // shuttle: people on the bus
   private readonly ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
   constructor(scene: THREE.Scene, world: RAPIER.World, assets: Map<NpcModelId, CharacterAsset>) {
@@ -125,6 +129,10 @@ export class QuestRunner {
       return a ? { x: a.root.position.x, z: a.root.position.z, kind: 'pickup' } : null;
     }
     if (s.kind === 'search') return { ...this.centre(s.spots), kind: 'pickup' };
+    if (s.kind === 'shuttle') {
+      const st = s.stops[Math.min(this.pathI, s.stops.length - 1)];
+      return { ...st.at, kind: st.board < 0 ? 'drop' : 'pickup' };
+    }
     return { ...s.to, kind: 'drop' };
   }
 
@@ -132,7 +140,11 @@ export class QuestRunner {
   get mission() {
     const s = this.cur;
     if (!s || !this.quest) return '';
-    const clock = s.kind === 'carry' ? ` ⏱ ${Math.max(0, Math.ceil(s.limit - this.t))}s` : '';
+    const clock = s.kind === 'carry' || s.kind === 'shuttle' ? ` ⏱ ${Math.max(0, Math.ceil(s.limit - this.t))}s` : '';
+    if (s.kind === 'shuttle') {
+      const st = s.stops[Math.min(this.pathI, s.stops.length - 1)];
+      return `📖 ${this.quest.title}: next stop ${st.name} (${this.pathI + 1}/${s.stops.length}) · ${this.aboard} aboard${clock}`;
+    }
     const knocks = s.kind === 'carry' && s.maxJolts !== undefined ? ` · knocks ${this.jolts}/${s.maxJolts}` : '';
     const gap = s.kind === 'tail' && this.gap >= 0 ? ` · ${Math.round(this.gap)} m` : '';
     return `📖 ${this.quest.title}: ${s.text}${clock}${knocks}${gap}`;
@@ -298,6 +310,28 @@ export class QuestRunner {
         }
         return;
       }
+      case 'shuttle': {
+        if (this.t > s.limit) return this.finish(false, s.late);
+        if (ctx.vehicleKind !== s.vehicle) {
+          if (ctx.vehicle && !this.warned) {
+            this.warned = true;
+            this.onSay('', s.wrong);
+          }
+          this.near = 0;
+          return;
+        }
+        const st = s.stops[this.pathI];
+        if (this.dist(me, st.at) < 9 && (ctx.speed ?? 0) < 1.5) {
+          this.near += dt;
+          if (this.near > 2) {
+            this.near = 0;
+            this.aboard = Math.max(0, this.aboard + st.board);
+            this.onSay('', st.board > 0 ? `🚌 ${st.name}: ${st.board} staff got on (${this.aboard} aboard)` : `🚌 ${st.name}: everyone got off`);
+            if (++this.pathI >= s.stops.length) this.next();
+          }
+        } else this.near = 0;
+        return;
+      }
       case 'carry': {
         const item = s.item === 'box' ? this.box : s.item === 'bag' ? this.bag : this.garland;
         item.visible = true;
@@ -328,6 +362,8 @@ export class QuestRunner {
     this.caught = false;
     this.near = 0;
     this.gap = -1;
+    this.aboard = 0;
+    this.pathI = 0;
     this.box.visible = this.garland.visible = this.bag.visible = false;
     this.dropCar();
     const s = this.cur;
