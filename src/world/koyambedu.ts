@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createKit, frame, type Frame, type SignDef } from './kit';
 import { KOYAMBEDU } from './layout';
+import type { Posed } from '../npcs/shopkeepers';
 
 /**
  * Koyambedu (north-west, on Kodambakkam High Road): the CMBT mofussil bus terminus (terminal
@@ -59,6 +60,8 @@ const ball = new THREE.IcosahedronGeometry(1, 0);
 export function createKoyambedu(scene: THREE.Scene, world: RAPIER.World) {
   const k = createKit(world, SIGNS);
   const { box, board, shape, tree } = k;
+  /** Stall contents (produce, baskets, sacks): many small pieces, so they don't cast shadows. */
+  const produce = createKit(world, SIGNS);
 
   /** A parked bus (nose along +v by default, or -v when flip): body, window band, stripe, wheels. */
   const bus = (f: Frame, u: number, v: number, livery: [number, number], flip = false) => {
@@ -136,7 +139,16 @@ export function createKoyambedu(scene: THREE.Scene, world: RAPIER.World) {
    * One market stall at (u, v): a raised platform, a wooden tray leaning towards the aisle
    * (toAisle = +1 / -1 along v) heaped with one kind of produce, baskets and sacks in front.
    */
+  /** Traders: one behind every other stall, facing the aisle, while the market's on. */
+  const traders: Posed[] = [];
+  const TRADERS = ['Muniyandi', 'Karuppayee', 'Abdul', 'Rani akka', 'Perumal', 'Saroja', 'Veerappan', 'Kamatchi', 'Basheer', 'Ponnuthai'];
+  let stalls = 0;
   const stall = (f: Frame, u: number, v: number, toAisle: number) => {
+    if (stalls++ % 2 === 0) {
+      const at = f.at(u, v - toAisle * 1.45);
+      const ahead = f.at(u, v + toAisle);
+      traders.push({ name: `${TRADERS[traders.length % TRADERS.length]} (market)`, x: at.x, y: 0, z: at.z, yaw: Math.atan2(ahead.x - at.x, ahead.z - at.z), clip: 'idle', hours: [MARKET_HOURS] });
+    }
     const p = PRODUCE[Math.floor(rnd() * PRODUCE.length)];
     box(f, 2.4, 0.3, 2.1, u, 0, v, C(0xa39e93));
     for (const du of [-1, 1]) for (const dz of [-0.55, 0.55]) box(f, 0.07, 0.45, 0.07, u + du, 0.3, v + dz, C(WOOD), false);
@@ -144,19 +156,19 @@ export function createKoyambedu(scene: THREE.Scene, world: RAPIER.World) {
     shape(f, new THREE.BoxGeometry(2.2, 0.06, 1.4).rotateX(tilt), u, 0.78, v, C(WOOD));
     shape(f, new THREE.BoxGeometry(2.2, 0.14, 0.05).translate(0, 0.07, 0.7 * toAisle).rotateX(tilt), u, 0.78, v, C(0x6d4c38)); // front lip
     // The heap: a low mound in the produce colour, individual items on top of it.
-    shape(f, new THREE.SphereGeometry(1, 8, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(0.95, 0.16 + p.r, 0.55).rotateX(tilt), u, 0.8, v, C(p.c));
-    shape(f, pile(p, 1.8, 1.0, 3, p.r > 0.12 ? 7 : 12).rotateX(tilt), u, 0.82 + p.r * 0.6, v, C(p.c));
-    if (p.accent) shape(f, pile({ ...p, r: p.r * 0.45 }, 1.6, 0.9, 1, 4).rotateX(tilt), u, 0.9 + p.r * 1.6, v, C(p.accent));
+    produce.shape(f, new THREE.SphereGeometry(1, 8, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(0.95, 0.16 + p.r, 0.55).rotateX(tilt), u, 0.8, v, C(p.c));
+    produce.shape(f, pile(p, 1.8, 1.0, 3, p.r > 0.12 ? 7 : 12).rotateX(tilt), u, 0.82 + p.r * 0.6, v, C(p.c));
+    if (p.accent) produce.shape(f, pile({ ...p, r: p.r * 0.45 }, 1.6, 0.9, 1, 4).rotateX(tilt), u, 0.9 + p.r * 1.6, v, C(p.accent));
     // In front: a wicker basket or two of the same, sometimes a sack.
     const front = v + toAisle * 1.35;
     const baskets = 1 + Math.floor(rnd() * 2);
     for (let b = 0; b < baskets; b++) {
       const bu = u - 0.6 + b * 1.1;
-      shape(f, new THREE.CylinderGeometry(0.3, 0.22, 0.32, 6, 1, true), bu, 0.16, front, C(0xb08850));
-      shape(f, new THREE.CircleGeometry(0.28, 6).rotateX(-Math.PI / 2), bu, 0.3, front, C(p.c));
-      shape(f, pile(p, 0.35, 0.35, 2, 3), bu, 0.3, front, C(p.c));
+      produce.shape(f, new THREE.CylinderGeometry(0.3, 0.22, 0.32, 6, 1, true), bu, 0.16, front, C(0xb08850));
+      produce.shape(f, new THREE.CircleGeometry(0.28, 6).rotateX(-Math.PI / 2), bu, 0.3, front, C(p.c));
+      produce.shape(f, pile(p, 0.35, 0.35, 2, 3), bu, 0.3, front, C(p.c));
     }
-    if (rnd() < 0.45) shape(f, new THREE.SphereGeometry(0.3, 5, 3).scale(1, 1.35, 0.85), u + 0.85, 0.4, front + toAisle * 0.1, C(SACK));
+    if (rnd() < 0.45) produce.shape(f, new THREE.SphereGeometry(0.3, 5, 3).scale(1, 1.35, 0.85), u + 0.85, 0.4, front + toAisle * 0.1, C(SACK));
   };
 
   // ---------------- Wholesale market ----------------
@@ -191,5 +203,6 @@ export function createKoyambedu(scene: THREE.Scene, world: RAPIER.World) {
     box(f, 0.3, 1.6, f.d, li === 0 ? f.w / 2 - 0.15 : -f.w / 2 + 0.15, 0, f.d / 2, C(0xd8d0c0)); // outer side (u+ = west here); the Usman Road side stays open
   });
 
-  return { setNight: k.build(scene) };
+  produce.build(scene, false);
+  return { setNight: k.build(scene), posed: traders };
 }

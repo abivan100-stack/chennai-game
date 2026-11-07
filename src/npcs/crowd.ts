@@ -20,7 +20,7 @@ const AMBIENT_RING: [number, number] = [18, 60]; // ...onto a pavement this far 
 const AMBIENT_HIDDEN_WITHIN = 45; // closer than this, only where the camera isn't looking (no popping in)
 const AMBIENT_NAMES = ['Ramesh', 'Kala', 'Suresh', 'Bhuvana', 'Prakash', 'Jaya', 'Mohan', 'Deepa', 'Sathya', 'Anitha', 'Karthik', 'Malar', 'Ganesh', 'Revathi', 'Vinoth', 'Uma', 'Saravanan', 'Lalitha', 'Raja', 'Geetha'];
 /** People who stay put (stall keepers, sitters) get their own quota so walkers don't crowd them out. */
-const MAX_POSED_DRAWN = 24;
+const MAX_POSED_DRAWN = 18;
 const POSED_DRAW_RADIUS = 60;
 /** ...and only the nearest few cast a shadow. */
 const MAX_SHADOWS = 8;

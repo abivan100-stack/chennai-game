@@ -64,6 +64,7 @@ import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
 import { createGuindy } from './world/guindy';
 import { createKoyambedu } from './world/koyambedu';
+import { shopkeepers } from './npcs/shopkeepers';
 import { createCafes } from './world/cafes';
 import { createBesantNagar } from './world/besant';
 import { createBeachLife } from './world/beachLife';
@@ -265,6 +266,8 @@ async function main() {
   const halls = createHotelHalls(scene, world); // the dining halls you enter through the hotel lobbies
   crowd.addPosed(halls.posed); // diners, waiters, chef, musician
   crowd.addPosed(tnagar.posed); // shopkeepers on Ranganathan Street, commuters at Mambalam
+  crowd.addPosed(koyambedu.posed); // traders behind the market stalls
+  crowd.addPosed(shopkeepers(town.footprints)); // a shopkeeper at the door of every third street shop
   crowd.addWalkers(tnagar.walkers); // shoppers in the lane, walkers in Panagal Park
   crowd.addAmbient(); // everyday people on whatever street you're on
   tagNew('places'); // every kit-built place, landmark, shop and area
