@@ -27,6 +27,12 @@ export const RACE_COURSE = 'Guindy Race Course';
 export const ESTATE = 'Guindy Industrial Estate';
 /** Factory shifts end at the industrial estate: workers want autos. */
 export const ESTATE_RUSH = [8, 17];
+export const CMBT = 'CMBT Koyambedu';
+export const KOYAMBEDU_MARKET = 'Koyambedu Market';
+/** Out-of-town buses pull into CMBT: passengers want autos into the city. */
+export const CMBT_ARRIVALS = [6, 10, 14, 18, 22];
+/** Shopkeepers head home from the wholesale market with their goods. */
+export const MARKET_RUSH = [6, 9];
 
 export const STOPS: Stop[] = [
   { name: 'Kapaleeshwarar Temple', axis: 'x', line: 25, along: 8, side: -1 },
@@ -83,6 +89,9 @@ export const STOPS: Stop[] = [
   { name: RACE_COURSE, axis: 'x', line: -440, along: 510, side: 1 },
   { name: ESTATE, axis: 'z', line: 480, along: -481, side: 1 },
   { name: 'Guindy National Park', axis: 'x', line: -265, along: 540, side: -1 },
+  // Koyambedu (world/koyambedu.ts)
+  { name: CMBT, axis: 'z', line: -310, along: -314, side: -1 },
+  { name: KOYAMBEDU_MARKET, axis: 'z', line: -310, along: -481, side: -1 },
   { name: 'Taramani Road', axis: 'z', line: 480, along: -110, side: 1 },
   // Perungudi
   { name: 'Grand Lake Residences', axis: 'x', line: -265, along: 540, side: 1 },
@@ -128,6 +137,8 @@ export const PLACE_LINES = {
   raceDay: '🏇 Guindy Race Course-la innaiku races! 2 manikku start, 6 varaikkum.',
   raceOver: '🏇 Races mudinjiduchu! Guindy Race Course gate-la crowd auto-ku wait pannuraanga.',
   estateRush: '🏭 Guindy Industrial Estate-la shift mudinjiduchu! Workers auto-ku wait pannuraanga.',
+  cmbtArrivals: '🚌 CMBT Koyambedu-la oor bus-ellam vandhu irangiduchu! Passengers auto-ku wait pannuraanga.',
+  marketRush: '🥬 Koyambedu Market-la vaangina saamaan-oda kadai-kaaranga auto-ku wait pannuraanga.',
   matchNight: '🏏 Chepauk-la innaiku night match! Floodlights on, full crowd.',
   matchOver: '🏏 Match mudinjiduchu! Chepauk gate-la crowd auto-ku wait pannuraanga.',
   musicNight: "🎶 Elliot's Beach-la music night start aachu! Live band, kites, dessert carts - vaanga!",

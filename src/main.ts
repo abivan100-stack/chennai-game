@@ -61,11 +61,12 @@ import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
 import { createGuindy } from './world/guindy';
+import { createKoyambedu } from './world/koyambedu';
 import { createCafes } from './world/cafes';
 import { createBesantNagar } from './world/besant';
 import { createBeachLife } from './world/beachLife';
 import { createChepauk } from './world/chepauk';
-import { ESTATE, ESTATE_RUSH, RACE_COURSE, STADIUM, TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
+import { CMBT, CMBT_ARRIVALS, KOYAMBEDU_MARKET, MARKET_RUSH, ESTATE, ESTATE_RUSH, RACE_COURSE, STADIUM, TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { CRASH_DV, FUEL_SPEC, PETROL_PRICE, REPAIR_PRICE, Upkeep } from './vehicles/upkeep';
 import { setPlateKind } from './vehicles/plates';
 import { createTrafficLights } from './world/trafficLights';
@@ -233,6 +234,7 @@ async function main() {
   const tidel = createTidelPark(scene, world);
   const gated = createComplex(scene, world);
   const guindy = createGuindy(scene, world);
+  const koyambedu = createKoyambedu(scene, world);
   const cafes = createCafes(scene, world);
   const besant = createBesantNagar(scene, world);
   const beachLife = createBeachLife(scene, world, santhome.obstacles);
@@ -1604,6 +1606,7 @@ async function main() {
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
     guindy.setNight(dayNight.night);
+    koyambedu.setNight(dayNight.night);
     cafes.setNight(dayNight.night);
     besant.setNight(dayNight.night);
     const istHour = istTime(dayNight.timeMs).hours;
@@ -1644,6 +1647,16 @@ async function main() {
         jobs.addOrderFrom(TIDEL);
         jobs.addOrderFrom(TIDEL);
         phone.notify(PLACE_LINES.tidelRush);
+      }
+      if (lastShowHour >= 0 && CMBT_ARRIVALS.includes(hour) && jobs.phase !== 'off') {
+        jobs.addOrderFrom(CMBT);
+        jobs.addOrderFrom(CMBT);
+        phone.notify(PLACE_LINES.cmbtArrivals);
+      }
+      if (lastShowHour >= 0 && MARKET_RUSH.includes(hour) && jobs.phase !== 'off') {
+        jobs.addOrderFrom(KOYAMBEDU_MARKET);
+        jobs.addOrderFrom(KOYAMBEDU_MARKET);
+        phone.notify(PLACE_LINES.marketRush);
       }
       if (lastShowHour >= 0 && ESTATE_RUSH.includes(hour) && jobs.phase !== 'off') {
         jobs.addOrderFrom(ESTATE);

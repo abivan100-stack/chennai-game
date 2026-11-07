@@ -155,6 +155,11 @@ const SPAWNS: Spawn[] = [
   ...crowdOf(['Techie Sharmila', 'Techie Naveen', 'Delivery boy Imran'], { block: [3, 9], lane: LANE_B, look: 'office', hours: [[8, 20.5]] }),
   // Velachery gated community residents.
   ...crowdOf(['Resident Anand', 'Resident Kavitha', 'Watchman Gurkha', 'Resident Sid'], { block: [-2, 10], lane: LANE_A, hours: [[6, 9], [16.5, 21.5]] }),
+  // Koyambedu: passengers on the CMBT platforms, market porters and buyers before dawn.
+  ...crowdOf(['Traveller Muthu', 'Traveller Kala', 'Student Arun', 'Conductor Pandian', 'Traveller Banu'], { loop: [[-337, -350.4], [-291, -350.4], [-291, -349.2], [-337, -349.2]], y: 0.25, hours: [[5, 23.5]] }),
+  ...crowdOf(['Traveller Ravi', 'Traveller Sumathi', 'Porter Velu'], { loop: [[-337, -378.4], [-291, -378.4], [-291, -377.2], [-337, -377.2]], y: 0.25, hours: [[5, 23.5]] }),
+  ...crowdOf(['Porter Murugesan', 'Trader Abdul', 'Buyer Selvi', 'Porter Raju', 'Trader Gopi'], { loop: [[-505, -336.2], [-457, -336.2], [-457, -334.8], [-505, -334.8]], look: 'worker', hours: [[3, 11]] }),
+  ...crowdOf(['Flower seller Jothi', 'Buyer Kannan', 'Porter Siva'], { loop: [[-422, -358.2], [-375, -358.2], [-375, -356.8], [-422, -356.8]], look: 'worker', hours: [[3, 11]] }),
   // Guindy: race-goers along the rail in front of the stand, factory workers, park walkers.
   ...crowdOf(['Punter Raghu', 'Punter Iqbal', 'Owner Mrs. Rao', 'Punter Senthil', 'Trainer Joseph', 'Punter Gopal'], { loop: [[-413.6, 522], [-412.4, 522], [-412.4, 558], [-413.6, 558]], hours: [[13.5, 18.5]] }),
   ...crowdOf(['Fitter Mani', 'Welder Kumar', 'Supervisor Rekha', 'Loader Pandi'], { loop: [[-483, 492], [-479.5, 492], [-479.5, 580], [-483, 580]], look: 'worker', hours: [[7.5, 18]] }),

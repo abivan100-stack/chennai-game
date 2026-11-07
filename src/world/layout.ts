@@ -366,11 +366,21 @@ export const GUINDY = {
   park: (): Lot => ({ ...block(-3, 10), front: 'e' }),
 };
 export const GUINDY_LOTS = (): Lot[] => [GUINDY.race(), ...GUINDY.estate(), GUINDY.park()];
-/** Where the Guindy gates open on to the pavement (street lamps and trees keep clear). */
+/**
+ * Koyambedu (world/koyambedu.ts), the north-west corner on Kodambakkam High Road: the CMBT bus
+ * terminus and, across Usman Road to the west, the wholesale market (two blocks).
+ */
+export const KOYAMBEDU = {
+  cmbt: (): Lot => ({ ...block(-3, -3), front: 's' }),
+  market: (): Lot[] => [{ ...block(-5, -3), front: 's' }, { ...block(-4, -3), front: 's' }],
+};
+export const KOYAMBEDU_LOTS = (): Lot[] => [KOYAMBEDU.cmbt(), ...KOYAMBEDU.market()];
+/** Where the Guindy / Koyambedu gates open on to the pavement (street lamps and trees keep clear). */
 export const GUINDY_GATES = () => {
   const r = GUINDY.race();
   const p = GUINDY.park();
   return [
+    ...KOYAMBEDU_LOTS().map((l) => ({ x: (l.x0 + l.x1) / 2, z: l.z1 })),
     { x: r.x0, z: (r.z0 + r.z1) / 2 - 30 }, // guindy.ts GATE_U
     ...GUINDY.estate().map((e) => ({ x: (e.x0 + e.x1) / 2, z: e.z0 })),
     { x: p.x1, z: (p.z0 + p.z1) / 2 },

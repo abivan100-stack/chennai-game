@@ -1,6 +1,6 @@
 import type { Footprint } from '../world/buildings';
 import { CAFE_SPOTS } from '../world/cafeSpots';
-import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, GUINDY, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
+import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, GUINDY, KOYAMBEDU, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, CANAL, MRTS_STATIONS, MRTS_X, RIVER, waterRects } from '../world/layout';
 import { BEACH_FAIR, BEACH_ROAD, BEACH_X, BOUNDS, DEPOT_LOT, FISH_MARKET, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SEA_X, SUPERMARKET_LOTS, roadHalf, SIDEWALK_WIDTH, streetName, TANK_BLOCK, TEMPLE_BLOCK, X_ROADS, block, roadSpans, roads, type RoadLine } from '../world/layout';
 import { STOPS, stopPoint } from '../missions/data';
 import { frame } from '../world/kit';
@@ -62,7 +62,7 @@ export interface Poi {
   rank: 1 | 2 | 3;
 }
 /** Places big enough to show at any zoom. */
-const MAJOR = ['Tidel Park', 'Chepauk Stadium', 'Presidency College', 'Nageswara Rao Park', 'Kamadhenu Cinemas', 'Velankanni Church', 'Ashtalakshmi Temple', 'Grand Lake Residences', 'Semmozhi Poonga', 'Music Academy', 'Guindy Race Course', 'Guindy National Park'];
+const MAJOR = ['Tidel Park', 'Chepauk Stadium', 'Presidency College', 'Nageswara Rao Park', 'Kamadhenu Cinemas', 'Velankanni Church', 'Ashtalakshmi Temple', 'Grand Lake Residences', 'Semmozhi Poonga', 'Music Academy', 'Guindy Race Course', 'Guindy National Park', 'CMBT Koyambedu', 'Koyambedu Market'];
 
 /** Cafes / boutiques on the CAFE_LOTS, in order (names and whether they serve food). */
 const CAFE_NAMES = CAFE_SPOTS;
@@ -265,6 +265,9 @@ export function drawTownMap(data: MapData): TownMap {
     [GUINDY.estate()[0], '#dcdfe3', '#1e3a5f', '🏭', 'Guindy Industrial Estate'],
     [GUINDY.estate()[1], '#dcdfe3', '#1e3a5f', '🏭', 'Industrial Estate (south)'],
     [GUINDY.park(), '#b9d9a5', '#3f2a14', '🦌', 'Guindy National Park'],
+    [KOYAMBEDU.cmbt(), '#d6e2ee', '#0d3b66', '🚌', 'CMBT Koyambedu'],
+    [KOYAMBEDU.market()[0], '#dfe8cf', '#1b5e20', '🥬', 'Koyambedu Market'],
+    [KOYAMBEDU.market()[1], '#dfe8cf', '#1b5e20', '🥬', 'Koyambedu Market (east)'],
     ...CAFE_LOTS().map((lot, i): [typeof lot, string, string, string, string] => [lot, '#f3e3d3', '#7a4a2a', CAFE_NAMES[i].cafe ? '☕' : '🛍', CAFE_NAMES[i].name]),
   ];
   for (const [lot, fill, colour, letter, name] of placeMarks) {
@@ -355,6 +358,7 @@ export function drawTownMap(data: MapData): TownMap {
     labels.push({ text: 'T. NAGAR', x: -400, z: 100, kind: 'area' });
     labels.push({ text: 'WEST MAMBALAM', x: -560, z: -100, kind: 'area' });
     labels.push({ text: 'KODAMBAKKAM', x: -450, z: -270, kind: 'area' });
+    labels.push({ text: 'KOYAMBEDU', x: -420, z: -385, kind: 'area' });
     labels.push({ text: 'SAIDAPET', x: -450, z: 260, kind: 'area' });
   }
   HOME_LOTS().forEach((lot, i) => {
