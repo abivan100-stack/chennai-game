@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+const CAMERA_FAR = 200;
+
 /** Never render above this device pixel ratio; high-DPI laptops would otherwise render 4x the pixels. */
 const MAX_PIXEL_RATIO = 1.5;
 
@@ -13,7 +15,9 @@ export function createRenderer() {
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+  // Far plane just past the fog's end (sky.ts fog.far <= 170): anything further is fog-coloured anyway,
+  // and culling it saves ~80 draw calls looking down a long road. The sky draws at max depth regardless.
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, CAMERA_FAR);
 
   const resize = () => {
     renderer.setSize(innerWidth, innerHeight);

@@ -366,6 +366,16 @@ export const GUINDY = {
   park: (): Lot => ({ ...block(-3, 10), front: 'e' }),
 };
 export const GUINDY_LOTS = (): Lot[] => [GUINDY.race(), ...GUINDY.estate(), GUINDY.park()];
+/** Where the Guindy gates open on to the pavement (street lamps and trees keep clear). */
+export const GUINDY_GATES = () => {
+  const r = GUINDY.race();
+  const p = GUINDY.park();
+  return [
+    { x: r.x0, z: (r.z0 + r.z1) / 2 - 30 }, // guindy.ts GATE_U
+    ...GUINDY.estate().map((e) => ({ x: (e.x0 + e.x1) / 2, z: e.z0 })),
+    { x: p.x1, z: (p.z0 + p.z1) / 2 },
+  ];
+};
 
 /**
  * The gated apartment community in Velachery (south-west, by Anna Salai), well away from Tidel

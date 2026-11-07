@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
-import { BOUNDS, roadHalf, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads } from './layout';
+import { BOUNDS, roadHalf, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads, GUINDY_GATES } from './layout';
 import { glowTexture, streetSignTextures } from './textures';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
@@ -93,6 +93,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   const trees: THREE.Matrix4[] = [];
   const y0 = SIDEWALK_HEIGHT;
 
+  const gates = GUINDY_GATES();
   for (const r of roads()) {
     const { c, axis } = r;
     const offEnd = (s: number) => s < r.from + 3 || s > r.to - 3; // keep clear of the world edge
@@ -104,7 +105,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
           // Lamp arm points over the road: local +x -> towards the road.
           const toRoad = axis === 'z' ? (side > 0 ? Math.PI : 0) : side > 0 ? Math.PI / 2 : -Math.PI / 2;
           const lampAlongs: number[] = [];
-          const onRail = (p: THREE.Vector3) => Math.abs(p.x - RAIL_X) < RAIL_HALF + 3;
+          const onRail = (p: THREE.Vector3) => Math.abs(p.x - RAIL_X) < RAIL_HALF + 3 || gates.some((g) => Math.hypot(p.x - g.x, p.z - g.z) < 7);
           const start = a + (side > 0 ? 6 : 6 + LAMP_SPACING / 2);
           for (let s = start; s < b - 4; s += LAMP_SPACING) {
             if (offEnd(s) || onRail(place(s))) continue;
