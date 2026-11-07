@@ -38,9 +38,19 @@ export interface PhoneDeps {
   /** Your vehicles: name, metres away, whether you're in it; deliver(i) brings one home. */
   garage: () => { list: { name: string; away: number; inUse: boolean }[]; upgrades: string[]; deliverPrice: number };
   deliver: (i: number) => void;
-  /** Anna Travels (Chapter 3): your fleet autos, drivers you could hire. */
-  business: () => { open: boolean; price: number; earned: number; autos: { driver: string | null }[]; candidates: { id: string; name: string; trait: string; blurb: string }[] };
-  buyAuto: () => void;
+  /** Anna Travels (Chapter 3; cabs, vans and the warehouse from Chapter 4): your fleet, drivers you could hire. */
+  business: () => {
+    open: boolean;
+    earned: number;
+    /** What you can buy now: kind, name, icon, price (cabs / vans only from Chapter 4; vans need the warehouse). */
+    shop: { kind: 'auto' | 'cab' | 'van'; name: string; icon: string; price: number; note?: string }[];
+    /** The Guindy warehouse lease: null before Chapter 4. */
+    warehouse: { rented: boolean; price: number } | null;
+    autos: { driver: string | null; name: string; icon: string }[];
+    candidates: { id: string; name: string; trait: string; blurb: string }[];
+  };
+  buyUnit: (kind: 'auto' | 'cab' | 'van') => void;
+  rentWarehouse: () => void;
   hire: (i: number, id: string) => void;
   fire: (i: number) => void;
   /** Camera yaw (the map turns with it, like the minimap). */
@@ -571,17 +581,33 @@ export class Phone {
     const b = this.deps.business();
     const out = h('div', {}, h('div', { class: 'phone-title' }, 'Anna Travels'));
     if (!b.open) return out.appendChild(h('p', { class: 'muted' }, 'Opens in Chapter 3.')), out;
-    out.append(h('div', { class: 'phone-sub' }, `${b.autos.length} autos · earned ${rupees(b.earned)} · takings reach the bank each morning`));
-    const buy = h('button', { class: 'phone-btn' }, `Buy an auto (${rupees(b.price)})`);
+    out.append(h('div', { class: 'phone-sub' }, `${b.autos.length} vehicles · earned ${rupees(b.earned)} · takings reach the bank each morning`));
     const { economy } = this.deps;
-    if (economy.cash + economy.savings < b.price) buy.setAttribute('disabled', '');
-    buy.onclick = () => {
-      this.deps.buyAuto();
-      this.render();
-    };
-    out.append(buy);
+    if (b.warehouse) {
+      const w = h('div', { class: 'phone-card' }, h('b', {}, '🏭 Guindy warehouse'), h('div', { class: 'muted' }, b.warehouse.rented ? 'Leased: Anna Travels & Logistics HQ. Delivery vans run from here.' : 'Industrial Estate, Velachery Main Road. Lease it to run delivery vans.'));
+      if (!b.warehouse.rented) {
+        const lease = h('button', { class: 'phone-btn' }, `Lease it (${rupees(b.warehouse.price)})`);
+        if (economy.cash + economy.savings < b.warehouse.price) lease.setAttribute('disabled', '');
+        lease.onclick = () => {
+          this.deps.rentWarehouse();
+          this.render();
+        };
+        w.append(lease);
+      }
+      out.append(w);
+    }
+    for (const u of b.shop) {
+      const buy = h('button', { class: 'phone-btn' }, `${u.icon} Buy a ${u.name.toLowerCase()} (${rupees(u.price)})`);
+      if (u.note || economy.cash + economy.savings < u.price) buy.setAttribute('disabled', '');
+      buy.onclick = () => {
+        this.deps.buyUnit(u.kind);
+        this.render();
+      };
+      out.append(buy);
+      if (u.note) out.append(h('div', { class: 'muted' }, u.note));
+    }
     b.autos.forEach((a, i) => {
-      const card = h('div', { class: 'phone-card' }, h('b', {}, `🛺 Auto ${i + 1}`), h('div', { class: 'muted' }, a.driver ? `Driver: ${a.driver}` : 'No driver: pick one below'));
+      const card = h('div', { class: 'phone-card' }, h('b', {}, `${a.icon} ${a.name} ${i + 1}`), h('div', { class: 'muted' }, a.driver ? `Driver: ${a.driver}` : 'No driver: pick one below'));
       if (a.driver) {
         const fire = h('button', { class: 'phone-btn' }, 'Let the driver go');
         fire.onclick = () => {

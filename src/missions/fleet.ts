@@ -7,6 +7,16 @@
  */
 
 export type Trait = 'honest' | 'fast' | 'lazy';
+/** What a fleet unit is: autos from Chapter 3; cabs and delivery vans from Chapter 4. */
+export type UnitKind = 'auto' | 'cab' | 'van';
+/** Price, takings multiplier (a cab / van earns more than an auto), name and icon per unit kind. */
+export const UNITS: Record<UnitKind, { price: number; mult: number; name: string; icon: string }> = {
+  auto: { price: 8000, mult: 1, name: 'Auto', icon: '🛺' },
+  cab: { price: 25000, mult: 2.2, name: 'Cab', icon: '🚕' },
+  van: { price: 30000, mult: 2.8, name: 'Delivery van', icon: '🚐' },
+};
+/** The Guindy warehouse lease (Chapter 4): the base the delivery vans run from. */
+export const WAREHOUSE_PRICE = 15000;
 
 export interface Driver {
   id: string;
@@ -15,7 +25,7 @@ export interface Driver {
   blurb: string;
 }
 
-export const FLEET_AUTO_PRICE = 8000;
+export const FLEET_AUTO_PRICE = UNITS.auto.price;
 export const DRIVER_SHARE = 0.5;
 /** A day's takings per trait, and the chance of each kind of trouble. */
 export const TRAITS: Record<Trait, { takings: number; noShow: number; fine: number; breakdown: number; label: string }> = {
@@ -39,10 +49,16 @@ export const DRIVERS: Driver[] = [
   { id: 'jaya', name: 'Jayalakshmi', trait: 'honest', blurb: 'The first woman auto driver at the stand. Regulars love her.' },
   { id: 'rocky', name: 'Rocky Raja', trait: 'fast', blurb: 'Drives like a film chase. Passengers tip, police fine.' },
   { id: 'kumar', name: 'Kumar', trait: 'lazy', blurb: 'Says he is on the way. He is not on the way.' },
+  { id: 'fathima', name: 'Fathima', trait: 'honest', blurb: 'Ex-call-taxi driver. Knows every Tidel shift by heart.' },
+  { id: 'arul', name: 'Arul', trait: 'fast', blurb: 'Learnt driving on lorries. Nothing scares him, including red lights.' },
+  { id: 'david', name: 'David', trait: 'honest', blurb: 'Drove the hotel vans for 10 years. Never a scratch.' },
+  { id: 'sundar', name: 'Sundar', trait: 'lazy', blurb: 'Cheerful, chatty, and always on a tea break.' },
 ];
 
 export interface FleetAuto {
   driver: string | null;
+  /** Missing in older saves: an auto. */
+  kind?: UnitKind;
 }
 
 export interface DayReport {
@@ -63,6 +79,8 @@ export class Fleet {
   contract = false;
   /** Ganesh warned off by the police (story mission 'complaint'): no more slashed tyres. */
   peace = false;
+  /** Leased the Guindy warehouse (Chapter 4). */
+  warehouse = false;
 
   get hired() {
     return this.autos.filter((a) => a.driver).map((a) => a.driver!);
@@ -73,8 +91,13 @@ export class Fleet {
     return DRIVERS.filter((d) => !this.hired.includes(d.id));
   }
 
-  buy() {
-    this.autos.push({ driver: null });
+  buy(kind: UnitKind = 'auto') {
+    this.autos.push({ driver: null, kind });
+  }
+
+  /** How many units of a kind you run. */
+  count(kind: UnitKind) {
+    return this.autos.filter((a) => (a.kind ?? 'auto') === kind).length;
   }
 
   hire(i: number, id: string) {
@@ -113,6 +136,7 @@ export class Fleet {
       if (!a.driver) return;
       const dr = driver(a.driver);
       const t = TRAITS[dr.trait];
+      const unit = UNITS[a.kind ?? 'auto'];
       if (rival && i === 0) {
         r.income -= RIVAL_COST;
         r.lines.push(`🔪 Ganesh's men slashed the tyres on ${dr.name}'s auto. No takings today, ${rupees(RIVAL_COST)} for new tyres.`);
@@ -122,7 +146,7 @@ export class Fleet {
         r.lines.push(`😴 ${dr.name} didn't turn up today.`);
         return;
       }
-      let net = t.takings * (this.contract ? CONTRACT_BONUS : 1) * (0.8 + rand() * 0.4) * (1 - DRIVER_SHARE);
+      let net = t.takings * unit.mult * (this.contract ? CONTRACT_BONUS : 1) * (0.8 + rand() * 0.4) * (1 - DRIVER_SHARE);
       let note = '';
       if (rand() < t.fine) {
         net -= FINE;
@@ -133,21 +157,22 @@ export class Fleet {
         note += ` Breakdown, repair ${rupees(REPAIR)}.`;
       }
       r.income += net;
-      r.lines.push(`🛺 ${dr.name}: ${rupees(net)} to you.${note}`);
+      r.lines.push(`${unit.icon} ${dr.name}: ${rupees(net)} to you.${note}`);
     });
     r.income = Math.round(r.income);
     return r;
   }
 
   snapshot() {
-    return { autos: this.autos.map((a) => ({ ...a })), earned: this.earned, seen: this.seen, contract: this.contract, peace: this.peace };
+    return { autos: this.autos.map((a) => ({ ...a })), earned: this.earned, seen: this.seen, contract: this.contract, peace: this.peace, warehouse: this.warehouse };
   }
 
-  restore(s: { autos: FleetAuto[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean }) {
-    this.autos = s.autos.map((a) => ({ driver: a.driver && DRIVERS.some((d) => d.id === a.driver) ? a.driver : null }));
+  restore(s: { autos: FleetAuto[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean; warehouse?: boolean }) {
+    this.autos = s.autos.map((a) => ({ driver: a.driver && DRIVERS.some((d) => d.id === a.driver) ? a.driver : null, kind: a.kind ?? 'auto' }));
     this.earned = s.earned;
     this.seen = s.seen;
     this.contract = !!s.contract;
     this.peace = !!s.peace;
+    this.warehouse = !!s.warehouse;
   }
 }

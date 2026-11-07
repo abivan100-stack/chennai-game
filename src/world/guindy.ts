@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
-import { createKit, frame, type Frame, type SignDef } from './kit';
+import { createKit, frame, signAtlas, type Frame, type SignDef } from './kit';
 import { GUINDY } from './layout';
 
 /**
@@ -147,6 +147,7 @@ export function createGuindy(scene: THREE.Scene, world: RAPIER.World) {
 
   // ---------------- Industrial estate ----------------
   const [e1, e2] = GUINDY.estate().map(frame);
+  const ownBoard = new THREE.Mesh(new THREE.PlaneGeometry(16.2, 1.7));
   /** A factory shed: walls, a sawtooth roof of gable prisms, a roller shutter on the estate road, its name on the front. */
   const shed = (f: Frame, u: number, v: number, w: number, d: number, h: number, wall: THREE.Color, sign: number, roof = C(0x8e9aa3)) => {
     box(f, w, h, d, u, 0, v + d / 2, wall);
@@ -218,6 +219,13 @@ export function createGuindy(scene: THREE.Scene, world: RAPIER.World) {
     shed(f, -18, 5, 24, 40, 9, C(0xf5f5f5), 8, C(0x9e9e9e));
     // The empty warehouse (a hook for Anna Travels & Logistics later).
     shed(f, 18, 5, 24, 30, 9, C(0xeeeeee), 9, C(0xb0bec5));
+    // Once you lease it (Chapter 4), your own name board covers the TO LET one.
+    const t = signAtlas([['அண்ணா டிராவல்ஸ் & லாஜிஸ்டிக்ஸ்', 'ANNA TRAVELS & LOGISTICS', '#1f9d55', '#ffffff']]);
+    ownBoard.material = new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.1, roughness: 0.6 });
+    ownBoard.position.copy(f.at(18, 4.9, 7.4));
+    ownBoard.rotation.y = f.yaw + Math.PI;
+    ownBoard.visible = false;
+    scene.add(ownBoard);
     container(f, 14, 40, 0, C(0xf9a825));
     container(f, 18, 40, 0, C(0x6a1b9a));
     lorry(f, 25, 38, C(0x2e7d32));
@@ -312,7 +320,17 @@ export function createGuindy(scene: THREE.Scene, world: RAPIER.World) {
   let racing: boolean | null = null;
 
   return {
-    setNight: k.build(scene),
+    setNight: (() => {
+      const kitNight = k.build(scene);
+      return (night: number) => {
+        kitNight(night);
+        (ownBoard.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.1 + night * 0.6;
+      };
+    })(),
+    /** Your lease on the warehouse: shows the Anna Travels & Logistics board. */
+    setWarehouse(rented: boolean) {
+      ownBoard.visible = rented;
+    },
     /** Are the horses out right now (game hour)? */
     racing: (hour: number) => hour >= RACE_HOURS[0] && hour < RACE_HOURS[1],
     update(dt: number, hour: number, player: THREE.Vector3) {

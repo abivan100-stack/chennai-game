@@ -66,6 +66,9 @@ const seshadri = stop('Alwarpet TTK Road');
 const stand = stop('Mylapore auto stand');
 const station = near(stop('Kutchery Road'), -15, 0); // Mylapore Police Station gate
 const tidel = stop('Tidel Park');
+/** The Guindy warehouse's gate (layout.GUINDY.estate()[1], on Velachery Main Road) and Hotel Kaveri Palace's gate on Anna Salai. */
+const warehouse = { x: -479, z: 606 };
+const kaveri = { x: -256.5, z: 210 };
 
 export const QUESTS: Quest[] = [
   {
@@ -269,5 +272,50 @@ export const QUESTS: Quest[] = [
     ],
     reward: 2500,
     success: 'Inspector Durai: Poi complaint-ku Ganesh-ku warning kuduthaachu. Ungal drivers-a ini thoda maattaan. (No more slashed tyres.) Seshadri sir sends ₹{reward}: "Shabash!"',
+  },
+  // ---- Chapter 4: Anna Travels & Logistics ----
+  {
+    id: 'poach',
+    title: 'Sawaari Thirudan',
+    offer: "📖 Priya madam (Tidel): Ganesh-oda cab driver gate-la nikkiraan, 'Anna Travels close aayiduchu'-nu solli namma staff-a ethikittu poraan! Vaanga!",
+    people: {
+      priya: { name: 'Priya madam (HR, Tidel)', look: 'woman', at: near(tidel, 2.5, 0) },
+      poacher: { name: "Ganesh's cab driver", look: 'man', at: near(tidel, -6, 0) },
+    },
+    steps: [
+      { kind: 'goto', at: tidel, radius: 9, text: 'Get to Tidel Park (Taramani)' },
+      {
+        kind: 'chase', who: 'poacher', to: stop('Byte & Brew, Taramani'), speed: 5.4, loseAfter: 6,
+        shout: [['Priya madam', 'Avan dhaan! Poi solli staff-a kootitu poraan!'], ["Ganesh's cab driver", 'Aiyo, Anna Travels mudhalaali-ye vandhuttaar! (runs)']],
+        text: "Catch Ganesh's cab driver! (E when close, or bump him with a vehicle)",
+        caught: "Cab driver: Seri seri! Ganesh anna dhaan 'poi sollu'-nu sonnaaru... naan poren!",
+        escaped: 'Taramani traffic-la maraindhuttaan. Staff-ku unmai theriyala...',
+      },
+      { kind: 'talk', who: 'priya', text: 'Tell Priya madam the truth (E)', line: 'Avan poi sonnaana?! Seri, naalaila irundhu Tidel staff cabs ellam Anna Travels dhaan. Notice board-la poduren!' },
+    ],
+    reward: 2500,
+    success: 'Priya madam: Indha ₹{reward}, first month cab advance. Ganesh-oda drivers-ku Tidel gate-la entry illa ini!',
+  },
+  {
+    id: 'firstload',
+    title: 'Mudhal Load',
+    offer: '📖 Supervisor Ravi (Guindy warehouse): Mudhal order vandhaachu! Hotel Kaveri Palace kitchen-ku urgent supply. Warehouse-ku vaanga!',
+    people: {
+      ravi: { name: 'Supervisor Ravi', look: 'man', at: near(warehouse, 2, 0) },
+      chef: { name: 'Chef Thomas (Hotel Kaveri Palace)', look: 'man', at: near(kaveri, 0, 2) },
+    },
+    steps: [
+      { kind: 'goto', at: warehouse, radius: 9, text: 'Go to your warehouse (Guindy Industrial Estate, Velachery Main Road)' },
+      { kind: 'talk', who: 'ravi', text: 'Talk to Supervisor Ravi (E)', line: 'Mudhalaali! Hotel Kaveri Palace-ku 40 crate mineral water, kalyana party-ku. Late aana order cancel, odainja crate-ku kaasu illa. Neengale kondu ponga, first load-la nambikkai varanum!' },
+      {
+        kind: 'carry', item: 'box', to: kaveri, limit: 120, maxJolts: 3,
+        text: 'Deliver the crates to Hotel Kaveri Palace (Anna Salai): on time, no hard knocks!',
+        broken: 'Chef (phone): Crate-la paadhi odanjiduchu! Order cancel...',
+        late: 'Chef (phone): Party aarambichiduchu, water vere edathula vaangitom. Sorry...',
+      },
+      { kind: 'talk', who: 'chef', text: 'Hand over to Chef Thomas (E)', line: 'Perfect timing! Ovvoru vaaramum ingirundhu supply venum. Anna Travels & Logistics van-a fix pannidunga!' },
+    ],
+    reward: 3000,
+    success: 'Chef Thomas: Indha ₹{reward} advance. Weekly contract sign pannalaam. (Your delivery vans now have regular work.)',
   },
 ];

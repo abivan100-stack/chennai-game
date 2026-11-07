@@ -31,11 +31,11 @@ import { Economy } from './missions/economy';
 import { LENDER, MSG_FINE_ON_LOAN, MSG_LENDER_HELLO, MSG_MISSED, MSG_PAID, MSG_PAID_OFF, MSG_WELCOME, MSG_WELCOME_BACK, UNCLE } from './missions/data';
 import { clearSave, loadSave, writeSave } from './core/save';
 import { RENT, Rent } from './missions/rent';
-import { GANESH_ORDER, STORY_ORDER, nextStory, storyTitle } from './missions/storyMissions';
+import { GANESH_ORDER, LOGISTICS_ORDER, STORY_ORDER, nextStory, storyTitle } from './missions/storyMissions';
 import { QuestRunner } from './missions/questRunner';
 import { BAG_PRICE, BAG_SLOTS, Bag } from './player/bag';
 import { BAG_LINES } from './world/food';
-import { DRIVERS, FLEET_AUTO_PRICE, Fleet, TRAITS } from './missions/fleet';
+import { DRIVERS, Fleet, TRAITS, UNITS, WAREHOUSE_PRICE, type UnitKind } from './missions/fleet';
 import { DEALER_STOCK, DELIVER_HOME, PAINTS, PAINT_PRICE, UPGRADES, bumpDecel, fareFactor, fuelFactor } from './vehicles/garage';
 import { createDealer } from './world/dealer';
 import { frame } from './world/kit';
@@ -115,11 +115,18 @@ const STORY_LINES: Record<number, [string, string][]> = {
     ['Kandasamy', 'Enna, mudhalaali aagitiya? En marumagan Ganesh-um auto fleet vechirukkaan. Paathu nadandhukko...'],
     ['Auto Anna', 'Chapter 3: Anna Travels. Goals in Phone > Story.'],
   ],
+  4: [
+    ['Seshadri sir', 'Shabash thambi! Autos-la nalla per vaangitta. Ippo adutha step: Tidel IT makkal-ku cabs, hotels-ku delivery vans.'],
+    ['Seshadri sir', 'Guindy Industrial Estate-la oru warehouse "TO LET"-nu irukku, Velachery Main Road-la. Phone > Business-la lease pannu (₹15,000). Adhu dhaan namma logistics base.'],
+    ['Ganesh', 'Cabs-aa? Tidel-aa? Paakalaam yaar jeikkiraanga-nu...'],
+    ['Auto Anna', 'Chapter 4: Anna Travels & Logistics. Goals in Phone > Story.'],
+  ],
 };
 const SESHADRI = 'Seshadri sir';
 const FLEET_LINES = {
-  bought: 'Pudhu auto Anna Travels-la serndhuduchu! Driver-a podu, illana summa nikkum.',
-  cantAfford: 'Auto ₹{price} thambi. Konjam saerthu vechittu vaangu.',
+  bought: 'Pudhu {name} Anna Travels-la serndhuduchu! Driver-a podu, illana summa nikkum.',
+  cantAfford: '{name} ₹{price} thambi. Konjam saerthu vechittu vaangu.',
+  warehouse: 'Guindy warehouse un per-la lease aayiduchu! "Anna Travels & Logistics" board-um ready. Ippo delivery van vaangalaam.',
   hired: '{name} Anna Travels-la join pannittaanga. ({trait})',
   fired: '{name}-a anuppiyaachu.',
   report: '📒 Anna Travels: {income} today.',
@@ -300,11 +307,16 @@ async function main() {
   const homesBought = () => [...owned].filter((i) => i !== 0).length;
   const fleet = new Fleet();
   if (saved?.fleet) fleet.restore(saved.fleet);
-  traffic.setFleet(fleet.hired.length);
+  /** Your hired drivers' vehicles drive round town in the company colour. */
+  const showFleet = () => traffic.setFleet(fleet.autos.filter((a) => a.driver).map((a) => (a.kind === 'cab' ? 'taxi' : a.kind === 'van' ? 'van' : 'auto')));
+  showFleet();
+  guindy.setWarehouse(fleet.warehouse);
   const storyState = () => ({
     loan: economy.loan, rides: economy.rides, cash: economy.cash, savings: economy.savings, homesBought: homesBought(), storyRides: storyDone.filter((i) => STORY_ORDER.includes(i)).length,
     seshadri: storyDone.includes('lostbag'), fleet: fleet.autos.length, fleetEarned: fleet.earned,
     ganesh: storyDone.filter((i) => GANESH_ORDER.includes(i)).length,
+    warehouse: fleet.warehouse, cabs: fleet.count('cab'), vans: fleet.count('van'),
+    logistics: storyDone.filter((i) => LOGISTICS_ORDER.includes(i)).length,
   });
   let storyCheck = 0;
   if (rent.evicted) owned.delete(0); // locked out of the rented house until the rent is paid
@@ -599,24 +611,41 @@ async function main() {
     }),
     business: () => ({
       open: story.chapter >= 3,
-      price: FLEET_AUTO_PRICE,
       earned: fleet.earned,
+      shop: (story.chapter >= 4 ? (['auto', 'cab', 'van'] as const) : (['auto'] as const)).map((kind) => ({
+        kind, name: UNITS[kind].name, icon: UNITS[kind].icon, price: UNITS[kind].price,
+        note: kind === 'van' && !fleet.warehouse ? 'Vans need a base: lease the Guindy warehouse first.' : undefined,
+      })),
+      warehouse: story.chapter >= 4 ? { rented: fleet.warehouse, price: WAREHOUSE_PRICE } : null,
       autos: fleet.autos.map((a) => {
         const d = a.driver ? DRIVERS.find((x) => x.id === a.driver)! : null;
-        return { driver: d ? `${d.name} (${d.trait})` : null };
+        const u = UNITS[a.kind ?? 'auto'];
+        return { driver: d ? `${d.name} (${d.trait})` : null, name: u.name, icon: u.icon };
       }),
       candidates: fleet.candidates.map((d) => ({ id: d.id, name: d.name, trait: TRAITS[d.trait].label, blurb: d.blurb })),
     }),
-    buyAuto: () => {
-      if (!economy.spend(FLEET_AUTO_PRICE)) return phone.addMessage(SESHADRI, FLEET_LINES.cantAfford.replace('{price}', FLEET_AUTO_PRICE.toLocaleString('en-IN')));
-      fleet.buy();
+    buyUnit: (kind: UnitKind) => {
+      const u = UNITS[kind];
+      if (kind === 'van' && !fleet.warehouse) return;
+      if (!economy.spend(u.price)) return phone.addMessage(SESHADRI, FLEET_LINES.cantAfford.replace('{name}', u.name).replace('{price}', u.price.toLocaleString('en-IN')));
+      fleet.buy(kind);
       showMoney();
-      phone.addMessage(SESHADRI, FLEET_LINES.bought);
+      phone.addMessage(SESHADRI, FLEET_LINES.bought.replace('{name}', u.name));
+      saveNow();
+    },
+    rentWarehouse: () => {
+      if (fleet.warehouse || story.chapter < 4) return;
+      if (!economy.spend(WAREHOUSE_PRICE)) return phone.addMessage(SESHADRI, FLEET_LINES.cantAfford.replace('{name}', 'Warehouse lease').replace('{price}', WAREHOUSE_PRICE.toLocaleString('en-IN')));
+      fleet.warehouse = true;
+      guindy.setWarehouse(true);
+      showMoney();
+      sound.coin();
+      phone.addMessage(SESHADRI, FLEET_LINES.warehouse);
       saveNow();
     },
     hire: (i, id) => {
       if (!fleet.hire(i, id)) return;
-      traffic.setFleet(fleet.hired.length);
+      showFleet();
       const d = DRIVERS.find((x) => x.id === id)!;
       phone.addMessage(SESHADRI, FLEET_LINES.hired.replace('{name}', d.name).replace('{trait}', TRAITS[d.trait].label));
       saveNow();
@@ -624,7 +653,7 @@ async function main() {
     fire: (i) => {
       const d = DRIVERS.find((x) => x.id === fleet.autos[i]?.driver);
       fleet.fire(i);
-      traffic.setFleet(fleet.hired.length);
+      showFleet();
       if (d) phone.addMessage(SESHADRI, FLEET_LINES.fired.replace('{name}', d.name));
       saveNow();
     },
@@ -1744,7 +1773,8 @@ async function main() {
       storyRideIn = 30;
       const next = nextStory(storyDone, istTime(dayNight.timeMs).hours, story.chapter);
       if (next && 'ride' in next && jobs.phase !== 'off') jobs.addStory(next.ride);
-      if (next && 'quest' in next) {
+      // Your first warehouse load waits until you've leased the warehouse.
+      if (next && 'quest' in next && !(next.quest.id === 'firstload' && !fleet.warehouse)) {
         quests.start(next.quest);
         phone.notify(next.quest.offer);
         phone.addMessage('Auto Anna', next.quest.offer);

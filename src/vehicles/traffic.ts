@@ -398,25 +398,35 @@ export class Traffic {
   private beaconT = 0;
 
   /**
-   * Keep `n` Anna Travels autos (your hired drivers) on the road: they join the ambient pool, so
-   * they keep turning up round you. Fewer drivers = autos taken off (not one you're driving).
+   * Keep Anna Travels' units (one per hired driver: autos, cabs, vans) on the road in the company
+   * colour: they join the ambient pool, so they keep turning up round you. Units no longer
+   * wanted are taken off (not one you're driving).
    */
-  setFleet(n: number) {
-    while (this.fleetAutos.length < n) {
-      const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
-      const v = this.spawn(this.world, 'auto', blockRoute(b.i, b.j), Math.random(), FLEET_COLOUR);
-      v.dense = 0; // your drivers work every shift
-      this.ambient.push(v);
-      this.fleetAutos.push(v);
-    }
-    while (this.fleetAutos.length > n) {
-      const v = this.fleetAutos.pop()!;
+  setFleet(kinds: Kind[]) {
+    const want = [...kinds];
+    const keep: Vehicle[] = [];
+    for (const v of this.fleetAutos) {
+      const i = want.indexOf(v.kind);
+      if (i >= 0) {
+        want.splice(i, 1);
+        keep.push(v);
+        continue;
+      }
       this.ambient.splice(this.ambient.indexOf(v), 1);
       if (v.mode !== 'ai') continue; // stolen / driven: it stays where it is
       this.world.removeRigidBody(v.body);
       this.scene.remove(v.group);
       this.vehicles.splice(this.vehicles.indexOf(v), 1);
       for (const o of this.vehicles) if (o.blocker === v) o.blocker = null;
+    }
+    this.fleetAutos.length = 0;
+    this.fleetAutos.push(...keep);
+    for (const kind of want) {
+      const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
+      const v = this.spawn(this.world, kind, blockRoute(b.i, b.j), Math.random(), FLEET_COLOUR);
+      v.dense = 0; // your drivers work every shift
+      this.ambient.push(v);
+      this.fleetAutos.push(v);
     }
   }
   private ambientCheck = 0;

@@ -171,6 +171,8 @@ export const STORY_ORDER = ['kalyanam', 'lostchild', 'labour', 'chain', 'exam', 
 
 /** Chapter 3's story missions (Ganesh, the rival fleet): offered first from Chapter 3, then any Chapter 2 leftovers. */
 export const GANESH_ORDER = ['tyres', 'tidel', 'complaint'];
+/** Chapter 4's story missions (Anna Travels & Logistics): offered first from Chapter 4. */
+export const LOGISTICS_ORDER = ['poach', 'firstload'];
 
 /** Is game hour `h` inside [from, to) (wrapping past midnight when to < from)? */
 export const inHours = (h: number, [a, b]: [number, number]) => (a <= b ? h >= a && h < b : h >= a || h < b);
@@ -184,7 +186,7 @@ export function nextStory(done: readonly string[], hour?: number, chapter = 2): 
     const h = STORY_MISSIONS.find((m) => m.id === i)?.hours;
     return hour === undefined || !h || inHours(hour, h);
   };
-  const order = chapter >= 3 ? [...GANESH_ORDER, ...STORY_ORDER] : STORY_ORDER;
+  const order = chapter >= 4 ? [...LOGISTICS_ORDER, ...GANESH_ORDER, ...STORY_ORDER] : chapter >= 3 ? [...GANESH_ORDER, ...STORY_ORDER] : STORY_ORDER;
   const id = order.find((i) => !done.includes(i) && fits(i));
   if (!id) return null;
   const ride = STORY_MISSIONS.find((m) => m.id === id);

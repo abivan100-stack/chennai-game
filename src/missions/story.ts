@@ -1,4 +1,4 @@
-import { GANESH_ORDER, STORY_ORDER } from './storyMissions.ts';
+import { GANESH_ORDER, LOGISTICS_ORDER, STORY_ORDER } from './storyMissions.ts';
 
 /**
  * The story, chapter by chapter (see CLAUDE.md "Story roadmap"). Pure logic (no DOM / three.js)
@@ -17,6 +17,10 @@ export interface StoryState {
   fleet: number; // autos in Anna Travels (missions/fleet.ts)
   fleetEarned: number; // what the fleet has paid you so far
   ganesh: number; // Chapter 3 story missions passed (storyMissions.ts GANESH_ORDER)
+  warehouse: boolean; // leased the Guindy warehouse (Chapter 4)
+  cabs: number; // cabs in Anna Travels
+  vans: number; // delivery vans in Anna Travels
+  logistics: number; // Chapter 4 story missions passed (LOGISTICS_ORDER)
 }
 
 export interface Goal {
@@ -81,7 +85,21 @@ export const CHAPTERS: Chapter[] = [
     n: 4,
     title: 'Anna Travels & Logistics',
     ta: 'அண்ணா டிராவல்ஸ்',
-    blurb: 'Coming soon: cabs, delivery vans, a staff bus contract, and new districts.', // no goals = not built: chapter 3 waits
+    blurb: 'Anna Travels grows up: cabs for the IT crowd, delivery vans for the hotels, and a warehouse in the Guindy industrial estate. Ganesh is not done with you yet.',
+    goals: [
+      { text: 'Lease the Guindy warehouse (Phone > Business)', done: (s) => s.warehouse },
+      { text: 'Run 2 cabs', done: (s) => s.cabs >= 2, progress: (s) => `${Math.min(s.cabs, 2)}/2` },
+      { text: 'Run a delivery van', done: (s) => s.vans >= 1, progress: (s) => `${Math.min(s.vans, 1)}/1` },
+      { text: 'Earn ₹40,000 from the business', done: (s) => s.fleetEarned >= 40000, progress: (s) => `${rupees(s.fleetEarned)} / ₹40,000` },
+      { text: 'Story missions (Anna Travels & Logistics)', done: (s) => s.logistics >= LOGISTICS_ORDER.length, progress: (s) => `${Math.min(s.logistics, LOGISTICS_ORDER.length)}/${LOGISTICS_ORDER.length}` },
+    ],
+    needed: [0, 1, 2, 3, 4],
+  },
+  {
+    n: 5,
+    title: 'Chennai Raja',
+    ta: 'சென்னை ராஜா',
+    blurb: 'Coming soon: the city transport tender, and the final round with Ganesh.', // no goals = not built: chapter 4 waits
     goals: [],
     needed: [],
   },

@@ -188,15 +188,20 @@ console.log('check: all passed');
 {
   const { Story } = await import('../src/missions/story.ts');
   const st = new Story();
-  const base = { loan: 5000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0, seshadri: false, fleet: 0, fleetEarned: 0, ganesh: 0 };
+  const base = { loan: 5000, rides: 0, cash: 0, savings: 0, homesBought: 0, storyRides: 0, seshadri: false, fleet: 0, fleetEarned: 0, ganesh: 0, warehouse: false, cabs: 0, vans: 0, logistics: 0 };
   assert(st.update(base) === null && st.chapter === 1, 'chapter 1 while the kadan is unpaid');
   assert(st.update({ ...base, loan: 0 })?.n === 2 && st.chapter === 2, 'paying the kadan opens chapter 2');
   assert(st.update({ ...base, loan: 0, savings: 60000 }) === null, 'chapter 2 needs a home too');
   assert(st.update({ ...base, loan: 0, savings: 60000, homesBought: 1 }) === null && st.chapter === 2, 'chapter 2 needs Seshadri sir met too');
   assert(st.update({ ...base, loan: 0, savings: 60000, homesBought: 1, seshadri: true })?.n === 3, 'home + savings + the bag open chapter 3');
-  assert(st.update({ ...base, loan: 0, savings: 60000, fleet: 5, fleetEarned: 20000, ganesh: 3 }) === null && st.chapter === 3, 'chapter 3 waits while chapter 4 is not built');
   assert(!st.current.goals[3].done({ ...base, ganesh: 2 }) && st.current.goals[3].done({ ...base, ganesh: 3 }), 'chapter 3 needs all three Ganesh missions');
-  assert(new Story({ chapter: 99 }).chapter === 3, 'a saved chapter is clamped to the last one that is built');
+  const ch3 = { ...base, loan: 0, savings: 60000, fleet: 5, fleetEarned: 20000 };
+  assert(st.update({ ...ch3, ganesh: 2 }) === null && st.chapter === 3, 'chapter 3 waits for the Ganesh missions');
+  assert(st.update({ ...ch3, ganesh: 3 })?.n === 4 && st.chapter === 4, 'fleet + savings + Ganesh open chapter 4');
+  const ch4 = { ...ch3, ganesh: 3, warehouse: true, cabs: 2, vans: 1, fleetEarned: 40000, logistics: 2 };
+  assert(st.update({ ...ch4, warehouse: false }) === null && st.update({ ...ch4, vans: 0 }) === null, 'chapter 4 needs the warehouse and a van');
+  assert(st.update(ch4) === null && st.chapter === 4, 'chapter 4 waits while chapter 5 is not built');
+  assert(new Story({ chapter: 99 }).chapter === 4, 'a saved chapter is clamped to the last one that is built');
 }
 console.log('check: story passed');
 
@@ -244,7 +249,7 @@ console.log('check: stops on pavements passed');
 // --- Story quests: ids resolve, steps name real people, nobody stands inside a block ---
 {
   const { QUESTS } = await import('../src/missions/quests.ts');
-  const { STORY_ORDER, GANESH_ORDER, nextStory } = await import('../src/missions/storyMissions.ts');
+  const { STORY_ORDER, GANESH_ORDER, LOGISTICS_ORDER, nextStory } = await import('../src/missions/storyMissions.ts');
   const { blocks } = await import('../src/world/layout.ts');
   const solid = blocks().filter((b) => b.kind !== 'beach');
   const inside = (p: { x: number; z: number }) => solid.some((b) => p.x > b.x0 + 0.3 && p.x < b.x1 - 0.3 && p.z > b.z0 + 0.3 && p.z < b.z1 - 0.3);
@@ -264,7 +269,7 @@ console.log('check: stops on pavements passed');
     for (const st of q.steps) if (st.kind === 'tail' && st.rider) assert(st.rider in q.people, `quest ${q.id}: tail rider ${st.rider}`);
   }
   for (const q of QUESTS) {
-    assert(STORY_ORDER.includes(q.id) || GANESH_ORDER.includes(q.id), `quest ${q.id} is in a story order`);
+    assert(STORY_ORDER.includes(q.id) || GANESH_ORDER.includes(q.id) || LOGISTICS_ORDER.includes(q.id), `quest ${q.id} is in a story order`);
     for (const st of q.steps) {
       if ('who' in st) assert(st.who in q.people, `quest ${q.id}: step names a real person (${st.who})`);
       if (st.kind === 'search') for (const c of st.clues) assert(c.who in q.people, `quest ${q.id}: clue person ${c.who}`);
@@ -346,6 +351,20 @@ console.log('check: bag passed');
   const h = new Fleet();
   h.restore(g.snapshot());
   assert(h.contract && h.peace, 'contract + peace are saved');
+  // Chapter 4: cabs and vans earn more than autos; kinds and the warehouse are saved.
+  const u = new Fleet();
+  u.open(0);
+  u.buy('auto');
+  u.buy('van');
+  u.hire(0, 'murugan');
+  u.hire(1, 'jaya'); // both honest: same trait, different vehicle
+  u.warehouse = true;
+  const day = u.tick(1, always(0.5))!;
+  const [autoLine, vanLine] = day.lines.map((l) => +l.replace(/[^0-9]/g, ''));
+  assert(vanLine > autoLine * 2 && u.count('van') === 1 && u.count('cab') === 0, 'a van earns well over twice an auto');
+  const w = new Fleet();
+  w.restore(u.snapshot());
+  assert(w.warehouse && w.count('van') === 1, 'unit kinds + the warehouse are saved');
 }
 console.log('check: fleet passed');
 

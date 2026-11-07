@@ -31,7 +31,7 @@ export interface SaveData {
   /** Shopping bag + what's in it (player/bag.ts). */
   bag?: { owned: boolean; items: { name: string; price: number; energy: number; seconds: number; color: string }[] };
   /** Anna Travels (Chapter 3). */
-  fleet?: { autos: { driver: string | null }[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean };
+  fleet?: { autos: { driver: string | null; kind?: 'auto' | 'cab' | 'van' }[]; earned: number; seen: number | null; contract?: boolean; peace?: boolean; warehouse?: boolean };
   garage?: { upgrades: string[]; paint: number; vehicles: { stock: string; kind: string; colour?: number; x: number; z: number; heading: number; fuel?: number; condition?: number }[] };
 }
 
