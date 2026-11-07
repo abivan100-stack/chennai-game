@@ -139,8 +139,26 @@
       #loading-fill { width: 0; height: 100%; background: #f2c200; transition: width 0.2s; }
       #loading-text { color: #ccc; font-weight: 400; font-size: 14px; }
     </style>
+    <style>
+      #zoom-note { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 20; display: none; padding: 8px 14px; border-radius: 8px;
+        background: #f2c200; color: #14161c; font: 600 14px system-ui, sans-serif; box-shadow: 0 4px 14px #0008; }
+    </style>
+    <script>
+      // Touchpad pinch / Ctrl+wheel / Ctrl +- zoom crops the game off the window edges: block it from the first moment,
+      // and if the page is already pinch-zoomed (that can't be undone from here), say how to fix it.
+      addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+      addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && ['Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract'].includes(e.code)) e.preventDefault(); });
+      const checkZoom = () => {
+        const note = document.getElementById('zoom-note');
+        const vv = window.visualViewport;
+        if (note && vv) note.style.display = vv.scale > 1.01 ? 'block' : 'none';
+      };
+      window.visualViewport?.addEventListener('resize', checkZoom);
+      addEventListener('DOMContentLoaded', checkZoom);
+    </script>
   </head>
   <body>
+    <div id="zoom-note">The page is zoomed in: pinch out on the touchpad (or press Ctrl+0) to see the whole game.</div>
     <div id="loading">
       <h1>Auto Anna</h1>
       <div class="bar"><div id="loading-fill"></div></div>
