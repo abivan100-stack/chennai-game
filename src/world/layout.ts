@@ -356,6 +356,18 @@ export const TIDEL_LOT = (): Lot => {
 export const TIDEL_ROADS = [-25, 25];
 
 /**
+ * Guindy (world/guindy.ts), south of T. Nagar on Velachery Road: the race course (gate on
+ * Usman Road), the industrial estate (two blocks west of it, gates on Velachery Road / Velachery
+ * Main Road) and Guindy National Park (gate on Anna Salai).
+ */
+export const GUINDY = {
+  race: (): Lot => ({ ...block(-4, 10), front: 'w' }),
+  estate: (): Lot[] => [{ ...block(-5, 10), front: 'n' }, { ...block(-5, 11), front: 'n' }],
+  park: (): Lot => ({ ...block(-3, 10), front: 'e' }),
+};
+export const GUINDY_LOTS = (): Lot[] => [GUINDY.race(), ...GUINDY.estate(), GUINDY.park()];
+
+/**
  * The gated apartment community in Velachery (south-west, by Anna Salai), well away from Tidel
  * Park: Phase 1 with its gate on Anna Salai, Phase 2 next to it with its gate on Taramani Road.
  */

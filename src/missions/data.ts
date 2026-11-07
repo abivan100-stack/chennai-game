@@ -23,6 +23,10 @@ export const TIDEL = 'Tidel Park';
 export const STADIUM = 'Chepauk Stadium';
 /** Office hours at Tidel Park: IT folks want autos to the MRTS and home. */
 export const TIDEL_RUSH = [9, 18, 19];
+export const RACE_COURSE = 'Guindy Race Course';
+export const ESTATE = 'Guindy Industrial Estate';
+/** Factory shifts end at the industrial estate: workers want autos. */
+export const ESTATE_RUSH = [8, 17];
 
 export const STOPS: Stop[] = [
   { name: 'Kapaleeshwarar Temple', axis: 'x', line: 25, along: 8, side: -1 },
@@ -75,6 +79,10 @@ export const STOPS: Stop[] = [
   { name: 'Tholkappia Poonga', axis: 'z', line: 300, along: 97, side: -1 },
   // Taramani
   { name: TIDEL, axis: 'z', line: 480, along: 0, side: -1 },
+  // Guindy (world/guindy.ts)
+  { name: RACE_COURSE, axis: 'x', line: -440, along: 510, side: 1 },
+  { name: ESTATE, axis: 'z', line: 480, along: -481, side: 1 },
+  { name: 'Guindy National Park', axis: 'x', line: -265, along: 540, side: -1 },
   { name: 'Taramani Road', axis: 'z', line: 480, along: -110, side: 1 },
   // Perungudi
   { name: 'Grand Lake Residences', axis: 'x', line: -265, along: 540, side: 1 },
@@ -117,6 +125,9 @@ export const PLACE_LINES = {
   standRide: '{name} ungalukkaaga wait pannuraanga, stand kitta!',
   showOver: '🎬 Show mudinjiduchu! Kamadhenu Cinemas-la sawaari waiting.',
   tidelRush: '💻 Tidel Park shift mudinjiduchu! IT makkal auto-ku wait pannuraanga.',
+  raceDay: '🏇 Guindy Race Course-la innaiku races! 2 manikku start, 6 varaikkum.',
+  raceOver: '🏇 Races mudinjiduchu! Guindy Race Course gate-la crowd auto-ku wait pannuraanga.',
+  estateRush: '🏭 Guindy Industrial Estate-la shift mudinjiduchu! Workers auto-ku wait pannuraanga.',
   matchNight: '🏏 Chepauk-la innaiku night match! Floodlights on, full crowd.',
   matchOver: '🏏 Match mudinjiduchu! Chepauk gate-la crowd auto-ku wait pannuraanga.',
   musicNight: "🎶 Elliot's Beach-la music night start aachu! Live band, kites, dessert carts - vaanga!",

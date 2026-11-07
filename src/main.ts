@@ -60,11 +60,12 @@ import { Story } from './missions/story';
 import { createLandmarks } from './world/landmarks';
 import { createTidelPark } from './world/tidel';
 import { createComplex } from './world/complex';
+import { createGuindy } from './world/guindy';
 import { createCafes } from './world/cafes';
 import { createBesantNagar } from './world/besant';
 import { createBeachLife } from './world/beachLife';
 import { createChepauk } from './world/chepauk';
-import { STADIUM, TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
+import { ESTATE, ESTATE_RUSH, RACE_COURSE, STADIUM, TIDEL, TIDEL_RUSH, CINEMA, COLLEGE, COLLEGE_RUSH, PHARMACY, PICKPOCKET_SHARE, PLACE_LINES, SHOW_ENDS, STAND } from './missions/data';
 import { CRASH_DV, FUEL_SPEC, PETROL_PRICE, REPAIR_PRICE, Upkeep } from './vehicles/upkeep';
 import { setPlateKind } from './vehicles/plates';
 import { createTrafficLights } from './world/trafficLights';
@@ -222,6 +223,7 @@ async function main() {
   const landmarks = createLandmarks(scene, world);
   const tidel = createTidelPark(scene, world);
   const gated = createComplex(scene, world);
+  const guindy = createGuindy(scene, world);
   const cafes = createCafes(scene, world);
   const besant = createBesantNagar(scene, world);
   const beachLife = createBeachLife(scene, world, santhome.obstacles);
@@ -246,6 +248,7 @@ async function main() {
   eateries.list.push(...besant.eateries); // Elliot's Beach snack carts
   eateries.list.push(...beachLife.eateries); // beach stalls + dessert carts (some move)
   let stageWasOn = false;
+  let raceWasOn = false;
   const upkeep = new Upkeep();
   const signals = createTrafficLights(scene, world);
   traffic.signals = (x, z, dx, dz, look) => signals.ahead(x, z, dx, dz, look);
@@ -1557,10 +1560,22 @@ async function main() {
     landmarks.setNight(dayNight.night);
     tidel.setNight(dayNight.night);
     gated.setNight(dayNight.night);
+    guindy.setNight(dayNight.night);
     cafes.setNight(dayNight.night);
     besant.setNight(dayNight.night);
     const istHour = istTime(dayNight.timeMs).hours;
     beachLife.update(dt, istHour, dayNight.night);
+    guindy.update(dt, istHour, vPos);
+    // Races at Guindy: a phone alert when they start, ride orders from the gate when they end.
+    const raceOn = guindy.racing(istHour);
+    if (raceOn && !raceWasOn) phone.notify(PLACE_LINES.raceDay);
+    if (!raceOn && raceWasOn && jobs.phase !== 'off') {
+      jobs.addOrderFrom(RACE_COURSE);
+      jobs.addOrderFrom(RACE_COURSE);
+      jobs.addOrderFrom(RACE_COURSE);
+      phone.notify(PLACE_LINES.raceOver);
+    }
+    raceWasOn = raceOn;
     const stageOn = beachLife.stageOn(istHour);
     if (stageOn && !stageWasOn) phone.notify(PLACE_LINES.musicNight);
     stageWasOn = stageOn;
@@ -1586,6 +1601,11 @@ async function main() {
         jobs.addOrderFrom(TIDEL);
         jobs.addOrderFrom(TIDEL);
         phone.notify(PLACE_LINES.tidelRush);
+      }
+      if (lastShowHour >= 0 && ESTATE_RUSH.includes(hour) && jobs.phase !== 'off') {
+        jobs.addOrderFrom(ESTATE);
+        jobs.addOrderFrom(ESTATE);
+        phone.notify(PLACE_LINES.estateRush);
       }
       if (lastShowHour >= 0 && COLLEGE_RUSH.includes(hour) && jobs.phase !== 'off') {
         jobs.addOrderFrom(COLLEGE);

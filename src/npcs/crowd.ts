@@ -155,6 +155,10 @@ const SPAWNS: Spawn[] = [
   ...crowdOf(['Techie Sharmila', 'Techie Naveen', 'Delivery boy Imran'], { block: [3, 9], lane: LANE_B, look: 'office', hours: [[8, 20.5]] }),
   // Velachery gated community residents.
   ...crowdOf(['Resident Anand', 'Resident Kavitha', 'Watchman Gurkha', 'Resident Sid'], { block: [-2, 10], lane: LANE_A, hours: [[6, 9], [16.5, 21.5]] }),
+  // Guindy: race-goers along the rail in front of the stand, factory workers, park walkers.
+  ...crowdOf(['Punter Raghu', 'Punter Iqbal', 'Owner Mrs. Rao', 'Punter Senthil', 'Trainer Joseph', 'Punter Gopal'], { loop: [[-413.6, 522], [-412.4, 522], [-412.4, 558], [-413.6, 558]], hours: [[13.5, 18.5]] }),
+  ...crowdOf(['Fitter Mani', 'Welder Kumar', 'Supervisor Rekha', 'Loader Pandi'], { loop: [[-483, 492], [-479.5, 492], [-479.5, 580], [-483, 580]], look: 'worker', hours: [[7.5, 18]] }),
+  ...crowdOf(['Birdwatcher Usha', 'Walker Natarajan', 'Student Divya'], { loop: [[-283, 505], [-345, 505], [-345, 575], [-283, 575]], look: 'sport', hours: [[6, 9], [15.5, 18]] }),
   // Beach events: the music night audience, a beach cricket game, kite flyers.
   ...crowdOf(['Fan Deepak', 'Fan Swetha', 'Fan Karthi', 'Fan Monisha', 'Fan Ajay', 'Fan Ritu', 'Fan Gautham', 'Fan Leela'], { loop: [[152, 592], [162, 592], [162, 608], [152, 608]], y: 0.1, look: 'young', hours: [[18, 22]] }),
   ...crowdOf(['Batsman Dinesh', 'Bowler Vicky', 'Fielder Sam', 'Fielder Bala', 'Keeper Ashok'], { loop: [[155, 196], [166, 196], [166, 224], [155, 224]], y: 0.1, look: 'sport', hours: [[15, 18]], pace: 'run' }),
