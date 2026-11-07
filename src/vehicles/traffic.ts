@@ -41,8 +41,8 @@ const STALL_AFTER = 10;
 const UNTANGLE_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
-const DETAIL_DIST = 32; // ...and beyond this they drop wheels and driver (5 draw calls each)
-const MAX_DRAWN = 12; // at most this many vehicles drawn (nearest first)
+const DETAIL_DIST = 28; // ...and beyond this they drop wheels and driver (5 draw calls each)
+const MAX_DRAWN = 10; // at most this many vehicles drawn (nearest first)
 /** Ambient traffic: a pool that keeps the roads round the player busy wherever they go. */
 const AMBIENT_RECYCLE = 140; // m: a pool vehicle this far away gets moved...
 const AMBIENT_RING: [number, number] = [45, 120]; // ...onto a road loop this far from the player

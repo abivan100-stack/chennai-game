@@ -12,6 +12,8 @@ import type { Lot } from './layout';
 export type SignDef = [string, string, string, string];
 
 const SIGN_ROW = 128; // atlas row height (px)
+/** Every kit's glowing bulbs share one material (same night glow), so map chunks can merge them. */
+const bulbMat = new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffe0a0, emissiveIntensity: 0, roughness: 0.4 });
 const WHITE = new THREE.Color(0xffffff);
 const UP = new THREE.Vector3(0, 1, 0);
 /** A flat slab up high (canopy, shed roof, marquee): gets a collider so rain stops under it. */
@@ -116,7 +118,6 @@ export function createKit(world: RAPIER.World, signDefs: SignDef[]) {
       const mesh = new THREE.Mesh(geo.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
       mesh.castShadow = castShadow; // interiors pass false: their roof would leave the room in shadow
       mesh.receiveShadow = true;
-      const bulbMat = new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffe0a0, emissiveIntensity: 0, roughness: 0.4 });
       const atlas = signAtlas(signDefs);
       const signMat = new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.05, roughness: 0.6, side: THREE.DoubleSide });
       scene.add(mesh, new THREE.Mesh(bulbs.build(), bulbMat), new THREE.Mesh(signs.build(), signMat));

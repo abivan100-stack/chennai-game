@@ -7,6 +7,8 @@ import { enablePointerLock, input } from './core/input';
 import { startLoop } from './core/loop';
 import { QualityManager, SHADOW_MAP_SIZES } from './core/quality';
 import { createRenderer, setRenderScale } from './core/renderer';
+import { Profiler } from './ui/profiler';
+import { chunkStaticMeshes } from './world/chunk';
 import { Crowd } from './npcs/crowd';
 import { Npc } from './npcs/npc';
 import { FollowCamera } from './player/camera';
@@ -195,12 +197,20 @@ async function main() {
   // Generated once from three's built-in room scene (no download); its strength follows the sun.
   scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 
-  // World
+  // World. Each builder's scene objects get a perf category (F4 profiler, ui/profiler.ts).
+  const tagNew = (cat: string) => {
+    for (const c of scene.children) c.userData.perf ??= cat;
+  };
+  tagNew('sky');
   const ground = createGround(scene, world);
+  tagNew('ground');
   const town = createBuildings(scene, world);
+  tagNew('buildings');
   const props = createProps(scene, world);
+  tagNew('props');
   const townMap = drawTownMap({ footprints: town.footprints, trees: props.treePoints });
   const weather = new Weather(scene);
+  tagNew('effects');
   // Rain stops at the first static surface from the sky (roofs, flyovers, the Tidel gateways).
   const roofRay = new RAPIER.Ray({ x: 0, y: ROOF_PROBE_TOP, z: 0 }, { x: 0, y: -1, z: 0 });
   weather.roofAt = (x, z) => {
@@ -209,16 +219,22 @@ async function main() {
     return hit ? ROOF_PROBE_TOP - hit.timeOfImpact : 0;
   };
   const traffic = new Traffic(scene, world, characters.npcs);
+  tagNew('vehicles');
   traffic.onSay = (name, line) => hud.say(name, line);
   const station = createPoliceStation(scene, world);
+  tagNew('places');
   const police = new Police(scene, world, characters.npcs.get('police')!, station.jeepSpot, -Math.PI / 2);
   police.onSay = (line) => hud.say('Police', line);
+  tagNew('vehicles');
   const wanted = new Wanted();
   const economy = new Economy();
   const temple = createTemple(scene, world);
   const dayNight = new DayNight(scene);
+  tagNew('sky');
   const crowd = new Crowd(scene, world, characters.npcs);
+  tagNew('npcs');
   const eateries = createEateries(scene, world, town.footprints);
+  tagNew('props');
   const markets = createSupermarkets(scene, world, characters.npcs.get('mx02')!);
   const santhome = createSanthome(scene, world);
   const mandaveli = createMandaveli(scene, world);
@@ -251,6 +267,8 @@ async function main() {
   crowd.addPosed(tnagar.posed); // shopkeepers on Ranganathan Street, commuters at Mambalam
   crowd.addWalkers(tnagar.walkers); // shoppers in the lane, walkers in Panagal Park
   crowd.addAmbient(); // everyday people on whatever street you're on
+  tagNew('places'); // every kit-built place, landmark, shop and area
+  chunkStaticMeshes(scene); // big merged meshes -> map chunks, so far / off-screen ones are culled
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...beachfront.eateries);
@@ -888,9 +906,19 @@ async function main() {
   };
   quality.onChange(quality.settings);
   const debug = new DebugPanel(quality);
+  // F4 (dev only): triangles / draw calls by category, main + shadow pass.
+  const profiler = import.meta.env.DEV
+    ? new Profiler(renderer, scene, camera, () => dayNight.sun.shadow.camera, (o) => {
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) if (a === player.model) return 'player';
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) return 'npcs';
+      const groups = new Set<THREE.Object3D>(traffic.vehicles.map((v) => v.group));
+      for (let a: THREE.Object3D | null = o; a; a = a.parent) if (groups.has(a)) return 'vehicles';
+      return null;
+    })
+    : null;
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, homes, owned, storyDone, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, homes, owned, storyDone, profiler, renderer, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -1503,6 +1531,7 @@ async function main() {
     }
     town.setNight(dayNight.night);
     props.setNight(dayNight.night);
+    props.updateLod(dt, camera.position);
     temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
     markets.update(dt, player.position);
@@ -1758,6 +1787,7 @@ async function main() {
     player.canRun = !energy.tired && !sleep.tired && recoverFor <= 0;
     hud.setEnergy(energy.value, energy.low);
     if (input.wasPressed('F3')) debug.toggle();
+    if (profiler && input.wasPressed('F4')) profiler.toggle();
     if (economy.seized) hud.setMission(MISSION_SEIZED.replace('{cost}', economy.redeemCost.toLocaleString('en-IN')));
     else if (quests.active && !jobs.busy) hud.setMission(quests.mission);
     else if (jobs.phase !== 'off') {
@@ -1843,6 +1873,7 @@ async function main() {
     });
 
     renderer.render(scene, camera);
+    profiler?.update(frameMs);
 
     quality.sample(frameMs);
     const p = player.position;

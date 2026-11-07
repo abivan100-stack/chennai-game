@@ -8,9 +8,9 @@ import { Npc, type NpcOptions, type PoseClip } from './npc';
 /** NPCs farther than this from the player are frozen (no animation, no movement). */
 const ACTIVE_RADIUS = 40;
 /** ...and beyond this they aren't drawn at all. */
-const DRAW_RADIUS = 90;
+const DRAW_RADIUS = 70;
 /** At most this many people drawn at once (nearest first): each costs a draw call + a shadow. */
-const MAX_DRAWN = 24;
+const MAX_DRAWN = 20;
 /** Ambient pedestrians: a pool that keeps the streets round the player busy wherever they go. */
 const AMBIENT = 32;
 const AMBIENT_PER_BLOCK = 3; // at most this many ambient walkers on one block's pavement
@@ -23,7 +23,7 @@ const AMBIENT_NAMES = ['Ramesh', 'Kala', 'Suresh', 'Bhuvana', 'Prakash', 'Jaya',
 const MAX_POSED_DRAWN = 24;
 const POSED_DRAW_RADIUS = 60;
 /** ...and only the nearest few cast a shadow. */
-const MAX_SHADOWS = 10;
+const MAX_SHADOWS = 8;
 /** How close (m) the player must be to talk (E). */
 const TALK_RADIUS = 2.2;
 /** Bumping: centre distance (m) and minimum speed (m/s), on foot and in the auto. */
