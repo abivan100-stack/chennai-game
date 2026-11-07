@@ -1,6 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { vanModel } from '../vehicles/models';
+import { ambulanceModel } from '../vehicles/heavy';
 import { GeoBuilder } from './geo';
 import { HOSPITAL_LOT, SIDEWALK_HEIGHT } from './layout';
 import { FACADE_TILE, facadeTextures } from './textures';
@@ -94,16 +94,13 @@ export function createHospital(scene: THREE.Scene, world: RAPIER.World) {
     scene.add(m);
   }
 
-  // Ambulance in the forecourt: white van with a red stripe band.
+  // Ambulance in the forecourt, light bar flashing (same model as the ones in traffic).
   const amb = new THREE.Group();
-  vanModel(amb, 0xffffff);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.18, 3.42), new THREE.MeshStandardMaterial({ color: 0xd32f2f }));
-  stripe.position.y = 0.72;
-  amb.add(stripe);
+  ambulanceModel(amb);
   amb.position.set(lot.x0 + 4.5, 0, lot.z0 + 2.6);
   amb.rotation.y = Math.PI / 2;
   scene.add(amb);
-  world.createCollider(RAPIER.ColliderDesc.cuboid(0.75, 0.9, 1.75).setTranslation(amb.position.x, 0.9, amb.position.z).setRotation({ x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }));
+  world.createCollider(RAPIER.ColliderDesc.cuboid(1.0, 1.35, 2.8).setTranslation(amb.position.x, 1.35, amb.position.z).setRotation({ x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }));
 
   return {
     /** Where you come round after collapsing or being shot: the sidewalk outside the gate. */

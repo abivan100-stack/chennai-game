@@ -15,11 +15,11 @@ export interface VehicleModel {
   beacons?: [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial];
 }
 
-const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g);
-const box = (w: number, h: number, d: number, x: number, y: number, z: number) => flat(new THREE.BoxGeometry(w, h, d).translate(x, y, z));
-const rbox = (w: number, h: number, d: number, r: number, x: number, y: number, z: number) => flat(new RoundedBoxGeometry(w, h, d, 3, r).translate(x, y, z));
+export const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g);
+export const box = (w: number, h: number, d: number, x: number, y: number, z: number) => flat(new THREE.BoxGeometry(w, h, d).translate(x, y, z));
+export const rbox = (w: number, h: number, d: number, r: number, x: number, y: number, z: number) => flat(new RoundedBoxGeometry(w, h, d, 3, r).translate(x, y, z));
 
-function add(group: THREE.Group, geos: THREE.BufferGeometry[], mat: THREE.Material, shadow = true) {
+export function add(group: THREE.Group, geos: THREE.BufferGeometry[], mat: THREE.Material, shadow = true) {
   const m = new THREE.Mesh(mergeGeometries(geos), mat);
   m.castShadow = shadow;
   m.receiveShadow = true;
@@ -28,7 +28,7 @@ function add(group: THREE.Group, geos: THREE.BufferGeometry[], mat: THREE.Materi
 }
 
 const trim = () => new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
-const glass = () => new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false });
+export const glass = () => new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false });
 /** Modern cars' tinted glass: dark enough to read as windows, the driver still shows through. */
 const tinted = () => new THREE.MeshStandardMaterial({ color: 0x0f161d, roughness: 0.08, metalness: 0.25, transparent: true, opacity: 0.74, depthWrite: false });
 
@@ -50,18 +50,18 @@ function sculpt(g: THREE.BufferGeometry, c: { L: number; belt: number; clear: nu
   // Normals kept from the extrusion: recomputing on unindexed triangles would facet the curves.
   return g;
 }
-const headlight = () => new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0.2 });
-const taillight = () => new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
+export const headlight = () => new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff0c0, emissiveIntensity: 0.2 });
+export const taillight = () => new THREE.MeshStandardMaterial({ color: 0xa00000, emissive: 0xff2000, emissiveIntensity: 0.4 });
 
 /** Tyre + hub as one vertex-coloured mesh: 1 draw call per wheel, not 2 (traffic has ~80 wheels). */
 const WHEEL_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.3 });
-function coloured(g: THREE.BufferGeometry, hex: number) {
+export function coloured(g: THREE.BufferGeometry, hex: number) {
   const c = new THREE.Color(hex);
   const n = g.attributes.position.count;
   g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(n * 3).fill(0).map((_, i) => [c.r, c.g, c.b][i % 3]), 3));
   return g;
 }
-function wheels(group: THREE.Group, r: number, at: number[][], width = 0.24, custom?: THREE.BufferGeometry) {
+export function wheels(group: THREE.Group, r: number, at: number[][], width = 0.24, custom?: THREE.BufferGeometry) {
   const geo = custom ?? mergeGeometries([
     coloured(new THREE.CylinderGeometry(r, r, width, 14).rotateZ(Math.PI / 2).toNonIndexed(), 0x141414),
     coloured(new THREE.CylinderGeometry(r * 0.55, r * 0.55, width + 0.02, 10).rotateZ(Math.PI / 2).toNonIndexed(), 0xa8acb0),
@@ -80,7 +80,7 @@ export function carModel(group: THREE.Group, colour: number, plate = randomPlate
   return modernCar(group, colour, SEDAN, { plate });
 }
 
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
+export function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -89,60 +89,6 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   return t;
-}
-
-/** Chennai MTC bus with route board and livery. */
-export function busModel(group: THREE.Group, route = '21G', to = 'BROADWAY', plate = randomPlate('commercial')): VehicleModel {
-  const white = new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.5 });
-  const blue = new THREE.MeshStandardMaterial({ color: 0x1d4fa8, roughness: 0.5 });
-  add(group, [rbox(2.5, 2.6, 10, 0.2, 0, 1.85, 0)], white);
-  add(group, [box(2.53, 0.5, 9.9, 0, 0.95, 0), box(2.53, 0.12, 9.9, 0, 3.05, 0)], blue);
-  add(group, [box(2.55, 0.9, 8.8, 0, 2.3, -0.5), box(2.2, 1.1, 0.05, 0, 2.2, 5.01)], glass(), false);
-  add(group, [
-    box(0.04, 2.0, 1.0, 1.27, 1.45, 3.8), // front + rear doors (left side: kerb side in India)
-    box(0.04, 2.0, 1.0, 1.27, 1.45, -1.5),
-    box(2.4, 0.3, 0.2, 0, 0.5, 5.0), // bumpers
-    box(2.4, 0.3, 0.2, 0, 0.5, -5.0),
-  ], trim());
-  // Route board (orange LED look) front and left side; livery panel on both sides.
-  const board = canvasTex(256, 48, (g) => {
-    g.fillStyle = '#111';
-    g.fillRect(0, 0, 256, 48);
-    g.fillStyle = '#ff9a1a';
-    g.font = '700 30px ui-monospace, monospace';
-    g.textBaseline = 'middle';
-    g.fillText(route, 10, 25);
-    g.font = '700 22px ui-monospace, monospace';
-    g.fillText(to, 90, 26);
-  });
-  const boardMat = new THREE.MeshStandardMaterial({ map: board, emissiveMap: board, emissive: 0xffffff, emissiveIntensity: 0.6 });
-  const front = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.38), boardMat);
-  front.position.set(0, 2.95, 5.02);
-  const side = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.3), boardMat);
-  side.position.set(1.27, 2.95, 2.5);
-  side.rotation.y = Math.PI / 2;
-  const livery = canvasTex(512, 64, (g) => {
-    g.fillStyle = '#f2f2ee';
-    g.fillRect(0, 0, 512, 64);
-    g.fillStyle = '#1d4fa8';
-    g.font = '700 26px "Nirmala UI", "Latha", "Noto Sans Tamil", sans-serif';
-    g.textBaseline = 'middle';
-    g.fillText('மாநகர் போக்குவரத்துக் கழகம்  ·  MTC CHENNAI', 14, 34);
-  });
-  const liveryMat = new THREE.MeshStandardMaterial({ map: livery, roughness: 0.5 });
-  for (const sx of [1, -1]) {
-    const l = new THREE.Mesh(new THREE.PlaneGeometry(6, 0.75), liveryMat);
-    l.position.set(sx * 1.265, 1.45, -1.2);
-    l.rotation.y = (sx * Math.PI) / 2;
-    group.add(l);
-  }
-  group.add(front, side);
-  const hl = headlight();
-  const tl = taillight();
-  add(group, [box(0.35, 0.2, 0.05, 0.9, 0.8, 5.02), box(0.35, 0.2, 0.05, -0.9, 0.8, 5.02)], hl, false);
-  add(group, [box(0.3, 0.3, 0.05, 1.0, 0.9, -5.02), box(0.3, 0.3, 0.05, -1.0, 0.9, -5.02)], tl, false);
-  addPlates(group, plate, 'commercial', { y: 0.72, z: 5.03 }, { y: 0.8, z: -5.03 }, 0.55);
-  return { wheels: wheels(group, 0.5, [[1.1, 3.4], [-1.1, 3.4], [1.1, -3.2], [-1.1, -3.2]]), wheelR: 0.5, lights: [hl, tl, boardMat] };
 }
 
 /** Tamil Nadu Police jeep (Bolero-style): white with POLICE decals and a red/blue light bar. */
@@ -640,44 +586,6 @@ export function tempoModel(group: THREE.Group, colour: number, plate = randomPla
   return { wheels: wheels(group, 0.28, [[0.66, 1.25], [-0.66, 1.25], [0.66, -1.2], [-0.66, -1.2]], 0.2), wheelR: 0.28, lights: [hl, tl] };
 }
 
-/** Tamil Nadu lorry: decorated cab, high painted wooden body. */
-export function lorryModel(group: THREE.Group, colour: number, plate = randomPlate('commercial')): VehicleModel {
-  add(group, [
-    rbox(2.3, 1.55, 1.7, 0.12, 0, 1.9, 2.75), // cab
-    box(2.35, 0.25, 0.1, 0, 2.85, 3.62), // painted visor
-  ], paintMat(colour));
-  add(group, [box(1.95, 0.7, 0.05, 0, 2.15, 3.61)], glass(), false);
-  add(group, [
-    box(2.4, 1.4, 0.08, 0, 1.95, 1.75), // headboard
-    box(0.08, 1.2, 5.0, 1.18, 1.85, -0.8), // high sides
-    box(0.08, 1.2, 5.0, -1.18, 1.85, -0.8),
-    box(2.4, 1.2, 0.08, 0, 1.85, -3.28), // tailgate
-  ], new THREE.MeshStandardMaterial({ color: 0x1f6fb5, roughness: 0.7 }));
-  // Yellow bands painted round the body.
-  add(group, [
-    box(0.1, 0.12, 5.0, 1.2, 2.3, -0.8),
-    box(0.1, 0.12, 5.0, -1.2, 2.3, -0.8),
-    box(2.42, 0.12, 0.1, 0, 2.3, -3.3),
-  ], new THREE.MeshStandardMaterial({ color: 0xffc107, roughness: 0.6 }));
-  add(group, [
-    box(2.36, 0.1, 5.0, 0, 1.25, -0.8), // deck
-    box(1.0, 0.25, 7.0, 0, 0.75, 0), // chassis
-    box(2.4, 0.3, 0.2, 0, 0.75, 3.65), // bumper
-    box(0.2, 0.18, 0.08, 1.3, 2.3, 3.4), // mirrors
-    box(0.2, 0.18, 0.08, -1.3, 2.3, 3.4),
-  ], trim());
-  const hl = headlight();
-  const tl = taillight();
-  add(group, [box(0.3, 0.2, 0.05, 0.85, 1.25, 3.62), box(0.3, 0.2, 0.05, -0.85, 1.25, 3.62)], hl, false);
-  add(group, [box(0.2, 0.2, 0.05, 1.0, 0.95, -3.33), box(0.2, 0.2, 0.05, -1.0, 0.95, -3.33)], tl, false);
-  addPlates(group, plate, 'commercial', { y: 0.95, z: 3.77 }, { y: 1.3, z: -3.34 }, 0.55);
-  return {
-    wheels: wheels(group, 0.5, [[1.0, 2.6], [-1.0, 2.6], [1.0, -1.6], [-1.0, -1.6], [1.0, -2.65], [-1.0, -2.65]], 0.3),
-    wheelR: 0.5,
-    lights: [hl, tl],
-  };
-}
-
 /** Compact SUV (Creta / Seltos style). */
 export function suvModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
   return modernCar(group, colour, SUV, { plate });
@@ -686,27 +594,6 @@ export function suvModel(group: THREE.Group, colour: number, plate = randomPlate
 /** Hatchback (Swift style). */
 export function hatchModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
   return modernCar(group, colour, HATCH, { plate });
-}
-
-/** Water tanker lorry: blue cab and a big tank ("drinking water"). */
-export function tankerModel(group: THREE.Group, plate = randomPlate('commercial')): VehicleModel {
-  add(group, [rbox(2.3, 1.55, 1.7, 0.12, 0, 1.9, 2.75), box(2.35, 0.25, 0.1, 0, 2.85, 3.62)], paintMat(0x1565c0));
-  add(group, [box(1.95, 0.7, 0.05, 0, 2.15, 3.61)], glass(), false);
-  add(group, [new THREE.CylinderGeometry(1.1, 1.1, 5.0, 16).rotateX(Math.PI / 2).translate(0, 2.25, -0.85)].map(flat), new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.5 }));
-  add(group, [
-    box(2.25, 0.25, 0.25, 0, 2.25, 1.65), box(0.2, 0.2, 5.1, 1.1, 2.25, -0.85), box(0.2, 0.2, 5.1, -1.1, 2.25, -0.85), // blue bands
-  ], new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.5 }));
-  add(group, [
-    box(1.0, 0.25, 7.0, 0, 0.75, 0), box(2.4, 0.3, 0.2, 0, 0.75, 3.65),
-    box(0.2, 0.18, 0.08, 1.3, 2.3, 3.4), box(0.2, 0.18, 0.08, -1.3, 2.3, 3.4),
-    box(0.3, 0.3, 0.6, 0, 1.3, -3.4), // tap
-  ], trim());
-  const hl = headlight();
-  const tl = taillight();
-  add(group, [box(0.3, 0.2, 0.05, 0.85, 1.25, 3.62), box(0.3, 0.2, 0.05, -0.85, 1.25, 3.62)], hl, false);
-  add(group, [box(0.2, 0.2, 0.05, 1.0, 0.95, -3.4), box(0.2, 0.2, 0.05, -1.0, 0.95, -3.4)], tl, false);
-  addPlates(group, plate, 'commercial', { y: 0.95, z: 3.77 }, { y: 1.3, z: -3.5 }, 0.55);
-  return { wheels: wheels(group, 0.5, [[1.0, 2.6], [-1.0, 2.6], [1.0, -1.6], [-1.0, -1.6], [1.0, -2.65], [-1.0, -2.65]], 0.3), wheelR: 0.5, lights: [hl, tl] };
 }
 
 /** Food delivery scooter: a scooter with a big orange insulated box on the back. */

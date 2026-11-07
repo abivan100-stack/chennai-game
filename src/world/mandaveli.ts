@@ -1,6 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { busModel } from '../vehicles/models';
+import { busModel } from '../vehicles/heavy';
 import { GeoBuilder } from './geo';
 import { BEACH_X, BOUNDS, DEPOT_LOT, MRTS_STATIONS, MRTS_X, setbackOf, Z_LINES } from './layout';
 
@@ -105,7 +105,7 @@ export function createMandaveli(scene: THREE.Scene, world: RAPIER.World) {
   // Parked buses under the shed (two: each is a detailed model, ~7 draw calls).
   for (const [i, route, to] of [[0, '12B', 'T.NAGAR'], [1, '21G', 'BROADWAY']] as const) {
     const g = new THREE.Group();
-    busModel(g, route, to);
+    busModel(g, route, to, undefined, i === 0 ? 'electric' : 'old');
     g.position.set(cx - 5 + i * 10, 0, shedZ);
     g.rotation.y = Math.PI; // nose out towards the gate
     scene.add(g);

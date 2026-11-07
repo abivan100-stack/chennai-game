@@ -348,3 +348,13 @@ console.log('check: bag passed');
   assert(h.contract && h.peace, 'contract + peace are saved');
 }
 console.log('check: fleet passed');
+
+// --- Traffic by the clock: rush hours full, small hours nearly empty ---
+{
+  const { trafficDensity } = await import('../src/vehicles/rush.ts');
+  assert(trafficDensity(9) === 1 && trafficDensity(18.5) === 1, 'morning and evening rush: all traffic out');
+  assert(trafficDensity(3.5) <= 0.1 && trafficDensity(3.5) > 0, '3-4 am: nearly empty roads');
+  assert(trafficDensity(13) > 0.5 && trafficDensity(13) < 1, 'daytime: busy, not rush');
+  assert(Math.abs(trafficDensity(0) - trafficDensity(24)) < 1e-9 && trafficDensity(-1) === trafficDensity(23), 'wraps round midnight');
+}
+console.log('check: traffic density passed');

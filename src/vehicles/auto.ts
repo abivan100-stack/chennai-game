@@ -8,7 +8,7 @@ import { plateTexture } from './plates';
 // ---- Driving feel ---------------------------------------------------------------------------
 /** Test mode for now: a super-fast auto. Set false for the normal ~65 km/h auto. */
 const TURBO = true;
-const MAX_SPEED = TURBO ? 36 : 18; // m/s (turbo ~130 km/h; normal ~65 km/h)
+const MAX_SPEED = TURBO ? 25 : 18; // m/s (turbo = 90 km/h, never more; normal ~65 km/h)
 const MAX_REVERSE = 4;
 const ENGINE_FORCE = TURBO ? 3000 : 1250; // N per rear wheel
 const BRAKE = TURBO ? 22 : 12;
@@ -193,7 +193,9 @@ export class AutoRickshaw {
     } else if (this.throttle > 0) {
       if (top <= 0) brake = ROLLING_BRAKE; // no petrol: the engine won't pull
       else if (v < -0.5) brake = BRAKE;
-      else engine = ENGINE_FORCE * this.throttle * (1 - Math.min(Math.max(v, 0) / top, 1));
+      else if (v > top) brake = ROLLING_BRAKE * 2; // hard cap (e.g. off a bridge slope): no faster than top
+      // Full pull until near the top, then it eases off so it settles at top (90 km/h).
+      else engine = ENGINE_FORCE * this.throttle * THREE.MathUtils.clamp((top - v) / (top * 0.2), 0, 1);
     } else if (this.throttle < 0) {
       if (v > 0.5) brake = BRAKE;
       else engine = v > -MAX_REVERSE && top > 0 ? -ENGINE_FORCE * 0.6 : 0;

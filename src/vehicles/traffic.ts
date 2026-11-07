@@ -6,7 +6,9 @@ import { pair, pairAt, poseRider, type RiderPose } from '../characters/rider';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { RIVER, block, blocks, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
-import { busModel, carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, lorryModel, suvModel, hatchModel, tankerModel, deliveryModel, driverOf, rearOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
+import { carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, suvModel, hatchModel, deliveryModel, driverOf, rearOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
+import { trafficDensity } from './rush';
+import { AMBULANCE_BEACONS, ambulanceModel, busModel, lorryModel, tankerModel } from './heavy';
 import { randomPlate } from './plates';
 
 const LANE = SETBACK - 2.5; // lane centre: 2.5 m left of the road centre line (we drive on the left)
@@ -52,17 +54,17 @@ const AMBIENT_FLEET: [Kind, number?][] = [
   ['suv', 0xf4f4f4], ['suv', 0x263238], ['suv', 0x8d6e63],
   ['car', 0xb0bec5], ['car', 0x1a237e], ['taxi', 0xf5f5f5],
   ['scooter', 0x90caf9], ['scooter', 0xf48fb1], ['bike', 0x212121], ['bike', 0xb71c1c],
-  ['delivery'], ['delivery'], ['bus'], ['bus'], ['tanker'], ['tempo', 0x43a047], ['van', 0xfafafa], ['lorry', 0xf57c00],
+  ['delivery'], ['delivery'], ['bus'], ['bus'], ['tanker'], ['tempo', 0x43a047], ['van', 0xfafafa], ['lorry', 0xd9541e], ['ambulance'], ['lorry', 0x2e7d32],
 ];
 /** Anna Travels autos (Chapter 3) wear this colour so you can spot your fleet on the road. */
 export const FLEET_COLOUR = 0x1f9d55;
 const SIGNAL_LOOK = 25; // m: start slowing for a red this far before the stop line
 
-export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry' | 'suv' | 'hatch' | 'shareauto' | 'tanker' | 'delivery';
+export type Kind = 'auto' | 'car' | 'bus' | 'scooter' | 'bike' | 'taxi' | 'van' | 'tempo' | 'lorry' | 'suv' | 'hatch' | 'shareauto' | 'tanker' | 'delivery' | 'ambulance';
 /** What the prompt calls each kind ("F - Steal the ..."). */
 export const VEHICLE_NAMES: Record<Kind, string> = {
   auto: 'auto', car: 'car', bus: 'bus', scooter: 'scooter', bike: 'bike', taxi: 'call taxi', van: 'van', tempo: 'mini truck', lorry: 'lorry',
-  suv: 'SUV', hatch: 'hatchback', shareauto: 'share auto', tanker: 'water tanker', delivery: 'delivery scooter',
+  suv: 'SUV', hatch: 'hatchback', shareauto: 'share auto', tanker: 'water tanker', delivery: 'delivery scooter', ambulance: 'ambulance',
 };
 export const SPEC: Record<Kind, { speed: number; length: number; width: number; height: number; mass: number }> = {
   auto: { speed: 10, length: 2.6, width: 1.3, height: 1.9, mass: 350 },
@@ -79,6 +81,7 @@ export const SPEC: Record<Kind, { speed: number; length: number; width: number; 
   shareauto: { speed: 9, length: 3.6, width: 1.55, height: 2.2, mass: 600 },
   tanker: { speed: 7.5, length: 7.5, width: 2.4, height: 3.3, mass: 11000 },
   delivery: { speed: 11, length: 1.8, width: 0.7, height: 1.6, mass: 160 },
+  ambulance: { speed: 13, length: 5.6, width: 2.0, height: 2.7, mass: 2600 },
 };
 /** After a shove, a vehicle goes limp (pure physics) this long, then steers back to its lane. */
 const KNOCK_SECONDS = 2.5;
@@ -101,6 +104,7 @@ const HANDLING: Record<Kind, { top: number; accel: number; turn: number }> = {
   shareauto: { top: 15, accel: 4, turn: 1.4 },
   tanker: { top: 13, accel: 2, turn: 0.7 },
   delivery: { top: 20, accel: 8, turn: 2.4 },
+  ambulance: { top: 25, accel: 6, turn: 1.3 },
 };
 /** Driver's hip position per vehicle (model space). India drives right-hand: driver on the right (-x). */
 export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
@@ -118,6 +122,7 @@ export const DRIVER_SEAT: Record<Kind, THREE.Vector3> = {
   shareauto: new THREE.Vector3(SEAT.x * 1.2, SEAT.y * 1.15, SEAT.z * 1.45),
   tanker: new THREE.Vector3(-0.55, 1.75, 2.7),
   delivery: new THREE.Vector3(0, 0.95, -0.3),
+  ambulance: new THREE.Vector3(-0.45, 1.05, 1.15),
 };
 /** Hands on a steering wheel centred at `wheel`, feet forward on the pedals. */
 const carPose = (hips: THREE.Vector3, wheel: THREE.Vector3): RiderPose => ({
@@ -158,6 +163,7 @@ export const RIDER_POSE: Record<Kind, RiderPose> = {
   tempo: carPose(DRIVER_SEAT.tempo, DRIVER_SEAT.tempo.clone().add(new THREE.Vector3(0, 0.42, 0.5))),
   lorry: carPose(DRIVER_SEAT.lorry, DRIVER_SEAT.lorry.clone().add(new THREE.Vector3(0, 0.42, 0.55))),
   tanker: carPose(DRIVER_SEAT.tanker, DRIVER_SEAT.tanker.clone().add(new THREE.Vector3(0, 0.42, 0.55))),
+  ambulance: carPose(DRIVER_SEAT.ambulance, DRIVER_SEAT.ambulance.clone().add(new THREE.Vector3(0, 0.4, 0.5))),
 };
 const FLEE_SECONDS = 6;
 const FLEE_SPEED = 3.5;
@@ -271,6 +277,10 @@ export interface Vehicle {
   /** s stopped for no good reason / s knocked off its lane (see STALL_AFTER / UNTANGLE_AFTER). */
   stalled: number;
   tangled: number;
+  /** Out on the road only while the clock's traffic density (rush.ts) is above this (0 = always). */
+  dense: number;
+  /** Off the road for now (quiet hours): hidden, body disabled. */
+  off: boolean;
   prevPos: THREE.Vector3;
   currPos: THREE.Vector3;
   prevRot: THREE.Quaternion;
@@ -385,6 +395,7 @@ export class Traffic {
   private readonly driverModels: CharacterAsset[];
   private readonly ambient: Vehicle[] = [];
   private readonly fleetAutos: Vehicle[] = [];
+  private beaconT = 0;
 
   /**
    * Keep `n` Anna Travels autos (your hired drivers) on the road: they join the ambient pool, so
@@ -394,6 +405,7 @@ export class Traffic {
     while (this.fleetAutos.length < n) {
       const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
       const v = this.spawn(this.world, 'auto', blockRoute(b.i, b.j), Math.random(), FLEET_COLOUR);
+      v.dense = 0; // your drivers work every shift
       this.ambient.push(v);
       this.fleetAutos.push(v);
     }
@@ -462,7 +474,7 @@ export class Traffic {
         : kind === 'taxi' ? taxiModel(group, c) : kind === 'van' ? vanModel(group, c)
         : kind === 'tempo' ? tempoModel(group, c) : kind === 'suv' ? suvModel(group, c)
         : kind === 'hatch' ? hatchModel(group, c) : kind === 'tanker' ? tankerModel(group)
-        : kind === 'delivery' ? deliveryModel(group) : lorryModel(group, c);
+        : kind === 'delivery' ? deliveryModel(group) : kind === 'ambulance' ? ambulanceModel(group) : lorryModel(group, c);
       wheelMeshes = m.wheels;
       wheelR = m.wheelR;
       lights = m.lights;
@@ -491,7 +503,7 @@ export class Traffic {
     const veh: Vehicle = {
       kind, mode: 'ai', driver, lights, ctl: { throttle: 0, steer: 0, brake: false },
       group, wheels: wheelMeshes, wheelR, body, path, s: s0, v: sp.speed, blockedFor: 0, honkIn: 0,
-      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0, limit: 1, late: 0, sawPlayer: false, pvx: 0, pvz: 0, stalled: 0, tangled: 0,
+      collider, target: sp.speed, knocked: 0, id: this.vehicles.length, colour, hx: this.dir.x, hz: this.dir.z, blocker: null, waitVeh: 0, pushOn: 0, stuck: 0, limit: 1, late: 0, sawPlayer: false, pvx: 0, pvz: 0, stalled: 0, tangled: 0, dense: kind === 'ambulance' ? 0 : Math.random(), off: false,
       prevPos: this.pos.clone(), currPos: this.pos.clone(), prevRot: rot.clone(), currRot: rot.clone(),
     };
     this.vehicles.push(veh);
@@ -503,12 +515,29 @@ export class Traffic {
    * round the player (out of the camera's view when close), so every road has traffic.
    * view = the camera's forward on the ground.
    */
-  recycle(dt: number, player: THREE.Vector3, view: THREE.Vector3) {
+  recycle(dt: number, player: THREE.Vector3, view: THREE.Vector3, hour = 12) {
     this.ambientCheck -= dt;
     if (this.ambientCheck > 0) return;
     this.ambientCheck = 0.5;
+    // Traffic follows the clock: vehicles leave / join the roads only where you can't see it happen.
+    const density = trafficDensity(hour);
+    for (const veh of this.vehicles) {
+      if (veh.mode !== 'ai') continue;
+      const want = veh.dense < density;
+      if (want !== veh.off) continue;
+      const dx = veh.currPos.x - player.x;
+      const dz = veh.currPos.z - player.z;
+      const d = Math.hypot(dx, dz);
+      const seen = d < DRAW_DIST && (d < 25 || (dx * view.x + dz * view.z) / d > 0.2);
+      if (seen) continue;
+      veh.off = !want;
+      veh.body.setEnabled(want);
+      if (!want) veh.group.visible = false;
+      else veh.stalled = veh.tangled = veh.stuck = 0;
+      for (const o of this.vehicles) if (o.blocker === veh) o.blocker = null;
+    }
     for (const veh of this.ambient) {
-      if (veh.mode !== 'ai' || !veh.driver) continue; // stolen / abandoned: leave it where it is
+      if (veh.mode !== 'ai' || !veh.driver || veh.off) continue; // stolen / abandoned / off duty: leave it
       if (Math.hypot(veh.currPos.x - player.x, veh.currPos.z - player.z) < AMBIENT_RECYCLE) continue;
       for (let tries = 0; tries < 10; tries++) {
         const b = this.streetBlocks[Math.floor(Math.random() * this.streetBlocks.length)];
@@ -541,7 +570,7 @@ export class Traffic {
   /** Once per frame: decide each vehicle's target speed (corners, obstacles) and honk. */
   update(dt: number, obstacles: Obstacle[]) {
     for (const veh of this.vehicles) {
-      if (veh.mode !== 'ai') continue;
+      if (veh.mode !== 'ai' || veh.off) continue;
       const sp = SPEC[veh.kind];
       const p = veh.currPos;
       veh.path.at(veh.s, this.ahead, this.dir);
@@ -585,7 +614,7 @@ export class Traffic {
       let blocker: Vehicle | null = null;
       {
         for (const other of this.vehicles) {
-          if (other === veh) continue;
+          if (other === veh || other.off) continue;
           if (veh.pushOn > 0 && other.mode !== 'player') continue; // nosing through a queue, but never through you
           const along = inLane(other.currPos.x, other.currPos.z);
           if (along < 0) continue;
@@ -661,7 +690,7 @@ export class Traffic {
       const pv = veh.body.linvel();
       veh.pvx = pv.x;
       veh.pvz = pv.z;
-      if (veh.mode === 'parked') continue; // abandoned: just friction and damping
+      if (veh.mode === 'parked' || veh.off) continue; // abandoned: just friction and damping (off duty: not there)
       if (veh.mode === 'player') {
         this.drivePlayer(veh, dt);
         this.followGround(veh, dt);
@@ -744,6 +773,11 @@ export class Traffic {
   private readonly rank: number[] = [];
 
   sync(dt: number, alpha: number, night = 0, eye: THREE.Vector3 | null = null) {
+    // Ambulance light bars: red / blue alternating.
+    this.beaconT += dt;
+    const blink = Math.floor(this.beaconT * 4) % 2 === 0;
+    AMBULANCE_BEACONS[0].emissiveIntensity = blink ? 4 : 0.2;
+    AMBULANCE_BEACONS[1].emissiveIntensity = blink ? 0.2 : 4;
     for (let i = this.fleeing.length - 1; i >= 0; i--) {
       const f = this.fleeing[i];
       f.t += dt;
@@ -758,7 +792,7 @@ export class Traffic {
     // Only the nearest MAX_DRAWN vehicles are drawn: each is a dozen parts (draw calls).
     if (eye) {
       this.vehicles.forEach((veh, i) => {
-        this.dists[i] = veh.mode === 'player' ? -1 : veh.currPos.distanceTo(eye);
+        this.dists[i] = veh.mode === 'player' ? -1 : veh.off ? Infinity : veh.currPos.distanceTo(eye);
         this.order[i] = i;
       });
       this.order.length = this.vehicles.length;
@@ -770,7 +804,7 @@ export class Traffic {
       veh.group.quaternion.slerpQuaternions(veh.prevRot, veh.currRot, alpha);
       if (eye) {
         const d = veh.group.position.distanceTo(eye);
-        veh.group.visible = (d < DRAW_DIST && this.rank[i] < MAX_DRAWN) || veh.mode === 'player';
+        veh.group.visible = (!veh.off && d < DRAW_DIST && this.rank[i] < MAX_DRAWN) || veh.mode === 'player';
         veh.group.matrixWorldAutoUpdate = veh.group.visible; // hidden: skip its parts' (and driver's bones') matrices
         const near = d < DETAIL_DIST || veh.mode === 'player';
         for (const w of veh.wheels) w.visible = near;
@@ -794,6 +828,7 @@ export class Traffic {
     let best: Vehicle | null = null;
     let bestD = Infinity;
     for (const v of this.vehicles) {
+      if (v.off) continue;
       const d = Math.hypot(v.currPos.x - p.x, v.currPos.z - p.z) - SPEC[v.kind].length / 2;
       if (d < 1.8 && d < bestD && !v.locked) {
         best = v;

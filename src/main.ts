@@ -1462,7 +1462,7 @@ async function main() {
     const inAuto = !player.onFoot;
     markets.update(dt, player.position);
     camera.getWorldDirection(viewDir).setY(0).normalize();
-    traffic.recycle(dt, player.position, viewDir);
+    traffic.recycle(dt, player.position, viewDir, istTime(dayNight.timeMs).hours);
     crowd.update(dt, player.position, stolen ? Math.abs(stolenSpeed) : inAuto ? Math.abs(auto.speed) : player.speed, inAuto, istTime(dayNight.timeMs).hours, viewDir);
 
     // Police: chase, arrest, shoot. Wanted level fades when they lose you.
