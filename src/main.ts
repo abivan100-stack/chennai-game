@@ -198,6 +198,23 @@ async function main() {
   window.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && ['Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract', 'Digit0', 'Numpad0'].includes(e.code)) e.preventDefault(); });
   for (const ev of ['gesturestart', 'gesturechange']) window.addEventListener(ev, (e) => e.preventDefault()); // Safari pinch
+  // Fullscreen (button beside the minimap, or F2): the whole screen, no browser bars or taskbar over the HUD.
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {});
+  };
+  const fsButton = document.getElementById('fullscreen')!;
+  fsButton.addEventListener('click', (e) => {
+    e.stopPropagation(); // not a "click to play"
+    toggleFullscreen();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'F2') {
+      e.preventDefault();
+      toggleFullscreen();
+    }
+  });
+  document.addEventListener('fullscreenchange', () => (fsButton.textContent = document.fullscreenElement ? '🗗' : '⛶'));
   // Soft image-based light: gives skin, cloth and paint real reflections instead of flat shading.
   // Generated once from three's built-in room scene (no download); its strength follows the sun.
   scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;

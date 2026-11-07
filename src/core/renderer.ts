@@ -25,6 +25,7 @@ export function createRenderer() {
     camera.updateProjectionMatrix();
   };
   addEventListener('resize', resize);
+  document.addEventListener('fullscreenchange', () => requestAnimationFrame(resize)); // sizes settle a frame later
   resize();
 
   return { renderer, scene, camera };
