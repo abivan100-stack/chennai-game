@@ -194,6 +194,10 @@ async function main() {
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = PHYSICS_STEP;
   const { renderer, scene, camera } = createRenderer();
+  // No accidental page zoom (touchpad pinch = Ctrl+wheel, Ctrl +/-/0): it crops the HUD off the screen edges.
+  window.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+  window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && ['Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract', 'Digit0', 'Numpad0'].includes(e.code)) e.preventDefault(); });
+  for (const ev of ['gesturestart', 'gesturechange']) window.addEventListener(ev, (e) => e.preventDefault()); // Safari pinch
   // Soft image-based light: gives skin, cloth and paint real reflections instead of flat shading.
   // Generated once from three's built-in room scene (no download); its strength follows the sun.
   scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
