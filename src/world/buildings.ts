@@ -1,4 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import { addTreeSpot } from './treeSpots';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
 import { CHEPAUK_LOT, PRESIDENCY_LOT, BESANT, CAFE_LOTS, COMPLEX_LOTS, TIDEL_LOT, LANDMARK_LOTS, BOAT_CLUB_LOT, CAMPUS_LOT, COLLEGE_LOT, DEPOT_LOT, HOSPITAL_LOT, PLACE_LOTS, POLICE_LOT, SERVICE_HUBS, SHOWROOM_LOTS, STORE_LOTS, DEALER_LOT, HOTEL_LOTS, BEACHFRONT_LOTS, HOME_LOTS, TNAGAR, RAIL_LOTS, GUINDY_LOTS, KOYAMBEDU_LOTS, SUPERMARKET_LOTS, WATER_LOTS, blocks } from './layout';
@@ -74,10 +75,6 @@ const FLAT_PALETTE = [0xf5f1e6, 0xe8e2d4, 0xf2d7b6, 0xd9e6ee, 0xf0e0e8, 0xe4edd9
 
 /** Leafy residential blocks (Alwarpet, R.A. Puram, Adyar): detached houses behind compound walls. */
 const HOUSE = { yard: 3.5, gap: 2.5, width: [9, 15], oldChance: 0.3, wallH: 1.3, gate: 2.2 };
-const YARD_TREE = new THREE.IcosahedronGeometry(1.6, 1).scale(1, 0.85, 1);
-const YARD_TRUNK = new THREE.CylinderGeometry(0.12, 0.18, 2.6, 6);
-const LEAF = new THREE.Color(0x3f7f35);
-const BARK = new THREE.Color(0x6a5038);
 const COMPOUND = new THREE.Color(0xe9e2d0);
 
 /** Mylapore-ish painted walls. */
@@ -182,8 +179,7 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       }
       if (w > 8) { // a tree in the yard
         const tp = W(gateX > 0 ? -w / 4 : w / 4, d / 2 - HOUSE.yard / 2);
-        plain.add(YARD_TRUNK, new THREE.Matrix4().setPosition(tp.x, 1.3, tp.z), BARK);
-        plain.add(YARD_TREE, new THREE.Matrix4().setPosition(tp.x, 3.4, tp.z), LEAF);
+        addTreeSpot(tp.x, 0, tp.z, 0.8);
         world.createCollider(RAPIER.ColliderDesc.cylinder(1.3, 0.2).setTranslation(tp.x, 1.3, tp.z));
       }
       cx -= fx * HOUSE.yard / 2;

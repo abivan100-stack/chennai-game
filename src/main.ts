@@ -23,6 +23,7 @@ import { createBuildings } from './world/buildings';
 import { createGround } from './world/ground';
 import { SIDEWALK_HEIGHT, blocks } from './world/layout';
 import { createProps } from './world/props';
+import { patchLampLight } from './world/lampLight';
 import { DayNight } from './world/sky';
 import { EnvBaker } from './world/skyDome';
 import { createTemple } from './world/temple';
@@ -230,7 +231,7 @@ async function main() {
   tagNew('ground');
   const town = createBuildings(scene, world);
   tagNew('buildings');
-  const props = createProps(scene, world);
+  const props = createProps(scene, world, town.footprints.flatMap((f) => f.shops));
   tagNew('props');
   const townMap = drawTownMap({ footprints: town.footprints, trees: props.treePoints });
   const weather = new Weather(scene);
@@ -293,10 +294,13 @@ async function main() {
   crowd.addPosed(shopkeepers(town.footprints)); // a shopkeeper at the door of every third street shop
   crowd.addWalkers(tnagar.walkers); // shoppers in the lane, walkers in Panagal Park
   crowd.addAmbient(); // everyday people on whatever street you're on
+  props.plantTrees(); // street trees + every tree the builders above registered (treeSpots.ts)
   tagNew('places'); // every kit-built place, landmark, shop and area
   chunkStaticMeshes(scene); // big merged meshes -> map chunks, so far / off-screen ones are culled
   ground.addPuddles(); // after chunking: a custom shader would keep the road from being split
   town.addWindowDepth();
+  let lampPatchT = 3;
+  patchLampLight(scene); // street-lamp light on every standard material (again later for new ones)
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...beachfront.eateries);
@@ -1565,6 +1569,7 @@ async function main() {
     }
     town.setNight(dayNight.night);
     props.setNight(dayNight.night);
+    if ((lampPatchT -= dt) < 0) { lampPatchT = 3; patchLampLight(scene); } // vehicles / people added since
     props.updateLod(dt, camera.position);
     town.updateDetail(dt, camera.position);
     temple.setNight(dayNight.night);

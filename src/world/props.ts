@@ -4,7 +4,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
 import { BOUNDS, roadHalf, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads, GUINDY_GATES } from './layout';
 import { overheadCables } from './cables';
-import { leafClusterTexture, glowTexture, lightPoolTexture, streetSignTextures } from './textures';
+import { leafClusterTexture, glowTexture, streetSignTextures } from './textures';
+import { TREE_SPOTS } from './treeSpots';
+import { buildLampMap, setLampLight, type LampSource } from './lampLight';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
 const LAMP_SPACING = 14; // close enough that the light pools join up along the street at night
@@ -16,9 +18,9 @@ const LAMP_HEIGHT = 6.5;
 /** Width of the glow sprite round a lit lamp head, metres. */
 const HALO_SIZE = 3.2;
 /** Light pool size on the ground: along the road x across it (m). */
-const POOL_ALONG = 15;
-const POOL_ACROSS = 10;
-const POOL_OPACITY = 0.6;
+/** Light from an open shopfront at night (share of a street lamp), centred this far out (m). */
+const SHOP_LIGHT = 0.45;
+const SHOP_LIGHT_OUT = 1.5;
 /** Share of the old orange sodium lamps; the rest are newer white LED ones. */
 const SODIUM_SHARE = 0.3;
 /** How far a canopy corner is pushed off its smooth ball, metres. */
@@ -100,7 +102,8 @@ function seeded(seed: number) {
  * (neem, rain tree, gulmohar, ashoka, banyan), plus groves past the town's edges.
  * Instanced: 3 draw calls for the lamps, 2 per tree kind. Lamps and street trees get colliders.
  */
-export function createProps(scene: THREE.Scene, world: RAPIER.World) {
+/** `shops`: lit shopfronts (world x/z, facing yaw); their light spills onto the pavement at night. */
+export function createProps(scene: THREE.Scene, world: RAPIER.World, shops: { x: number; z: number; yaw: number }[] = []) {
   const rand = seeded(11);
   const lamps: THREE.Matrix4[] = [];
   const trees: THREE.Matrix4[] = [];
@@ -143,27 +146,25 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     new THREE.BoxGeometry(1.3, 0.06, 0.06).translate(0.6, LAMP_HEIGHT - 0.1, 0),
   ]);
   const headGeo = new THREE.BoxGeometry(0.5, 0.1, 0.22).translate(1.2, LAMP_HEIGHT - 0.18, 0);
-  // Local +x points across the road (the arm), so the plane is POOL_ACROSS in x, POOL_ALONG in z.
-  const poolGeo = new THREE.PlaneGeometry(POOL_ACROSS, POOL_ALONG).rotateX(-Math.PI / 2).translate(1.6, 0.03, 0);
   const headMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffd28a, emissiveIntensity: 0 });
-  const poolMat = new THREE.MeshBasicMaterial({
-    map: lightPoolTexture(), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
-  });
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.6, metalness: 0.4 });
   // One BatchedMesh per part: one draw call for every lamp on the map, each lamp culled on its own
   // (off screen / outside the shadow box) instead of drawing all of them.
   const poles = batched([poleGeo], poleMat, lamps.map((m) => ({ m, geo: 0 })));
   poles.castShadow = true;
   const heads = batched([headGeo], headMat, lamps.map((m) => ({ m, geo: 0 })));
-  const pools = batched([poolGeo], poolMat, lamps.map((m) => ({ m, geo: 0 })));
-  pools.renderOrder = 1;
-  // Per-lamp tint: mostly white LED (slightly cool or warm), some orange sodium.
-  const tint = new THREE.Color();
-  for (let i = 0; i < pools.instanceCount; i++) {
-    if (rand() < SODIUM_SHARE) tint.setRGB(1, 0.62, 0.3);
-    else tint.setRGB(1, 0.9 + rand() * 0.06, 0.78 + rand() * 0.14);
-    pools.setColorAt(i, tint);
+  // Their light (lampLight.ts): mostly white LED (slightly cool or warm), some orange sodium.
+  const lampHead = new THREE.Vector3();
+  const sources: LampSource[] = lamps.map((m) => {
+    lampHead.set(1.2, 0, 0).applyMatrix4(m);
+    const sodium = rand() < SODIUM_SHARE;
+    return sodium ? { x: lampHead.x, z: lampHead.z, r: 1, g: 0.6, b: 0.28 } : { x: lampHead.x, z: lampHead.z, r: 1, g: 0.9 + rand() * 0.06, b: 0.76 + rand() * 0.14 };
+  });
+  for (const sh of shops) {
+    // Tube lights inside the open shop: warm-white, weaker than a lamp, centred on the pavement.
+    sources.push({ x: sh.x + Math.sin(sh.yaw) * SHOP_LIGHT_OUT, z: sh.z + Math.cos(sh.yaw) * SHOP_LIGHT_OUT, r: 1, g: 0.86, b: 0.66, k: SHOP_LIGHT });
   }
+  buildLampMap(sources);
   // Glow round each lamp head at night: one additive point sprite per lamp (one draw call for the
   // lot), a cheap stand-in for bloom.
   const haloPts = new Float32Array(lamps.length * 3);
@@ -176,7 +177,7 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   halos.renderOrder = 2;
   halos.visible = false;
   scene.add(halos);
-  const lampMeshes: THREE.Object3D[] = [poles, heads, pools];
+  const lampMeshes: THREE.Object3D[] = [poles, heads];
 
   // --- Trees: several Chennai street trees, each kind a trunk + canopy instanced pair.
   // Street trees on the sidewalks, plus a backdrop of trees past the town's edges.
@@ -233,30 +234,34 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
   const treeGeos = kinds.flatMap((k, i) => [painted(k.trunk, bark), shapeOf(low[i], i)]);
   const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
   windSway(treeMat);
-  const street = placed.slice(0, trees.length);
-  const groves = placed.slice(trees.length);
-  const streetTrees = batched(treeGeos, treeMat, street.map((t) => ({ m: t.m, geo: t.kind * 2 })));
-  streetTrees.castShadow = true;
-  const groveTrees = batched(treeGeos, treeMat, groves.map((t) => ({ m: t.m, geo: t.kind * 2 + 1 }))); // far away: low-poly always
-  // Near canopies: alpha-tested leaf cards over each kind's canopy shape (same instance order).
-  const leafMat = new THREE.MeshStandardMaterial({ map: leafClusterTexture(), alphaTest: LEAF_ALPHA_TEST, side: THREE.DoubleSide, vertexColors: true, roughness: 0.8 });
-  windSway(leafMat, true);
-  const cardGeos = kinds.map((k, i) => leafCards(k.canopy, kinds[i].colour(new THREE.Color(), 0.5), rand));
-  const leafCanopies = batched(cardGeos, leafMat, street.map((t) => ({ m: t.m, geo: t.kind })));
-  leafCanopies.castShadow = true; // alpha-tested: dappled shadows
-  const shade = new THREE.Color();
-  for (let i = 0; i < streetTrees.instanceCount; i++) {
-    shade.setScalar(0.8 + rand() * 0.35);
-    streetTrees.setColorAt(i, shade);
-    leafCanopies.setColorAt(i, shade);
-  }
-  for (let i = 0; i < groveTrees.instanceCount; i++) groveTrees.setColorAt(i, shade.setScalar(0.8 + rand() * 0.35));
-  const treeMeshes: THREE.Object3D[] = [streetTrees, groveTrees, leafCanopies];
-  const streetAt = street.map((t) => ({ x: t.m.elements[12], z: t.m.elements[14], kind: t.kind, far: false }));
+  let lod: { streetTrees: THREE.BatchedMesh; leafCanopies: THREE.BatchedMesh; at: { x: number; z: number; kind: number; far: boolean }[] } | null = null;
+  /** Tree meshes, once every builder has registered its own trees (treeSpots.ts). */
+  const plantTrees = () => {
+    const street = [...placed.slice(0, trees.length), ...TREE_SPOTS.map((m) => ({ kind: pickKind(kinds, rand()), m }))];
+    const groves = placed.slice(trees.length);
+    const streetTrees = batched(treeGeos, treeMat, street.map((t) => ({ m: t.m, geo: t.kind * 2 })));
+    streetTrees.castShadow = true;
+    const groveTrees = batched(treeGeos, treeMat, groves.map((t) => ({ m: t.m, geo: t.kind * 2 + 1 }))); // far away: low-poly always
+    // Near canopies: alpha-tested leaf cards over each kind's canopy shape (same instance order).
+    const leafMat = new THREE.MeshStandardMaterial({ map: leafClusterTexture(), alphaTest: LEAF_ALPHA_TEST, side: THREE.DoubleSide, vertexColors: true, roughness: 0.8 });
+    windSway(leafMat, true);
+    const cardGeos = kinds.map((k, i) => leafCards(k.canopy, kinds[i].colour(new THREE.Color(), 0.5), rand));
+    const leafCanopies = batched(cardGeos, leafMat, street.map((t) => ({ m: t.m, geo: t.kind })));
+    leafCanopies.castShadow = true; // alpha-tested: dappled shadows
+    const shade = new THREE.Color();
+    for (let i = 0; i < streetTrees.instanceCount; i++) {
+      shade.setScalar(0.8 + rand() * 0.35);
+      streetTrees.setColorAt(i, shade);
+      leafCanopies.setColorAt(i, shade);
+    }
+    for (let i = 0; i < groveTrees.instanceCount; i++) groveTrees.setColorAt(i, shade.setScalar(0.8 + rand() * 0.35));
+    scene.add(streetTrees, groveTrees, leafCanopies);
+    lod = { streetTrees, leafCanopies, at: street.map((t) => ({ x: t.m.elements[12], z: t.m.elements[14], kind: t.kind, far: false })) };
+  };
   let lodIn = 0;
 
   const cables = overheadCables(lamps);
-  scene.add(...lampMeshes, ...treeMeshes, streetSigns(world), cables.group);
+  scene.add(...lampMeshes, streetSigns(world), cables.group);
 
   // --- Colliders: lamp poles and tree trunks.
   const p = new THREE.Vector3();
@@ -274,10 +279,11 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     treeCount: trees.length,
     /** Tree positions (for the map). */
     treePoints: trees.map((m) => ({ x: m.elements[12], z: m.elements[14] })),
+    plantTrees,
     setNight(f: number) {
       headMat.emissiveIntensity = f * 4;
-      poolMat.opacity = f * POOL_OPACITY;
-      pools.visible = halos.visible = f > 0.01;
+      setLampLight(f);
+      halos.visible = f > 0.01;
       haloMat.opacity = f * 0.55;
     },
     /** Street trees far from the camera swap to their low-poly shape (a few times a second). */
@@ -287,8 +293,10 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
       if (lodIn > 0) return;
       lodIn = LOD_EVERY;
       cables.update(eye);
+      if (!lod) return;
+      const { streetTrees, leafCanopies, at } = lod;
       const d2 = TREE_LOD_DIST * TREE_LOD_DIST;
-      streetAt.forEach((t, i) => {
+      at.forEach((t, i) => {
         const far = (t.x - eye.x) ** 2 + (t.z - eye.z) ** 2 > d2;
         if (far === t.far) return;
         t.far = far;

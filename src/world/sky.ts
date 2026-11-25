@@ -38,6 +38,9 @@ function smooth(edge0: number, edge1: number, x: number) {
  */
 /** Brightest the sky may get (linear): the sun disc is capped here. */
 const SKY_MAX = 5;
+/** Sky fill light. Night is low: the street lamps (lampLight.ts) light the streets, dark between them. */
+const DAY_HEMI = 0.8;
+export const NIGHT_HEMI = 0.7;
 
 export class DayNight {
   readonly sun = new THREE.DirectionalLight();
@@ -150,7 +153,7 @@ export class DayNight {
 
     // Day: strong sun over a low sky fill, so shadows read and shapes have depth.
     // Night: brighter moonlit sky fill plus a warm bounce from the street lights off the ground.
-    this.hemi.intensity = 2.3 - 1.5 * day;
+    this.hemi.intensity = DAY_HEMI * day + NIGHT_HEMI * (1 - day);
     this.hemi.color.lerpColors(NIGHT_SKY, DAY_SKY, day);
     this.hemi.groundColor.setHex(0x3a3328).multiplyScalar(0.3 + 0.7 * day).lerp(STREETLIGHT_BOUNCE, 1 - day);
 

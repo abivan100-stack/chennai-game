@@ -236,7 +236,7 @@ function drawPaving() {
 
 /**
  * Residential facade tile (white walls: building colour comes from vertex colours).
- * map + emissiveMap: two of the four windows glow at night.
+ * map + emissiveMap: all four windows glow; windowDepth.ts picks which are lit per building.
  */
 let facadeCache: { map: THREE.CanvasTexture; emissive: THREE.CanvasTexture } | undefined;
 export function facadeTextures() {
@@ -362,7 +362,7 @@ function drawFacade() {
         g.fillRect(ax + 0.7 * pxPerM - 4, ay, 4, 78);
         fade(g, ax + 30, ay + 78, 8, 0.8 * pxPerM, '70,60,45', 0.3);
       }
-      if (i === 1 || i === 2) { // lit room: warm light, the curtain and grille in silhouette
+      { // every room lit (windowDepth.ts switches each window on / off and tints it per building)
         const lit = ge.createLinearGradient(0, wy, 0, wy + wh);
         lit.addColorStop(0, '#ffd595');
         lit.addColorStop(1, '#e29a4e');
@@ -745,36 +745,6 @@ export function glowTexture() {
   return texture(c, false);
 }
 
-/**
- * Street-lamp light on the ground, white (tinted per lamp). Not a disc: real light falls off with
- * distance from the lamp (bright under it, a long faint tail), the canvas is mapped on a plane
- * stretched along the road, and slight noise breaks the outline. Reaches 0 before the edge.
- */
-export function lightPoolTexture() {
-  const S = 128;
-  const [c, g] = canvas(S, S);
-  const img = g.createImageData(S, S);
-  const rand = seeded(77);
-  const noise = Array.from({ length: 64 }, () => rand());
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const dx = (x + 0.5) / S - 0.5;
-      const dy = (y + 0.5) / S - 0.5;
-      const r = Math.hypot(dx, dy) * 2; // 0 centre .. 1 edge
-      const a = Math.atan2(dy, dx);
-      const wobble = 1 + 0.08 * noise[Math.floor(((a + Math.PI) / (2 * Math.PI)) * 63)]; // uneven rim
-      const rr = r * wobble;
-      const fall = 1 / Math.pow(1 + (rr / 0.5) ** 2, 1.5); // lamp ~ cos^3 / d^2 on the ground
-      const edge = Math.max(0, 1 - rr) ** 1.5; // fade the tail to 0 well inside the plane
-      const v = Math.round(255 * Math.min(1, fall * edge));
-      const i = (y * S + x) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-      img.data[i + 3] = v;
-    }
-  }
-  g.putImageData(img, 0, 0);
-  return texture(c, false);
-}
 
 /**
  * Greyscale surface detail, 4 m per tile, multiplied over plain painted walls / concrete by world

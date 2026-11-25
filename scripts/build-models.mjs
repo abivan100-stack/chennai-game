@@ -15,9 +15,9 @@ import sharp from 'sharp';
 const SRC = 'assets-source';
 const TMP = 'assets-source/build';
 const OUT = 'public/models';
-const HERO_MAX_TRIS = 15000;
+const HERO_MAX_TRIS = 30000;
 const NPC_MAX_TRIS = 8000;
-const TEXTURE_SIZE = 1024;
+const TEXTURE_SIZE = 2048; // hero: the one character always close to the camera
 /** ONLY=regex: build just the outputs whose name matches (e.g. ONLY=^npc-mx to redo the Mixamo NPCs). */
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const want = (name) => !ONLY || ONLY.test(name);
@@ -31,7 +31,7 @@ const BLENDER = process.env.BLENDER ?? (existsSync(WIN_BLENDER) ? WIN_BLENDER : 
  */
 const HERO = {
   src: 'mixamo/hero.fbx',
-  simplifyRatio: 0.29, // 49k -> under 15k tris
+  simplifyRatio: 0.6, // 49k -> under 30k tris (sharp silhouette close up; one draw call either way)
   clips: [
     { name: 'idle', inPlace: true }, // in place: its root motion made the hero drift
     { name: 'idle_stick', inPlace: true }, // Standing Idle: ready stance while holding the lathi
@@ -74,7 +74,7 @@ const NPCS = [
 ];
 /** Mixamo characters used as NPCs (assets-source/mixamo-npcs/<name>.fbx -> npc-<name>.glb). */
 const MIXAMO_NPCS = Array.from({ length: 14 }, (_, i) => `mx${String(i + 1).padStart(2, '0')}`);
-const NPC_TEXTURE_SIZE = 512;
+const NPC_TEXTURE_SIZE = 1024;
 // source name -> game name
 const NPC_CLIPS = { Idle: 'idle', Idle_Neutral: 'idle2', Walk: 'walk', Run: 'run', Wave: 'wave', HitRecieve: 'hit', Idle_Gun_Pointing: 'aim', Idle_Gun_Shoot: 'shoot', Death: 'fall' };
 

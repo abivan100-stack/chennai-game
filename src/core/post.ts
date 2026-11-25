@@ -63,6 +63,14 @@ export class PostFx {
     this.composer.addPass(this.ao);
 
     this.bloom = new BloomEffect({ mipmapBlur: true, intensity: BLOOM_INTENSITY, luminanceThreshold: BLOOM_THRESHOLD, luminanceSmoothing: BLOOM_SMOOTHING, radius: 0.7, levels: BLOOM_LEVELS });
+    // A single NaN / Inf pixel (any shader, any GPU quirk) would be smeared by the mip blur into a
+    // big black square: drop non-finite and absurd values before the blur.
+    const lum = this.bloom.luminanceMaterial;
+    lum.fragmentShader = lum.fragmentShader.replace(
+      'vec4 texel=texture2D(inputBuffer,vUv);',
+      'vec4 texel=texture2D(inputBuffer,vUv);texel=(all(greaterThanEqual(texel.rgb,vec3(0.0)))&&all(lessThan(texel.rgb,vec3(1e4))))?min(texel,vec4(64.0)):vec4(0.0);',
+    );
+    lum.needsUpdate = true;
     const vignette = new VignetteEffect({ offset: 0.32, darkness: VIGNETTE_DARKNESS });
     const smaa = new SMAAEffect({ preset: SMAAPreset.MEDIUM });
     this.composer.addPass(new EffectPass(camera, smaa, this.bloom, this.grade, vignette));

@@ -17,6 +17,10 @@ type Openings = { cellV: number; hu: number; hv: number; cv: [number, number]; d
 /** Window glass: smooth and a little metallic, so it mirrors the sky (scene.environment) at an angle. */
 const GLASS_ROUGHNESS = 0.06;
 const GLASS_METALNESS = 0.35;
+/** Share of windows dark at night; of the lit ones, a cool tube light / a blue TV glow. */
+const WIN_DARK = 0.5;
+const WIN_TUBE = 0.25;
+const WIN_TV = 0.08;
 
 /**
  * Recessed openings without geometry. For a pixel inside an opening, the view ray is followed into
@@ -29,6 +33,24 @@ const GLASS_METALNESS = 0.35;
  */
 function recess(m: THREE.MeshStandardMaterial, o: Openings, key: string) {
   const f = (x: number) => x.toFixed(5);
+  // Glass windows at night: which room is lit (and how) per window, seeded by the tile cell, the
+  // window and the building's wall colour, so buildings and floors don't repeat one pattern.
+  const rooms = o.glass
+    ? `{
+          vec2 rc = floor( vMapUv * vec2( 1.0, ${f(o.cellV)} ) );
+          vec2 rw = step( 0.5, vMapUv * vec2( 1.0, ${f(o.cellV)} ) - rc );
+          float seed = dot( vec4( rc, rw ), vec4( 12.9898, 78.233, 37.719, 4.581 ) );
+          #ifdef USE_COLOR
+            seed += dot( vColor.rgb, vec3( 91.7, 53.1, 27.3 ) );
+          #endif
+          float h = fract( sin( seed ) * 43758.5453 );
+          float k = ( h - ${f(WIN_DARK)} ) / ${f(1 - WIN_DARK)}; // 0..1 among the lit rooms
+          winLight = h < ${f(WIN_DARK)} ? vec3( 0.0 )
+            : k < ${f(WIN_TV)} ? vec3( 0.25, 0.4, 0.9 )
+            : k < ${f(WIN_TV + WIN_TUBE)} ? vec3( 0.85, 1.0, 1.25 )
+            : vec3( 1.0, 0.95 - 0.2 * fract( h * 7.0 ), 0.9 );
+        }`
+    : '';
   m.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -36,6 +58,8 @@ function recess(m: THREE.MeshStandardMaterial, o: Openings, key: string) {
         `vec2 winUv = vMapUv;
         float winShade = 1.0;
         float winGlass = 0.0;
+        vec3 winLight = vec3( 1.0 );
+        ${rooms}
         {
           vec2 sc = vec2( 1.0, ${f(o.cellV)} );
           vec2 uvS = vMapUv * sc;
@@ -44,11 +68,13 @@ function recess(m: THREE.MeshStandardMaterial, o: Openings, key: string) {
           vec2 hs = vec2( ${f(o.hu)}, ${f(o.hv)} );
           vec2 c = vec2( fr.x < 0.5 ? 0.25 : 0.75, fr.y < 0.5 ? ${f(o.cv[0])} : ${f(o.cv[1])} );
           vec2 q = fr - c;
+          // Derivatives outside the branch: inside non-uniform control flow they are undefined
+          // (garbage / NaN at window edges, which the bloom blur spread into big black squares).
+          vec3 p = - vViewPosition;
+          vec3 dp1 = dFdx( p ), dp2 = dFdy( p );
+          vec2 du1 = dFdx( uvS ), du2 = dFdy( uvS );
           if ( abs( q.x ) < hs.x && abs( q.y ) < hs.y ) {
-            vec3 p = - vViewPosition;
             vec3 n = normalize( vNormal );
-            vec3 dp1 = dFdx( p ), dp2 = dFdy( p );
-            vec2 du1 = dFdx( uvS ), du2 = dFdy( uvS );
             vec3 dp2perp = cross( dp2, n ), dp1perp = cross( n, dp1 );
             float det = dot( dp1, dp2perp );
             if ( abs( det ) > 1e-12 ) {
@@ -81,7 +107,7 @@ function recess(m: THREE.MeshStandardMaterial, o: Openings, key: string) {
         #endif
         diffuseColor.rgb *= winShade;`,
       )
-      .replace('texture2D( emissiveMap, vEmissiveMapUv )', 'texture2D( emissiveMap, winUv ) * step( 0.99, winShade )');
+      .replace('texture2D( emissiveMap, vEmissiveMapUv )', 'texture2D( emissiveMap, winUv ) * step( 0.99, winShade ) * vec4( winLight, 1.0 )');
     if (o.glass) {
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
