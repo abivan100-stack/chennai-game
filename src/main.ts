@@ -1,12 +1,13 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { loadCharacters } from './characters/catalog';
+import { loadImportedVehicles } from './vehicles/imported';
 import { loadingManager } from './core/assets';
 import { enablePointerLock, input } from './core/input';
 import { startLoop } from './core/loop';
 import { QualityManager, SHADOW_MAP_SIZES } from './core/quality';
 import { createRenderer, setRenderScale } from './core/renderer';
+import { PostFx } from './core/post';
 import { Profiler } from './ui/profiler';
 import { chunkStaticMeshes } from './world/chunk';
 import { Crowd } from './npcs/crowd';
@@ -23,6 +24,7 @@ import { createGround } from './world/ground';
 import { SIDEWALK_HEIGHT, blocks } from './world/layout';
 import { createProps } from './world/props';
 import { DayNight } from './world/sky';
+import { EnvBaker } from './world/skyDome';
 import { createTemple } from './world/temple';
 import { TaxiJobs } from './missions/jobs';
 import { Minimap } from './ui/minimap';
@@ -179,8 +181,7 @@ const PHYSICS_STEP = 1 / 60; // fixed step: vehicle physics needs it
 const AUTOSAVE_MS = 10_000;
 const HEADLIGHT = { intensity: 40, distance: 38, angle: 0.48, penumbra: 0.55 }; // the vehicle you drive
 const HORN_HEARD = 12; // m: pedestrians this close may shout back
-const ENV_DAY = 0.35; // environment (reflection) light by day...
-const ENV_NIGHT = 0.06; // ...and at night
+const ENV_STRENGTH = 0.35; // environment (reflection) light; the dome's own colours carry day / night
 const EXPOSURE_DAY = 0.6;
 const EXPOSURE_NIGHT = 0.85;
 const HIT_REACT_COOLDOWN = 1.5; // s between hit flinches
@@ -190,7 +191,7 @@ const HIT_STOP_SCALE = 0.05; // how slow the world runs during it
 
 async function main() {
   loadingManager.onProgress = (_url, loaded, total) => loadingScreen.progress(loaded / total);
-  const [, characters] = await Promise.all([RAPIER.init(), loadCharacters()]);
+  const [, characters] = await Promise.all([RAPIER.init(), loadCharacters(), loadImportedVehicles()]);
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = PHYSICS_STEP;
   const { renderer, scene, camera } = createRenderer();
@@ -215,9 +216,10 @@ async function main() {
     }
   });
   document.addEventListener('fullscreenchange', () => (fsButton.textContent = document.fullscreenElement ? '🗗' : '⛶'));
-  // Soft image-based light: gives skin, cloth and paint real reflections instead of flat shading.
-  // Generated once from three's built-in room scene (no download); its strength follows the sun.
-  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  // Image-based light + reflections from a sky dome that follows the time of day and weather
+  // (world/skyDome.ts EnvBaker: re-baked at most every 10 s, only when the sky changed).
+  const envBaker = new EnvBaker(renderer);
+  scene.environmentIntensity = ENV_STRENGTH;
 
   // World. Each builder's scene objects get a perf category (F4 profiler, ui/profiler.ts).
   const tagNew = (cat: string) => {
@@ -293,6 +295,8 @@ async function main() {
   crowd.addAmbient(); // everyday people on whatever street you're on
   tagNew('places'); // every kit-built place, landmark, shop and area
   chunkStaticMeshes(scene); // big merged meshes -> map chunks, so far / off-screen ones are culled
+  ground.addPuddles(); // after chunking: a custom shader would keep the road from being split
+  town.addWindowDepth();
   let matchWasOn = false;
   eateries.list.push(...places.eateries); // tea stall, fish fry, fair stalls: normal snack menus
   eateries.list.push(...beachfront.eateries);
@@ -923,8 +927,14 @@ async function main() {
 
   // Quality
   const quality = new QualityManager();
+  const post = new PostFx(renderer, scene, camera);
+  renderer.info.autoReset = false; // post-processing renders in several calls: count the whole frame
+  addEventListener('resize', () => post.resize());
+  document.addEventListener('fullscreenchange', () => requestAnimationFrame(() => post.resize()));
   quality.onChange = (s) => {
     setRenderScale(renderer, s.resScale);
+    post.setLevel(s.post);
+    post.resize();
     dayNight.setShadowMapSize(SHADOW_MAP_SIZES[s.shadows]);
     dayNight.setEffects(s.effects);
   };
@@ -942,7 +952,7 @@ async function main() {
     : null;
 
   // Dev-only console handle: inspect state with `game.player.position` etc.
-  if (import.meta.env.DEV) Object.assign(window, { game: { world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, homes, owned, storyDone, profiler, renderer, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
+  if (import.meta.env.DEV) Object.assign(window, { game: { post, envBaker, scene, camera, world, player, cam, auto, ride, jobs, phone, economy, weather, traffic, police, wanted, melee, quality, dayNight, crowd, energy, meal, eateries, markets, santhome, signals, flood, sound, upkeep, places, story, rent, quests, sleep, mine, fleet, bag, homes, owned, storyDone, profiler, renderer, save: () => saveNow(), getHealth: () => health, setHealth: (h: number) => (health = h) } });
 
   // ---- Crime & punishment ------------------------------------------------------------------
   const takeVehicle = (v: Vehicle) => {
@@ -1508,7 +1518,7 @@ async function main() {
     ground.setWet(weather.rain);
     ground.update(dt);
     dayNight.update(dt, input.isDown('KeyT'), player.position);
-    scene.environmentIntensity = ENV_NIGHT + (ENV_DAY - ENV_NIGHT) * (1 - dayNight.night);
+    scene.environment = envBaker.update(dt, dayNight.skyState); // the dome itself darkens at night
     renderer.toneMappingExposure = EXPOSURE_DAY + (EXPOSURE_NIGHT - EXPOSURE_DAY) * dayNight.night; // eyes adjust at night
     // New IST day: settle the moneylender's daily amount.
     const today = Math.floor(istTime(dayNight.timeMs).day);
@@ -1556,6 +1566,7 @@ async function main() {
     town.setNight(dayNight.night);
     props.setNight(dayNight.night);
     props.updateLod(dt, camera.position);
+    town.updateDetail(dt, camera.position);
     temple.setNight(dayNight.night);
     const inAuto = !player.onFoot;
     markets.update(dt, player.position);
@@ -1896,7 +1907,9 @@ async function main() {
       destLeft: navLeft,
     });
 
-    renderer.render(scene, camera);
+    renderer.info.reset();
+    if (post.level > 0) post.render(dt);
+    else renderer.render(scene, camera);
     profiler?.update(frameMs);
 
     quality.sample(frameMs);

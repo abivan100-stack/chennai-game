@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { facadeWindowDepth } from './windowDepth';
 import { ambulanceModel } from '../vehicles/heavy';
 import { GeoBuilder } from './geo';
 import { HOSPITAL_LOT, SIDEWALK_HEIGHT } from './layout';
@@ -86,7 +87,7 @@ export function createHospital(scene: THREE.Scene, world: RAPIER.World) {
   sign.rotation.y = Math.PI; // faces the road (north)
   const meshes = [
     new THREE.Mesh(plain.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })),
-    new THREE.Mesh(facade.build(), new THREE.MeshStandardMaterial({ map: fTex.map, vertexColors: true, roughness: 0.85 })),
+    new THREE.Mesh(facade.build(), facadeWindowDepth(new THREE.MeshStandardMaterial({ map: fTex.map, vertexColors: true, roughness: 0.85 }))),
     sign,
   ];
   for (const m of meshes) {

@@ -14,6 +14,18 @@ Every third-party asset shipped in `public/models/`. Add a row here whenever you
 | Pushing, Hook Punch, Sitting Talking, Jump, Jumping Down, Standing Idle, Pistol Run, Hit Reaction (2nd) animations | `push.glb`, `hook.glb`, `sit_talk.glb`, `jump.glb`, `fall.glb`, `idle_stick.glb`, `pistol_run.glb`, `hit_react2.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 | 14 Mixamo characters (NPCs: office wear, casual, tracksuits, worker, delivery rider) | `npc-mx01.glb` … `npc-mx14.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 
+## Vehicles
+
+Downloaded from Sketchfab under CC BY 4.0 (attribution required). Converted at load by `src/vehicles/imported.ts` (one car picked out of each file, rescaled, recoloured, TN plates added); textures resized to 512 px WebP and Meshopt-compressed with glTF-Transform. No maker badges are used.
+
+| Asset | Game file | Author | Source | License |
+|---|---|---|---|---|
+| "Auto Rickshaw" (traffic autos) | `vehicles/auto.glb` | rSquare | https://sketchfab.com/3d-models/auto-rickshaw-44776bcb34e04c1a8b9c18a70376304e | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| "Small Hatchback #1" (hatchbacks) | `vehicles/hatch.glb` | Han66st | https://sketchfab.com/3d-models/small-hatchback-1-ca238cea4bd649d096ceffc8ed2fbf0a | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| "Lowpoly Sedan & Wagon" (sedans) | `vehicles/sedan.glb` | Han66st | https://sketchfab.com/3d-models/lowpoly-sedan-wagon-e11a46478c674b279fe9d299b2125c30 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| "Lowpoly MPV/SUV" (call taxis) | `vehicles/mpv.glb` | Han66st | https://sketchfab.com/3d-models/lowpoly-mpvsuv-cc118f44b28f4ac8b54ed76fe969a49f | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| "Tamilnadu Lorry" (mini trucks) | `vehicles/lorry.glb` | Car Simulator 2-Preview (playmode280513) | https://sketchfab.com/3d-models/tamilnadu-lorry-f14b631d441d41a382a9015c603930b9 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
 All models were converted and optimised by `scripts/build-models.mjs` (simplified, merged draw calls, 1K WebP textures, Meshopt compression). CC0 needs no attribution; Quaternius is credited anyway.
 
 Note: the Mixamo-derived GLBs are fine inside the game, but keep them out of any public asset pack or a public repo that hands them out as standalone files.

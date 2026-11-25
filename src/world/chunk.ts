@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { plasterDetailTexture } from './textures';
 
 /**
  * Split big merged static meshes into map chunks so whole chunks off screen (or outside the sun's
@@ -18,6 +19,33 @@ import * as THREE from 'three';
  */
 const CHUNK = 120; // m
 const MIN_RADIUS = 90; // m: smaller meshes already cull fine (but may still be merged)
+/** Surface detail repeats every this many metres. */
+const DETAIL_TILE = 4;
+
+/**
+ * Plain painted surfaces (flat vertex colour) get plaster detail without UVs or their own texture:
+ * one shared greyscale tile, looked up by world position on the plane the face lies in, multiplied
+ * over the colour. One texture read per pixel; materials stay shared, so draw calls don't change.
+ * Only for static meshes at the origin (position = world position).
+ */
+function surfaceDetail(m: THREE.MeshStandardMaterial, detail: THREE.Texture) {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uDetail = { value: detail };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDetailPos;\nvarying vec3 vDetailNrm;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDetailPos = position;\nvDetailNrm = normal;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uDetail;\nvarying vec3 vDetailPos;\nvarying vec3 vDetailNrm;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec3 dn = abs(vDetailNrm);
+        vec2 duv = dn.y > 0.5 ? vDetailPos.xz : (dn.x > dn.z ? vDetailPos.zy : vDetailPos.xy);
+        diffuseColor.rgb *= texture2D(uDetail, duv * ${(1 / DETAIL_TILE).toFixed(4)}).rgb * 1.1;`,
+      );
+  };
+  m.customProgramCacheKey = () => 'surface-detail';
+}
 
 type Piece = { geo: THREE.BufferGeometry; tris: number[] | null; src: THREE.Mesh };
 
@@ -125,5 +153,8 @@ export function chunkStaticMeshes(scene: THREE.Scene) {
     }
   }
   for (const m of removed) scene.remove(m);
+  // Painted / concrete surfaces only: bare metal stays clean.
+  const detail = plasterDetailTexture();
+  for (const m of shared.values()) if ((m as THREE.MeshStandardMaterial).metalness < 0.5) surfaceDetail(m as THREE.MeshStandardMaterial, detail);
   console.log(`[perf] ${removed.length} static meshes -> ${made} map-chunk meshes`);
 }

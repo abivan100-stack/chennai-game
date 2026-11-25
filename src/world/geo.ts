@@ -62,7 +62,31 @@ export class GeoBuilder {
     return this.pos.length === 0;
   }
 
+  /**
+   * Baked ground-contact occlusion: where a wall at least AO_MIN_WALL tall meets the ground, its
+   * bottom corners are darkened, so the colour fades in up the wall. Free at runtime.
+   * Low things (kerbs, steps) are left alone: they would just go dark all over.
+   */
+  private bakeAo() {
+    const { pos, nor, col } = this;
+    for (let t = 0; t < pos.length; t += 9) {
+      if (Math.abs(nor[t + 1]) > 0.3) continue; // walls only
+      const y0 = pos[t + 1];
+      const y1 = pos[t + 4];
+      const y2 = pos[t + 7];
+      const lo = Math.min(y0, y1, y2);
+      if (lo > AO_GROUND || lo < -AO_GROUND || Math.max(y0, y1, y2) - lo < AO_MIN_WALL) continue;
+      for (let v = 0; v < 9; v += 3) {
+        if (pos[t + v + 1] - lo > 0.05) continue;
+        col[t + v] *= AO_DARK;
+        col[t + v + 1] *= AO_DARK;
+        col[t + v + 2] *= AO_DARK;
+      }
+    }
+  }
+
   build() {
+    this.bakeAo();
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
@@ -74,3 +98,8 @@ export class GeoBuilder {
 }
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
+/** Walls whose foot is within this height of y = 0 (road / pavement level) get contact shading. */
+const AO_GROUND = 0.4;
+const AO_MIN_WALL = 1.2;
+/** Colour multiplier at the foot of a wall. */
+const AO_DARK = 0.6;

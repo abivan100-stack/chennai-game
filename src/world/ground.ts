@@ -3,8 +3,11 @@ import * as THREE from 'three';
 import { GeoBuilder } from './geo';
 import { BEACH_ROAD, BEACH_X, BOUNDS, RIVER, SIDEWALK_WIDTH, SIDEWALK_HEIGHT, roadHalf, roadSpans, roads, waterRects, type RoadLine } from './layout';
 import { tankRect } from './temple';
-import { asphaltTexture, curbTexture, pavingTexture } from './textures';
+import { asphaltTexture, curbTexture, normalMapFor, pavingTexture } from './textures';
 
+/** Relief from the asphalt / paving textures (textures.normalMapFor). */
+const ROAD_BUMP = 1.2;
+const PAVE_BUMP = 2;
 const WHITE = new THREE.Color(0xffffff);
 const UP = new THREE.Vector3(0, 1, 0);
 const DASH = 3; // centre-line dash length (m); gaps are the same
@@ -146,14 +149,14 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
   const asphalt = asphaltTexture();
   const paveTex = pavingTexture();
   // Rain makes the asphalt darker and shinier (see setWet).
-  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95 });
+  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, normalMap: normalMapFor(asphalt, ROAD_BUMP), roughness: 0.95 });
   const meshes = [
     new THREE.Mesh(asphaltB.build(), roadMat),
     new THREE.Mesh(
       marks.build(),
       new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 }),
     ),
-    new THREE.Mesh(paving.build(), new THREE.MeshStandardMaterial({ map: paveTex, roughness: 0.9 })),
+    new THREE.Mesh(paving.build(), new THREE.MeshStandardMaterial({ map: paveTex, normalMap: normalMapFor(paveTex, PAVE_BUMP), roughness: 0.9 })),
     new THREE.Mesh(curbs.build(), new THREE.MeshStandardMaterial({ map: curbTexture(), roughness: 0.7 })),
   ];
   for (const m of meshes) {
@@ -177,6 +180,14 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
     roadMat.roughness = 0.95 - 0.6 * f;
     roadMat.metalness = 0.25 * f;
     roadMat.color.setScalar(1 - 0.35 * f);
+    puddleWet.value = f;
+    },
+    /**
+     * Puddles: patches of near-mirror asphalt that grow with the rain. Call after chunkStaticMeshes
+     * (it leaves custom-shader materials unsplit, and the road must be split to be culled).
+     */
+    addPuddles() {
+      puddles(roadMat);
     },
   };
   // Edge walls (the sea side is walled off in the water by world/santhome.ts).
@@ -189,6 +200,51 @@ export function createGround(scene: THREE.Scene, world: RAPIER.World) {
     world.createCollider(RAPIER.ColliderDesc.cuboid(wx, 10, wz).setTranslation(x, 10, z));
   }
   return wet;
+}
+
+const puddleWet = { value: 0 };
+/** Puddle coverage at full rain (0..1 of the road); edges soften over PUDDLE_EDGE. */
+const PUDDLE_COVER = 0.35;
+const PUDDLE_EDGE = 0.06;
+/** Puddle size: noise cells per metre (lower = bigger puddles). */
+const PUDDLE_SCALE = 0.22;
+
+/** World-position value noise picks the puddles; inside them the road is dark and mirror-smooth. */
+function puddles(m: THREE.MeshStandardMaterial) {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uWet = puddleWet;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPudPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPudPos = position.xz;'); // static mesh at the origin
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uWet;
+        varying vec2 vPudPos;
+        float pudHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+        float pudNoise( vec2 p ) {
+          vec2 i = floor( p ), f = fract( p );
+          f = f * f * ( 3.0 - 2.0 * f );
+          return mix( mix( pudHash( i ), pudHash( i + vec2( 1, 0 ) ), f.x ), mix( pudHash( i + vec2( 0, 1 ) ), pudHash( i + vec2( 1, 1 ) ), f.x ), f.y );
+        }
+        float pud = 0.0;`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        if ( uWet > 0.01 ) {
+          vec2 q = vPudPos * ${PUDDLE_SCALE.toFixed(3)};
+          float n = pudNoise( q ) * 0.65 + pudNoise( q * 2.7 + 17.0 ) * 0.35;
+          float cut = 1.0 - ${PUDDLE_COVER.toFixed(3)} * uWet;
+          pud = smoothstep( cut, cut + ${PUDDLE_EDGE.toFixed(3)}, n );
+          diffuseColor.rgb *= 1.0 - 0.45 * pud;
+        }`,
+      )
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix( roughnessFactor, 0.04, pud );');
+  };
+  m.customProgramCacheKey = () => 'road-puddles';
+  m.needsUpdate = true;
 }
 
 /** Soft ripples for the canal and river (drawn once). */

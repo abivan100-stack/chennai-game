@@ -6,6 +6,7 @@ import { pair, pairAt, poseRider, type RiderPose } from '../characters/rider';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { RIVER, block, blocks, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
+import { importedModel } from './imported';
 import { carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, suvModel, hatchModel, deliveryModel, driverOf, rearOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
 import { trafficDensity } from './rush';
 import { AMBULANCE_BEACONS, ambulanceModel, busModel, lorryModel, tankerModel } from './heavy';
@@ -465,7 +466,11 @@ export class Traffic {
     let wheelMeshes: THREE.Object3D[];
     let wheelR = 0.21;
     let lights: THREE.MeshStandardMaterial[] = [];
-    if (kind === 'auto' || kind === 'shareauto') {
+    const imported = kind === 'auto' && colour === undefined ? importedModel('auto', group, null, 'commercial') : null; // fleet autos are painted: procedural
+    if (imported) {
+      wheelMeshes = imported.wheels;
+      lights = imported.lights;
+    } else if (kind === 'auto' || kind === 'shareauto') {
       // A share auto is the big Ape-style one: the same auto, scaled up.
       const holder = kind === 'shareauto' ? new THREE.Group() : group;
       if (holder !== group) {

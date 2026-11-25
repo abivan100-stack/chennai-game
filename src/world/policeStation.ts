@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { facadeWindowDepth } from './windowDepth';
 import { GeoBuilder } from './geo';
 import { POLICE_LOT, SIDEWALK_HEIGHT } from './layout';
 import { FACADE_TILE, facadeTextures } from './textures';
@@ -65,7 +66,7 @@ export function createPoliceStation(scene: THREE.Scene, world: RAPIER.World) {
   const fTex = facadeTextures();
   const meshes = [
     new THREE.Mesh(plain.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })),
-    new THREE.Mesh(facade.build(), new THREE.MeshStandardMaterial({ map: fTex.map, vertexColors: true, roughness: 0.85 })),
+    new THREE.Mesh(facade.build(), facadeWindowDepth(new THREE.MeshStandardMaterial({ map: fTex.map, vertexColors: true, roughness: 0.85 }))),
     signBoard(cx, front + 3.25),
     flag(fx, fz),
   ];
