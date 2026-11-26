@@ -43,6 +43,19 @@ const AC_CHANCE = 0.12;
 const SHED_CHANCE = 0.22; // asbestos-sheet shed on the terrace
 const SHEET = new THREE.Color(0x8f979c);
 const AC_UNIT = new THREE.Color(0xe6e6e0);
+/**
+ * Street-photo clutter (detail tiles, so only drawn near): a grey PVC drain pipe down a front corner,
+ * DTH dishes on the parapet, a clothes line on the terrace. Picked by a hash of the building's
+ * position, not the shared rand(), so adding them doesn't reshuffle the town.
+ */
+const PIPE_CHANCE = 0.7;
+const DISH_CHANCE = 0.55;
+const LINE_CHANCE = 0.4;
+const PIPE = new THREE.Color(0x8c8f8a);
+const DISH = new THREE.Color(0xd9d9d4);
+const CLOTHES = [0xb3261e, 0x1f4e9c, 0xe0a526, 0x2e7d32, 0xf2f2ec, 0x6a2c91, 0xd96c9a].map((c) => new THREE.Color(c));
+/** A small dish, face tilted up towards the southern sky. */
+const DISH_GEO = new THREE.CylinderGeometry(0.28, 0.24, 0.05, 8).rotateX(1.15);
 const SHEET_BOX = new THREE.BoxGeometry(1, 1, 1);
 /**
  * Massing like the real streets: old-town upper floors often hang out over the pavement
@@ -228,6 +241,11 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       detail.box(bw, bh, bd, p.x, p.y, p.z, color, yaw);
     };
     const light = wall.clone().lerp(WHITE, 0.35);
+    /** 0..1 per building and k (see PIPE_CHANCE). */
+    const hr = (k: number) => {
+      const v = Math.sin(cx * 12.9898 + cz * 78.233 + k * 37.719) * 43758.5453;
+      return v - Math.floor(v);
+    };
     // Walls: [from, to] corners in local x/z, outward normal. Front = +z.
     const walls = [
       { a: [-hw, hd], b: [hw, hd], n: [0, 1], len: w, front: true },
@@ -328,6 +346,11 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
           if (setback) dbox(0.3, h - hMid, 0.1, sx * (hw - 0.15), (hMid + h) / 2, topFront + 0.05, light);
         }
       }
+      if (floors > 1 && hr(1) < PIPE_CHANCE) {
+        const px = (hr(2) < 0.5 ? -1 : 1) * (hw - 0.5);
+        dbox(0.11, hMid - groundH, 0.11, px, (groundH + hMid) / 2, upFront + 0.12, PIPE);
+        dbox(0.11, groundH, 0.11, px, groundH / 2, hd + 0.12, PIPE);
+      }
     }
 
     if (office) {
@@ -398,6 +421,26 @@ export function createBuildings(scene: THREE.Scene, world: RAPIER.World) {
       if (rand() < TANK_CHANCE) {
         const p = P(range(-hw + 1, hw - 1), h + 0.55, range(-hd + 1, roofFront - 1));
         plain.add(TANK_GEO, new THREE.Matrix4().setPosition(p), TANK);
+      }
+      if (!office && floors > 1) {
+        const dishes = hr(3) < DISH_CHANCE ? 1 + Math.floor(hr(4) * 3) : 0;
+        for (let i = 0; i < dishes; i++) {
+          const dx = -hw + 0.8 + ((i + 0.5) / dishes) * (w - 1.6);
+          detail.add(DISH_GEO, new THREE.Matrix4().multiplyMatrices(m, new THREE.Matrix4().makeTranslation(dx, h + ph + 0.3, roofFront - 0.35)), DISH);
+          dbox(0.04, 0.32, 0.04, dx, h + ph + 0.12, roofFront - 0.3, PIPE);
+        }
+        if (rd > 6 && w > 4.5 && hr(5) < LINE_CHANCE) { // a clothes line across the terrace, washing on it
+          const lz = (roofFront - hd) / 2 + (hr(30) - 0.5) * 1.6;
+          const span = Math.min(w - 1.2, 5);
+          for (const sx of [-1, 1]) dbox(0.05, 1.8, 0.05, (sx * span) / 2, h + 0.9, lz, PIPE);
+          dbox(span, 0.02, 0.02, 0, h + 1.75, lz, PIPE);
+          const n = 2 + Math.floor(hr(6) * 4);
+          for (let i = 0; i < n; i++) {
+            const cw = 0.4 + hr(7 + i) * 0.5;
+            const ch = 0.5 + hr(12 + i) * 0.6;
+            dbox(cw, ch, 0.02, -span / 2 + ((i + 0.5) / n) * span, h + 1.74 - ch / 2, lz, CLOTHES[Math.floor(hr(20 + i) * CLOTHES.length)]);
+          }
+        }
       }
 
       // Sunshade over the shops, one signboard per shop sized to its width (houses: none).
