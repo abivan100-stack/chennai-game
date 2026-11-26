@@ -205,8 +205,8 @@ export function createHotels(scene: THREE.Scene, world: RAPIER.World) {
       const p = f.at(u, v);
       posed.push({ name, x: p.x, y: 0, z: p.z, yaw, clip: 'idle', hours, model });
     };
-    stand('Doorman', -3.6, pv - 2, roadYaw, STAFF_HOURS, 'mx07');
-    stand('Security guard', gu + gate / 2 + 2, 3.2, roadYaw, [[0, 24]], 'mx11');
+    stand('Doorman', -3.6, pv - 2, roadYaw, STAFF_HOURS, 'sfSuit');
+    stand('Security guard', gu + gate / 2 + 2, 3.2, roadYaw, [[0, 24]], 'sfStriped');
     const a = f.at(3.4, bv0 - 2.2);
     const b = f.at(4.5, bv0 - 2.9);
     posed.push({ name: `${DINERS[(i * 3 + 1) % DINERS.length]} (guest)`, x: a.x, y: 0, z: a.z, yaw: Math.atan2(b.x - a.x, b.z - a.z), clip: 'idle', hours: GUEST_HOURS });

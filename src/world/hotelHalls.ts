@@ -34,7 +34,7 @@ const STAFF_HOURS: [number, number][] = [[6.5, 24]];
 const MUSIC_HOURS: [number, number][] = [[12.5, 14.5], [19, 23]];
 const DINERS = ['Mr. Raghavan', 'Mrs. Raghavan', 'Anjali', 'Siddharth', 'Dr. Iyer', 'Farah', 'Kartik', 'Nandini', 'Joseph', 'Lakshmi', 'Arvind', 'Meenakshi', 'Rohan', 'Sneha', 'Vikram', 'Divya'];
 /** Diners: smart / casual clothes (no hard hats or tracksuits at a five-star). */
-const GUESTS: NpcModelId[] = ['mx02', 'mx06', 'mx04', 'mx07', 'mx13', 'mx08', 'mx05', 'mx14', 'mx03', 'mx01'];
+const GUESTS: NpcModelId[] = ['sfOffice', 'sfCasual', 'sfWoman', 'sfSuit', 'sfHoodie', 'sfStriped', 'sfWoman2', 'sfPattern', 'sfPattern', 'sfTee'];
 const FOODS = [0xd9a441, 0xc8742a, 0xe07a4a, 0xf3e3b0, 0x8bc34a].map((c) => new THREE.Color(c)); // biryani, curry, fry, appam, salad
 
 const C = (hex: number) => new THREE.Color(hex);
@@ -168,19 +168,19 @@ export function createHotelHalls(scene: THREE.Scene, world: RAPIER.World) {
       shape(f, new THREE.CylinderGeometry(0.3, 0.24, 0.16, 12), -W / 2 + 1.6, 1.0, v, C(0xd8d8d8));
       shape(f, new THREE.SphereGeometry(0.24, 10, 6).scale(1, 0.4, 1), -W / 2 + 1.6, 1.12, v, FOODS[Math.floor(v) % FOODS.length]);
     }
-    pose(`Chef (${title(hotel.en.split(' ·')[0])})`, -W / 2 + 0.6, 12, eatYaw, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'mx06');
+    pose(`Chef (${title(hotel.en.split(' ·')[0])})`, -W / 2 + 0.6, 12, eatYaw, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'sfCasual');
 
     // ---- Music stage in the corner: a low platform, a stool, the musician ----
     box(f, 5, 0.4, 4, W / 2 - 3, 0, 4, WOOD);
     shape(f, new THREE.CylinderGeometry(0.22, 0.2, SEAT_TOP, 10).translate(0, SEAT_TOP / 2, 0), W / 2 - 3, 0.4, 4.4, C(0x3b1f0f));
-    pose('Veena player', W / 2 - 3, 4.4, eatYaw + Math.PI, 'sit_idle', MUSIC_HOURS, 0.4 + SEAT_TOP - BENCH_TOP, undefined, 'mx14');
+    pose('Veena player', W / 2 - 3, 4.4, eatYaw + Math.PI, 'sit_idle', MUSIC_HOURS, 0.4 + SEAT_TOP - BENCH_TOP, undefined, 'sfPattern');
 
     // ---- Host stand by the door: order here ----
     box(f, 1, 1.15, 0.6, 3, FLOOR_TOP, 2.4, WOOD);
     const spot = f.at(3, 1.6, FLOOR_TOP);
-    pose('Head waiter', 3, 3.1, inYaw + Math.PI, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'mx07');
-    pose('Waiter', -6.5, 10.5, eatYaw, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'mx08');
-    pose('Waitress', 6.5, 15.5, eatYaw + Math.PI, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'mx02');
+    pose('Head waiter', 3, 3.1, inYaw + Math.PI, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'sfSuit');
+    pose('Waiter', -6.5, 10.5, eatYaw, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'sfStriped');
+    pose('Waitress', 6.5, 15.5, eatYaw + Math.PI, 'idle', STAFF_HOURS, FLOOR_TOP, undefined, 'sfOffice');
 
     // ---- Tables: white cloth, a candle, two chairs facing along the room ----
     let t = 0;

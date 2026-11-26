@@ -16,6 +16,8 @@ export interface CharacterAsset {
   mixamo?: boolean;
   /** For face details (moustache vs bindi), see npcs/look.ts. */
   female?: boolean;
+  /** Photo-real face: look.ts adds no accessories. */
+  realistic?: boolean;
 }
 /** The hero's Mixamo walk / run cover this much ground per second at 1x (as controller.ts CLIP_SPEED). */
 const MIXAMO_CLIP_SPEED = { walk: 1.63, run: 5.4 };
@@ -35,24 +37,25 @@ const SHARED_WITH_NPCS = ['sit_down', 'drive', 'punch', 'sit_idle', 'sit_talk', 
 export const NPC_MODELS = {
   // The police: the suited Mixamo man (a separate load), dressed in khaki at load (applyPoliceLook).
   police: { file: 'npc-mx08.glb', rig: 'mixamo' },
-  // Mixamo characters (same skeleton as the hero: they use the hero's clips, see MIXAMO_AS).
-  mx01: { file: 'npc-mx01.glb', rig: 'mixamo' },
-  mx02: { file: 'npc-mx02.glb', rig: 'mixamo' },
-  mx03: { file: 'npc-mx03.glb', rig: 'mixamo' },
-  mx04: { file: 'npc-mx04.glb', rig: 'mixamo' },
-  mx05: { file: 'npc-mx05.glb', rig: 'mixamo' },
-  mx06: { file: 'npc-mx06.glb', rig: 'mixamo' },
-  mx07: { file: 'npc-mx07.glb', rig: 'mixamo' },
-  mx08: { file: 'npc-mx08.glb', rig: 'mixamo' },
+  // Mixamo tracksuit joggers (same skeleton as the hero: they use the hero's clips, see MIXAMO_AS).
   mx09: { file: 'npc-mx09.glb', rig: 'mixamo' },
   mx10: { file: 'npc-mx10.glb', rig: 'mixamo' },
-  mx11: { file: 'npc-mx11.glb', rig: 'mixamo' },
-  mx12: { file: 'npc-mx12.glb', rig: 'mixamo' },
-  mx13: { file: 'npc-mx13.glb', rig: 'mixamo' },
-  mx14: { file: 'npc-mx14.glb', rig: 'mixamo' },
+  // Realistic Indian people (Sketchfab, Nodeaxis Interactive, CC-BY; CREDITS.md), fitted onto the hero's
+  // Mixamo skeleton at build time (scripts/blender/fit_to_hero_rig.py): same clips, one atlas each.
+  sfTee: { file: 'npc-sf-indian-man-in-tshirt.glb', rig: 'mixamo' }, // printed full-sleeve tee, jeans
+  sfCasual: { file: 'npc-sf-indian-man-in-casuals.glb', rig: 'mixamo' }, // polo, glasses
+  sfPattern: { file: 'npc-sf-indian-man-in-pattern-shirt.glb', rig: 'mixamo' }, // printed half-sleeve shirt
+  sfStriped: { file: 'npc-sf-indian-overweight-man-striped-shirt.glb', rig: 'mixamo' }, // heavier man, striped shirt
+  sfSuit: { file: 'npc-sf-indian-man-in-suit.glb', rig: 'mixamo' }, // suit
+  sfWoman: { file: 'npc-sf-modern-indian-woman.glb', rig: 'mixamo' }, // polka-dot top, jeans
+  sfWoman2: { file: 'npc-sf-modern-indian-woman-2.glb', rig: 'mixamo' }, // bright top, printed trousers
+  sfOffice: { file: 'npc-sf-indian-office-woman.glb', rig: 'mixamo' }, // denim dress
+  sfHoodie: { file: 'npc-sf-indian-teenager-woman-in-hoodie.glb', rig: 'mixamo' }, // printed hoodie
 } as const;
-/** Mixamo NPCs who are women (the rest are men). */
-const FEMALE: string[] = ['mx02', 'mx04', 'mx05', 'mx13'];
+/** NPCs who are women (the rest are men). */
+const FEMALE: string[] = ['sfWoman', 'sfWoman2', 'sfOffice', 'sfHoodie'];
+/** Photo-real faces: no added moustache / bindi / glasses (those suit the low-detail faces only). */
+const REALISTIC = (id: string) => id.startsWith('sf');
 /** Mixamo NPCs: hero clip -> the name NPC code plays (plus every hero clip under its own name). */
 const MIXAMO_AS: Record<string, string> = { hit_react: 'hit', death: 'fall', talk: 'wave', idle: 'idle2' };
 export type NpcModelId = keyof typeof NPC_MODELS;
@@ -142,7 +145,7 @@ export async function loadCharacters() {
       a.clips = fitHipsTo(a.clips, hero.scene, a.scene);
       matte(a.scene);
       if (id === 'police') applyPoliceLook(a.scene);
-      Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id) });
+      Object.assign(a, { clipSpeed: MIXAMO_CLIP_SPEED, mixamo: true, female: FEMALE.includes(id), realistic: REALISTIC(id) });
     }
   }
   return { hero, npcs };

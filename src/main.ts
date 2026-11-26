@@ -259,7 +259,7 @@ async function main() {
   tagNew('npcs');
   const eateries = createEateries(scene, world, town.footprints);
   tagNew('props');
-  const markets = createSupermarkets(scene, world, characters.npcs.get('mx02')!);
+  const markets = createSupermarkets(scene, world, characters.npcs.get('sfOffice')!);
   const santhome = createSanthome(scene, world);
   const mandaveli = createMandaveli(scene, world);
   const posters = createPosters(scene, town.footprints);
