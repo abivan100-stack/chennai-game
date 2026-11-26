@@ -1,4 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import { addTreeSpot } from './treeSpots';
 import * as THREE from 'three';
 import { buildAutoModel } from '../vehicles/auto';
 import { PLACE_MENUS } from './food';
@@ -41,8 +42,6 @@ const STEEL = C(0xb4b9be);
 const WOOD = C(0x7a5534);
 const GRASS = C(0x5d9440);
 const PATH = C(0xcbb994);
-const LEAF = C(0x3f7f35);
-const TRUNK = C(0x6a5038);
 const BLUE = C(0x1e4fa3);
 const GREEN = C(0x2e7d32);
 const TIN = C(0x8d9aa3);
@@ -129,9 +128,8 @@ export function createPlaces(scene: THREE.Scene, world: RAPIER.World) {
     signs.quad(a, b, c, d, [[0, v0], [1, v0], [1, v1], [0, v1]], WHITE, out);
   };
   const tree = (f: Frame, u: number, v: number, s = 1) => {
-    shape(f, new THREE.CylinderGeometry(0.15 * s, 0.25 * s, 3 * s, 6).translate(0, 1.5 * s, 0), u, 0, v, TRUNK);
-    shape(f, new THREE.IcosahedronGeometry(2 * s, 1).scale(1, 0.8, 1), u, 4 * s, v, LEAF);
     const p = f.at(u, v);
+    addTreeSpot(p.x, 0, p.z, 0.85 * s); // planted with the street trees (treeSpots.ts)
     world.createCollider(RAPIER.ColliderDesc.cylinder(1.5 * s, 0.25 * s).setTranslation(p.x, 1.5 * s, p.z));
   };
   const service = (kind: ServiceKind, name: string, at: THREE.Vector3, radius: number, inAuto: boolean) =>
@@ -467,15 +465,10 @@ export function createPlaces(scene: THREE.Scene, world: RAPIER.World) {
     for (let i = 0; i < 7; i++) box(f, 0.5, 5, 0.5, -6 + i * 2, 0, d - 11.3, WHITE);
     box(f, 14.6, 0.6, 1.4, 0, 5, d - 11.3, C(0xf4efe2), false);
     shape(f, new THREE.SphereGeometry(2.6, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0, 6, d - 7, C(0xd7ccc8));
-    // Banyans: wide crowns on thick trunks with hanging roots.
+    // Big old shade trees (planted with the street trees, treeSpots.ts).
     for (const [u, v, s] of [[-11, 7, 1.5], [10, 9, 1.3], [-10, d - 6, 1.1]] as const) {
-      shape(f, new THREE.CylinderGeometry(0.5 * s, 0.75 * s, 4.5 * s, 8).translate(0, 2.25 * s, 0), u, 0, v, TRUNK);
-      shape(f, new THREE.IcosahedronGeometry(3 * s, 1).scale(1.6, 0.55, 1.6), u, 5.6 * s, v, LEAF);
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2;
-        shape(f, new THREE.CylinderGeometry(0.06, 0.08, 4.2 * s, 4).translate(0, 2.1 * s, 0), u + Math.cos(a) * 3 * s, 0, v + Math.sin(a) * 3 * s, TRUNK);
-      }
       const p = f.at(u, v);
+      addTreeSpot(p.x, 0, p.z, 1.1 * s);
       world.createCollider(RAPIER.ColliderDesc.cylinder(2.2 * s, 0.75 * s).setTranslation(p.x, 2.2 * s, p.z));
     }
     const gate = 5;

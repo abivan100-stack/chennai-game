@@ -1,4 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
+import { addTreeSpot } from './treeSpots';
 import * as THREE from 'three';
 import { GeoBuilder } from './geo';
 import type { Lot } from './layout';
@@ -70,8 +71,6 @@ export function createKit(world: RAPIER.World, signDefs: SignDef[]) {
   const bulbs = new GeoBuilder();
   const signs = new GeoBuilder();
   const q = new THREE.Quaternion();
-  const leaf = new THREE.Color(0x3f7f35);
-  const trunk = new THREE.Color(0x6a5038);
   const rot = (yaw: number) => {
     q.setFromAxisAngle(UP, yaw);
     return { x: q.x, y: q.y, z: q.z, w: q.w };
@@ -108,9 +107,8 @@ export function createKit(world: RAPIER.World, signDefs: SignDef[]) {
     },
     /** A round shade tree with a trunk collider. */
     tree(f: Frame, u: number, v: number, s = 1) {
-      kit.shape(f, new THREE.CylinderGeometry(0.15 * s, 0.25 * s, 3 * s, 6).translate(0, 1.5 * s, 0), u, 0, v, trunk);
-      kit.shape(f, new THREE.IcosahedronGeometry(2 * s, 1).scale(1, 0.8, 1), u, 4 * s, v, leaf);
       const p = f.at(u, v);
+      addTreeSpot(p.x, 0, p.z, 0.85 * s); // planted with the street trees (leaf cards, wind, LOD)
       world.createCollider(RAPIER.ColliderDesc.cylinder(1.5 * s, 0.25 * s).setTranslation(p.x, 1.5 * s, p.z));
     },
     /** Make the meshes; returns setNight for the signs and bulbs. */

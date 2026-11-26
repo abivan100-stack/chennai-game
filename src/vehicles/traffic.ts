@@ -6,6 +6,7 @@ import { pair, pairAt, poseRider, type RiderPose } from '../characters/rider';
 import type { CharacterAsset, NpcModelId } from '../characters/catalog';
 import { RIVER, block, blocks, SETBACK } from '../world/layout';
 import { buildAutoModel, SEAT } from './auto';
+import { importedModel } from './imported';
 import { carModel, scooterModel, bikeModel, taxiModel, vanModel, tempoModel, suvModel, hatchModel, deliveryModel, driverOf, rearOf, wheelOf, HATCH, MPV, SEDAN, SUV } from './models';
 import { trafficDensity } from './rush';
 import { AMBULANCE_BEACONS, ambulanceModel, busModel, lorryModel, tankerModel } from './heavy';
@@ -41,7 +42,7 @@ const STALL_AFTER = 10;
 const UNTANGLE_AFTER = 5; // s wanting to move but not moving (wedged on a kerb): put it back in its lane
 const HONK_EVERY = 4;
 const DRAW_DIST = 95; // m from the camera: further vehicles aren't drawn (fog hides them anyway)
-const DETAIL_DIST = 28; // ...and beyond this they drop wheels and driver (5 draw calls each)
+const DETAIL_DIST = 22; // ...and beyond this they drop wheels and driver (5-6 draw calls each; imported cars are ~10 near)
 const MAX_DRAWN = 10; // at most this many vehicles drawn (nearest first)
 /** Ambient traffic: a pool that keeps the roads round the player busy wherever they go. */
 const AMBIENT_RECYCLE = 140; // m: a pool vehicle this far away gets moved...
@@ -465,7 +466,11 @@ export class Traffic {
     let wheelMeshes: THREE.Object3D[];
     let wheelR = 0.21;
     let lights: THREE.MeshStandardMaterial[] = [];
-    if (kind === 'auto' || kind === 'shareauto') {
+    const imported = kind === 'auto' && colour === undefined ? importedModel('auto', group, null, 'commercial') : null; // fleet autos are painted: procedural
+    if (imported) {
+      wheelMeshes = imported.wheels;
+      lights = imported.lights;
+    } else if (kind === 'auto' || kind === 'shareauto') {
       // A share auto is the big Ape-style one: the same auto, scaled up.
       const holder = kind === 'shareauto' ? new THREE.Group() : group;
       if (holder !== group) {

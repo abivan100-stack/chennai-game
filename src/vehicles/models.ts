@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { importedModel, importedRoof } from './imported';
 import { addPlates, CAB_COMPANIES, MAKERS, MODELS, pick, randomPlate, type BadgeSpot, type PlateKind } from './plates';
 
 /**
@@ -30,7 +31,7 @@ export function add(group: THREE.Group, geos: THREE.BufferGeometry[], mat: THREE
 const trim = () => new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
 export const glass = () => new THREE.MeshStandardMaterial({ color: 0x9fb8c8, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.35, depthWrite: false });
 /** Modern cars' tinted glass: dark enough to read as windows, the driver still shows through. */
-const tinted = () => new THREE.MeshStandardMaterial({ color: 0x0f161d, roughness: 0.08, metalness: 0.25, transparent: true, opacity: 0.74, depthWrite: false });
+const tinted = () => new THREE.MeshStandardMaterial({ color: 0x0f161d, roughness: 0.03, metalness: 0.7, transparent: true, opacity: 0.8, depthWrite: false });
 
 /**
  * Shape a slab-sided body like a real car: the sides lean in towards the window line
@@ -77,7 +78,7 @@ export function wheels(group: THREE.Group, r: number, at: number[][], width = 0.
 
 /** Compact sedan (the common Chennai family car / call taxi). */
 export function carModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
-  return modernCar(group, colour, SEDAN, { plate });
+  return importedModel('sedan', group, colour, 'private', plate) ?? modernCar(group, colour, SEDAN, { plate });
 }
 
 export function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
@@ -136,7 +137,8 @@ export function policeModel(group: THREE.Group, plate = randomPlate('government'
   return { wheels: wheels(group, 0.36, [[0.8, 1.35], [-0.8, 1.35], [0.8, -1.35], [-0.8, -1.35]]), wheelR: 0.36, lights: [hl, tl], beacons: [red, blue] };
 }
 
-const paintMat = (colour: number) => new THREE.MeshStandardMaterial({ color: colour, roughness: 0.3, metalness: 0.45 });
+// Glossy enough to carry the sky's reflection and a sharp sun highlight, like polished paint.
+const paintMat = (colour: number) => new THREE.MeshStandardMaterial({ color: colour, roughness: 0.16, metalness: 0.55 });
 
 // ---- Small parts: frames, engines, seats, chrome, dashboards --------------------------------
 /**
@@ -483,8 +485,17 @@ export function modernCar(group: THREE.Group, colour: number, c: CarShape, opts:
 
 /** Call taxi: a white seven-seater MPV with a cab company's name on the doors and a yellow roof sign. */
 export function taxiModel(group: THREE.Group, colour: number, plate = randomPlate('commercial')): VehicleModel {
+  const m = importedModel('mpv', group, colour, 'commercial', plate);
+  if (m) {
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.2, 0.15), TAXI_SIGN);
+    sign.position.set(0, importedRoof('mpv')! + 0.08, -0.2);
+    group.add(sign);
+    return m;
+  }
   return modernCar(group, colour, MPV, { plate, kind: 'commercial', cab: pick(CAB_COMPANIES) });
 }
+
+const TAXI_SIGN = new THREE.MeshStandardMaterial({ color: 0xffd400, emissive: 0x806a00, roughness: 0.5 });
 
 /** Small van (Eeco style): short nose, raked windscreen, tall box body, sliding doors. */
 export function vanModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
@@ -559,6 +570,8 @@ export function vanModel(group: THREE.Group, colour: number, plate = randomPlate
 
 /** Mini goods carrier (Ace-style) with a few sacks in the back. */
 export function tempoModel(group: THREE.Group, colour: number, plate = randomPlate('commercial')): VehicleModel {
+  const imp = importedModel('lorry', group, null, 'commercial', plate); // textured cab: keeps its own colours
+  if (imp) return imp;
   add(group, [rbox(1.45, 1.25, 1.35, 0.12, 0, 1.1, 1.25)], paintMat(colour));
   add(group, [box(1.25, 0.55, 0.05, 0, 1.38, 1.93)], glass(), false);
   add(group, [
@@ -593,7 +606,7 @@ export function suvModel(group: THREE.Group, colour: number, plate = randomPlate
 
 /** Hatchback (Swift style). */
 export function hatchModel(group: THREE.Group, colour: number, plate = randomPlate('private')): VehicleModel {
-  return modernCar(group, colour, HATCH, { plate });
+  return importedModel('hatch', group, colour, 'private', plate) ?? modernCar(group, colour, HATCH, { plate });
 }
 
 /** Food delivery scooter: a scooter with a big orange insulated box on the back. */

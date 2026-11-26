@@ -3,7 +3,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GeoBuilder } from './geo';
 import { BOUNDS, roadHalf, SIDEWALK_HEIGHT, inWater, RAIL_HALF, RAIL_X, X_LINES, X_ROADS, Z_LINES, Z_ROADS, Z_ROADS_WEST, TNAGAR_X, roadSpans, roads, GUINDY_GATES } from './layout';
-import { glowTexture, streetSignTextures } from './textures';
+import { overheadCables } from './cables';
+import { leafClusterTexture, glowTexture, streetSignTextures } from './textures';
+import { TREE_SPOTS } from './treeSpots';
+import { buildLampMap, setLampLight, type LampSource } from './lampLight';
 
 const CURB_OFFSET = 0.3; // props stand this far onto the sidewalk from the curb
 const LAMP_SPACING = 14; // close enough that the light pools join up along the street at night
@@ -12,6 +15,16 @@ const TREE_SPACING = 13;
 const TREE_LOD_DIST = 70;
 const LOD_EVERY = 0.4; // s between LOD passes
 const LAMP_HEIGHT = 6.5;
+/** Width of the glow sprite round a lit lamp head, metres. */
+const HALO_SIZE = 3.2;
+/** Light pool size on the ground: along the road x across it (m). */
+/** Light from an open shopfront at night (share of a street lamp), centred this far out (m). */
+const SHOP_LIGHT = 0.45;
+const SHOP_LIGHT_OUT = 1.5;
+/** Share of the old orange sodium lamps; the rest are newer white LED ones. */
+const SODIUM_SHARE = 0.3;
+/** How far a canopy corner is pushed off its smooth ball, metres. */
+const FOLIAGE_JITTER = 0.7;
 /** Backdrop groves past the edges: [x0, x1, z0, z1, count] (north, south, and beyond the canal). */
 const OUTSKIRT_GROVES: [number, number, number, number, number][] = [
   [BOUNDS.x0, 130, BOUNDS.z0 - 160, BOUNDS.z0 - 10, 80],
@@ -89,7 +102,8 @@ function seeded(seed: number) {
  * (neem, rain tree, gulmohar, ashoka, banyan), plus groves past the town's edges.
  * Instanced: 3 draw calls for the lamps, 2 per tree kind. Lamps and street trees get colliders.
  */
-export function createProps(scene: THREE.Scene, world: RAPIER.World) {
+/** `shops`: lit shopfronts (world x/z, facing yaw); their light spills onto the pavement at night. */
+export function createProps(scene: THREE.Scene, world: RAPIER.World, shops: { x: number; z: number; yaw: number }[] = []) {
   const rand = seeded(11);
   const lamps: THREE.Matrix4[] = [];
   const trees: THREE.Matrix4[] = [];
@@ -132,20 +146,38 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     new THREE.BoxGeometry(1.3, 0.06, 0.06).translate(0.6, LAMP_HEIGHT - 0.1, 0),
   ]);
   const headGeo = new THREE.BoxGeometry(0.5, 0.1, 0.22).translate(1.2, LAMP_HEIGHT - 0.18, 0);
-  const poolGeo = new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2).translate(1.2, 0.03, 0);
   const headMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffd28a, emissiveIntensity: 0 });
-  const poolMat = new THREE.MeshBasicMaterial({
-    map: glowTexture(), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffc070,
-  });
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.6, metalness: 0.4 });
   // One BatchedMesh per part: one draw call for every lamp on the map, each lamp culled on its own
   // (off screen / outside the shadow box) instead of drawing all of them.
   const poles = batched([poleGeo], poleMat, lamps.map((m) => ({ m, geo: 0 })));
   poles.castShadow = true;
   const heads = batched([headGeo], headMat, lamps.map((m) => ({ m, geo: 0 })));
-  const pools = batched([poolGeo], poolMat, lamps.map((m) => ({ m, geo: 0 })));
-  pools.renderOrder = 1;
-  const lampMeshes: THREE.Object3D[] = [poles, heads, pools];
+  // Their light (lampLight.ts): mostly white LED (slightly cool or warm), some orange sodium.
+  const lampHead = new THREE.Vector3();
+  const sources: LampSource[] = lamps.map((m) => {
+    lampHead.set(1.2, 0, 0).applyMatrix4(m);
+    const sodium = rand() < SODIUM_SHARE;
+    return sodium ? { x: lampHead.x, z: lampHead.z, r: 1, g: 0.6, b: 0.28 } : { x: lampHead.x, z: lampHead.z, r: 1, g: 0.9 + rand() * 0.06, b: 0.76 + rand() * 0.14 };
+  });
+  for (const sh of shops) {
+    // Tube lights inside the open shop: warm-white, weaker than a lamp, centred on the pavement.
+    sources.push({ x: sh.x + Math.sin(sh.yaw) * SHOP_LIGHT_OUT, z: sh.z + Math.cos(sh.yaw) * SHOP_LIGHT_OUT, r: 1, g: 0.86, b: 0.66, k: SHOP_LIGHT });
+  }
+  buildLampMap(sources);
+  // Glow round each lamp head at night: one additive point sprite per lamp (one draw call for the
+  // lot), a cheap stand-in for bloom.
+  const haloPts = new Float32Array(lamps.length * 3);
+  const head = new THREE.Vector3();
+  lamps.forEach((m, i) => head.set(1.2, LAMP_HEIGHT - 0.2, 0).applyMatrix4(m).toArray(haloPts, i * 3));
+  const haloMat = new THREE.PointsMaterial({
+    map: glowTexture(), size: HALO_SIZE, sizeAttenuation: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffc070,
+  });
+  const halos = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(haloPts, 3)), haloMat);
+  halos.renderOrder = 2;
+  halos.visible = false;
+  scene.add(halos);
+  const lampMeshes: THREE.Object3D[] = [poles, heads];
 
   // --- Trees: several Chennai street trees, each kind a trunk + canopy instanced pair.
   // Street trees on the sidewalks, plus a backdrop of trees past the town's edges.
@@ -169,24 +201,67 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     return g;
   };
+  // Canopies as foliage, not smooth balls: every corner is pushed about (the same way wherever
+  // faces share it, so no gaps), leaves are dark underneath and sunlit yellow-green on top, and
+  // each facet is a slightly different clump. Same triangle count.
+  const foliage = (geo: THREE.BufferGeometry, c: THREE.Color) => {
+    const g = painted(geo, c);
+    const p = g.attributes.position;
+    const col = g.attributes.color;
+    const hash = (x: number, y: number, z: number, k: number) => {
+      const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + k * 11.13) * 43758.5453;
+      return s - Math.floor(s);
+    };
+    g.computeBoundingBox();
+    const y0 = g.boundingBox!.min.y;
+    const span = g.boundingBox!.max.y - y0 || 1;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i);
+      const y = p.getY(i);
+      const z = p.getZ(i);
+      p.setXYZ(i, x + (hash(x, y, z, 1) - 0.5) * FOLIAGE_JITTER, y + (hash(x, y, z, 2) - 0.5) * FOLIAGE_JITTER * 0.7, z + (hash(x, y, z, 3) - 0.5) * FOLIAGE_JITTER);
+      const up = (y - y0) / span;
+      const clump = 0.82 + 0.36 * hash(Math.floor(i / 3), 7, 3, 4); // per facet
+      const lit = (0.5 + 0.75 * up) * clump;
+      col.setXYZ(i, c.r * lit * (1 + 0.25 * up), c.g * lit * (1 + 0.12 * up), c.b * lit * (1 - 0.2 * up));
+    }
+    return g;
+  };
   const bark = new THREE.Color(0x5a4632);
   const low = treeKinds(0);
-  const shapeOf = (k: TreeKind, i: number) => mergeGeometries([painted(k.trunk, bark), painted(k.canopy, kinds[i].colour(new THREE.Color(), 0.5))])!;
-  // Geometry ids: kind i high = 2i, low = 2i + 1.
-  const treeGeos = kinds.flatMap((k, i) => [shapeOf(k, i), shapeOf(low[i], i)]);
+  const shapeOf = (k: TreeKind, i: number) => mergeGeometries([painted(k.trunk, bark), foliage(k.canopy, kinds[i].colour(new THREE.Color(), 0.5))])!;
+  // Geometry ids: kind i near = 2i (trunk only: the canopy is leaf cards), far = 2i + 1 (low-poly solid).
+  const treeGeos = kinds.flatMap((k, i) => [painted(k.trunk, bark), shapeOf(low[i], i)]);
   const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
-  const street = placed.slice(0, trees.length);
-  const groves = placed.slice(trees.length);
-  const streetTrees = batched(treeGeos, treeMat, street.map((t) => ({ m: t.m, geo: t.kind * 2 })));
-  streetTrees.castShadow = true;
-  const groveTrees = batched(treeGeos, treeMat, groves.map((t) => ({ m: t.m, geo: t.kind * 2 + 1 }))); // far away: low-poly always
-  const shade = new THREE.Color();
-  for (const b of [streetTrees, groveTrees]) for (let i = 0; i < b.instanceCount; i++) b.setColorAt(i, shade.setScalar(0.8 + rand() * 0.35));
-  const treeMeshes: THREE.Object3D[] = [streetTrees, groveTrees];
-  const streetAt = street.map((t) => ({ x: t.m.elements[12], z: t.m.elements[14], kind: t.kind, far: false }));
+  windSway(treeMat);
+  let lod: { streetTrees: THREE.BatchedMesh; leafCanopies: THREE.BatchedMesh; at: { x: number; z: number; kind: number; far: boolean }[] } | null = null;
+  /** Tree meshes, once every builder has registered its own trees (treeSpots.ts). */
+  const plantTrees = () => {
+    const street = [...placed.slice(0, trees.length), ...TREE_SPOTS.map((m) => ({ kind: pickKind(kinds, rand()), m }))];
+    const groves = placed.slice(trees.length);
+    const streetTrees = batched(treeGeos, treeMat, street.map((t) => ({ m: t.m, geo: t.kind * 2 })));
+    streetTrees.castShadow = true;
+    const groveTrees = batched(treeGeos, treeMat, groves.map((t) => ({ m: t.m, geo: t.kind * 2 + 1 }))); // far away: low-poly always
+    // Near canopies: alpha-tested leaf cards over each kind's canopy shape (same instance order).
+    const leafMat = new THREE.MeshStandardMaterial({ map: leafClusterTexture(), alphaTest: LEAF_ALPHA_TEST, side: THREE.DoubleSide, vertexColors: true, roughness: 0.8 });
+    windSway(leafMat, true);
+    const cardGeos = kinds.map((k, i) => leafCards(k.canopy, kinds[i].colour(new THREE.Color(), 0.5), rand));
+    const leafCanopies = batched(cardGeos, leafMat, street.map((t) => ({ m: t.m, geo: t.kind })));
+    leafCanopies.castShadow = true; // alpha-tested: dappled shadows
+    const shade = new THREE.Color();
+    for (let i = 0; i < streetTrees.instanceCount; i++) {
+      shade.setScalar(0.8 + rand() * 0.35);
+      streetTrees.setColorAt(i, shade);
+      leafCanopies.setColorAt(i, shade);
+    }
+    for (let i = 0; i < groveTrees.instanceCount; i++) groveTrees.setColorAt(i, shade.setScalar(0.8 + rand() * 0.35));
+    scene.add(streetTrees, groveTrees, leafCanopies);
+    lod = { streetTrees, leafCanopies, at: street.map((t) => ({ x: t.m.elements[12], z: t.m.elements[14], kind: t.kind, far: false })) };
+  };
   let lodIn = 0;
 
-  scene.add(...lampMeshes, ...treeMeshes, streetSigns(world));
+  const cables = overheadCables(lamps);
+  scene.add(...lampMeshes, streetSigns(world), cables.group);
 
   // --- Colliders: lamp poles and tree trunks.
   const p = new THREE.Vector3();
@@ -204,25 +279,131 @@ export function createProps(scene: THREE.Scene, world: RAPIER.World) {
     treeCount: trees.length,
     /** Tree positions (for the map). */
     treePoints: trees.map((m) => ({ x: m.elements[12], z: m.elements[14] })),
+    plantTrees,
     setNight(f: number) {
       headMat.emissiveIntensity = f * 4;
-      poolMat.opacity = f * 0.85;
-      pools.visible = f > 0.01;
+      setLampLight(f);
+      halos.visible = f > 0.01;
+      haloMat.opacity = f * 0.55;
     },
     /** Street trees far from the camera swap to their low-poly shape (a few times a second). */
     updateLod(dt: number, eye: THREE.Vector3) {
+      windTime.value += dt;
       lodIn -= dt;
       if (lodIn > 0) return;
       lodIn = LOD_EVERY;
+      cables.update(eye);
+      if (!lod) return;
+      const { streetTrees, leafCanopies, at } = lod;
       const d2 = TREE_LOD_DIST * TREE_LOD_DIST;
-      streetAt.forEach((t, i) => {
+      at.forEach((t, i) => {
         const far = (t.x - eye.x) ** 2 + (t.z - eye.z) ** 2 > d2;
         if (far === t.far) return;
         t.far = far;
         streetTrees.setGeometryIdAt(i, t.kind * 2 + (far ? 1 : 0));
+        leafCanopies.setVisibleAt(i, !far);
       });
     },
   };
+}
+
+const windTime = { value: 0 };
+/** Canopy sway in metres at the top of a tree; trunks below WIND_FROM stay put. */
+const WIND_SWAY = 0.12;
+const WIND_FROM = 2; // m
+const WIND_SPEED = 1.4; // rad/s
+
+/**
+ * Trees sway in the vertex shader: a few ALU ops per vertex, no extra draw calls. Each tree gets its
+ * own phase from its position (BatchedMesh instance matrix). The shadow pass doesn't sway: at this
+ * size the mismatch can't be seen.
+ */
+function windSway(m: THREE.MeshStandardMaterial, leaves = false) {
+  m.onBeforeCompile = (shader) => {
+    // Leaf cards: light every card by the canopy's outward normal on both faces, so the crown
+    // shades like a soft ball instead of a pile of flat cards (no flip for back faces).
+    if (leaves) shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');
+    shader.uniforms.uWindTime = windTime;
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uWindTime;').replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      #ifdef USE_BATCHING
+        float wPh = dot( batchingMatrix[3].xz, vec2( 0.37, 0.23 ) );
+      #else
+        float wPh = 0.0;
+      #endif
+      float wUp = max( transformed.y - ${WIND_FROM.toFixed(1)}, 0.0 ) * 0.15;
+      float wT = uWindTime * ${WIND_SPEED.toFixed(2)} + wPh;
+      transformed.x += ( sin( wT ) + 0.4 * sin( wT * 2.3 + transformed.y ) ) * ${WIND_SWAY.toFixed(3)} * wUp;
+      transformed.z += cos( wT * 0.8 ) * ${(WIND_SWAY * 0.6).toFixed(3)} * wUp;`,
+    );
+  };
+  m.customProgramCacheKey = () => (leaves ? 'tree-wind-leaves' : 'tree-wind');
+}
+
+/** Leaf cards per m² of canopy surface, and the limits per tree. */
+const LEAF_DENSITY = 1.0;
+const LEAF_CARDS: [number, number] = [26, 90];
+const LEAF_ALPHA_TEST = 0.5;
+
+/**
+ * A canopy of leaf cards: quads scattered over the canopy shape's surface (area-weighted), pushed a
+ * little inside, facing roughly outwards with a random tilt. Every corner carries the surface's
+ * outward normal (soft ball shading), and colour darkens underneath / lightens on top like the solid
+ * canopies. About as many triangles as the solid canopy it replaces.
+ */
+function leafCards(canopy: THREE.BufferGeometry, c: THREE.Color, rand: () => number) {
+  const g = canopy.index ? canopy.toNonIndexed() : canopy;
+  const p = g.attributes.position;
+  const tris = p.count / 3;
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  const areas: number[] = [];
+  let total = 0;
+  for (let t = 0; t < tris; t++) {
+    A.fromBufferAttribute(p, t * 3); B.fromBufferAttribute(p, t * 3 + 1); C.fromBufferAttribute(p, t * 3 + 2);
+    total += e1.subVectors(B, A).cross(e2.subVectors(C, A)).length() / 2;
+    areas.push(total);
+  }
+  g.computeBoundingBox();
+  const y0 = g.boundingBox!.min.y;
+  const span = g.boundingBox!.max.y - y0 || 1;
+  const n = THREE.MathUtils.clamp(Math.round(total * LEAF_DENSITY), LEAF_CARDS[0], LEAF_CARDS[1]);
+  const size = THREE.MathUtils.clamp(Math.sqrt(total / n) * 1.7, 0.9, 2.3);
+  const pos: number[] = [], nor: number[] = [], uv: number[] = [], col: number[] = [];
+  const P = new THREE.Vector3(), N = new THREE.Vector3(), F = new THREE.Vector3(), U = new THREE.Vector3(), V = new THREE.Vector3(), R = new THREE.Vector3();
+  for (let k = 0; k < n; k++) {
+    const pickA = rand() * total;
+    let t = areas.findIndex((a) => a >= pickA);
+    if (t < 0) t = tris - 1;
+    A.fromBufferAttribute(p, t * 3); B.fromBufferAttribute(p, t * 3 + 1); C.fromBufferAttribute(p, t * 3 + 2);
+    let u = rand(), v = rand();
+    if (u + v > 1) { u = 1 - u; v = 1 - v; }
+    P.copy(A).addScaledVector(e1.subVectors(B, A), u).addScaledVector(e2.subVectors(C, A), v);
+    N.crossVectors(e1, e2).normalize();
+    P.addScaledVector(N, -rand() * size * 0.45); // some cards sit inside the crown
+    F.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(2.4).add(N).normalize(); // card facing
+    R.set(rand() - 0.5, rand() - 0.5, rand() - 0.5);
+    U.crossVectors(F, R).normalize().multiplyScalar(size / 2);
+    V.crossVectors(F, U).normalize().multiplyScalar(size / 2);
+    const up = (P.y - y0) / span;
+    const lit = (0.55 + 0.65 * up) * (0.85 + 0.3 * rand());
+    const cr = c.r * lit * (1 + 0.2 * up), cg = c.g * lit * (1 + 0.1 * up), cb = c.b * lit * (1 - 0.2 * up);
+    const corner = (su: number, sv: number, tu: number, tv: number) => {
+      pos.push(P.x + U.x * su + V.x * sv, P.y + U.y * su + V.y * sv, P.z + U.z * su + V.z * sv);
+      nor.push(N.x, N.y, N.z);
+      uv.push(tu, tv);
+      col.push(cr, cg, cb);
+    };
+    corner(-1, -1, 0, 0); corner(1, -1, 1, 0); corner(1, 1, 1, 1);
+    corner(-1, -1, 0, 0); corner(1, 1, 1, 1); corner(-1, 1, 0, 1);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  out.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return out;
 }
 
 /**

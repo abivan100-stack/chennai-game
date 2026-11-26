@@ -131,7 +131,7 @@ export function varyLook(body: THREE.Object3D, asset: CharacterAsset, seed: stri
   });
   const face = faceOf(asset, body);
   const head = body.getObjectByName('Head');
-  if (face && head) {
+  if (face && head && !asset.realistic) {
     const geo = accessories(face, female, rnd);
     if (geo) {
       body.updateMatrixWorld(true);

@@ -264,7 +264,7 @@ export class AutoRickshaw {
  */
 export function buildAutoModel(group: THREE.Group, plateText = 'TN 09 AK 4521') {
 const wheels: THREE.Object3D[] = [];
-  const yellow = new THREE.MeshStandardMaterial({ color: 0xf5c400, roughness: 0.38, metalness: 0.15 });
+  const yellow = new THREE.MeshStandardMaterial({ color: 0xf5c400, roughness: 0.22, metalness: 0.3 });
   const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.85 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, roughness: 0.25, metalness: 0.9 });
   const glass = new THREE.MeshStandardMaterial({ color: 0x9fc4d6, roughness: 0.05, transparent: true, opacity: 0.28, depthWrite: false });

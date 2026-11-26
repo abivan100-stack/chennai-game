@@ -2,7 +2,8 @@
  * Adaptive quality. Pure logic (no three.js imports) so scripts/check.ts can run it in Node.
  * main.ts applies settings via onChange.
  *
- * Step-down order: render resolution -> shadows -> effects. Step-up is the reverse.
+ * Step-down order: ambient occlusion -> render resolution -> shadows -> post-processing -> effects.
+ * Step-up is the reverse. AO goes first: it is the costliest GPU effect and the least missed.
  */
 
 export type ShadowLevel = 0 | 1 | 2; // off, 1024, 2048
@@ -11,15 +12,18 @@ export const SHADOW_MAP_SIZES = [0, 1024, 2048] as const;
 export interface QualitySettings {
   resScale: number; // multiplier on the capped pixel ratio
   shadows: ShadowLevel;
-  effects: boolean; // currently: atmospheric sky + clouds. Later: post-processing.
+  effects: boolean; // atmospheric sky + clouds
+  post: PostLevel;
 }
+/** 0 = none, 1 = bloom + grade + SMAA (one pass), 2 = + ambient occlusion (core/post.ts). */
+export type PostLevel = 0 | 1 | 2;
 
 export type QualityMode = 'auto' | 'low' | 'medium' | 'high';
 
 export const PRESETS: Record<Exclude<QualityMode, 'auto'>, QualitySettings> = {
-  low: { resScale: 0.6, shadows: 0, effects: false },
-  medium: { resScale: 0.8, shadows: 1, effects: true },
-  high: { resScale: 1, shadows: 2, effects: true },
+  low: { resScale: 0.6, shadows: 0, effects: false, post: 0 },
+  medium: { resScale: 0.8, shadows: 1, effects: true, post: 1 },
+  high: { resScale: 1, shadows: 2, effects: true, post: 2 },
 };
 
 const RES_MIN = 0.5;
@@ -36,22 +40,26 @@ const HITCH_MS = 250; // ignore background-tab gaps and shader-compile hitches
 const round = (x: number) => Math.round(x * 100) / 100;
 
 export function stepDown(s: QualitySettings): QualitySettings | null {
+  if (s.post === 2) return { ...s, post: 1 };
   if (s.resScale > RES_MIN) return { ...s, resScale: round(Math.max(RES_MIN, s.resScale - RES_STEP)) };
   if (s.shadows > 0) return { ...s, shadows: (s.shadows - 1) as ShadowLevel };
+  if (s.post > 0) return { ...s, post: 0 };
   if (s.effects) return { ...s, effects: false };
   return null;
 }
 
 export function stepUp(s: QualitySettings): QualitySettings | null {
   if (!s.effects) return { ...s, effects: true };
+  if (s.post === 0) return { ...s, post: 1 };
   if (s.shadows < 2) return { ...s, shadows: (s.shadows + 1) as ShadowLevel };
   if (s.resScale < RES_MAX) return { ...s, resScale: round(Math.min(RES_MAX, s.resScale + RES_STEP)) };
+  if (s.post === 1) return { ...s, post: 2 };
   return null;
 }
 
 export function describe(s: QualitySettings) {
   const shadows = s.shadows ? `${SHADOW_MAP_SIZES[s.shadows]}` : 'off';
-  return `res ${Math.round(s.resScale * 100)}% | shadows ${shadows} | effects ${s.effects ? 'on' : 'off'}`;
+  return `res ${Math.round(s.resScale * 100)}% | shadows ${shadows} | effects ${s.effects ? 'on' : 'off'} | post ${['off', 'bloom', 'bloom+AO'][s.post]}`;
 }
 
 export class QualityManager {

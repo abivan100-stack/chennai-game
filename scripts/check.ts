@@ -29,18 +29,18 @@ assert(sunDirection(ist('2026-03-20T08:00:00')).x > 0.5, 'morning: sun in the ea
 assert(sunDirection(ist('2026-03-20T17:00:00')).x < -0.5, 'evening: sun in the west');
 assert(elevDeg('2026-03-20T05:50:00') < 0 && elevDeg('2026-03-20T06:40:00') > 0, 'sunrise ~6:15 IST');
 
-// --- Quality ladder: resolution first, then shadows, then effects ---
+// --- Quality ladder: AO first, then resolution, shadows, post-processing, effects ---
 const order: string[] = [];
 let s: QualitySettings | null = { ...PRESETS.high };
 let prev = s;
 while ((s = stepDown(prev))) {
-  order.push(s.resScale !== prev.resScale ? 'res' : s.shadows !== prev.shadows ? 'shadows' : 'effects');
+  order.push(s.post !== prev.post ? 'post' : s.resScale !== prev.resScale ? 'res' : s.shadows !== prev.shadows ? 'shadows' : 'effects');
   prev = s;
 }
-assert(order.join(',') === 'res,res,res,res,res,shadows,shadows,effects', `step-down order: ${order}`);
-assert(prev.resScale === 0.5 && prev.shadows === 0 && !prev.effects, 'bottom of ladder');
+assert(order.join(',') === 'post,res,res,res,res,res,shadows,shadows,post,effects', `step-down order: ${order}`);
+assert(prev.resScale === 0.5 && prev.shadows === 0 && !prev.effects && prev.post === 0, 'bottom of ladder');
 let up: QualitySettings = prev;
-for (let i = 0; i < 8; i++) up = stepUp(up) ?? up;
+for (let i = 0; i < 10; i++) up = stepUp(up) ?? up;
 assert(JSON.stringify(up) === JSON.stringify(PRESETS.high), 'step-up climbs back to high');
 assert(stepUp(PRESETS.high) === null, 'high is the ceiling');
 

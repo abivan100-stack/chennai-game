@@ -5,19 +5,20 @@
 // 3. Prints a size/triangle report. Edit HERO / NPCS below to add characters.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, KHRMaterialsSpecular } from '@gltf-transform/extensions';
-import { dedup, joinPrimitives, meshopt, palette, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { dedup, joinPrimitives, meshopt, palette, prune, resample, simplify, simplifyPrimitive, textureCompress, weld } from '@gltf-transform/functions';
 import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 
 const SRC = 'assets-source';
 const TMP = 'assets-source/build';
 const OUT = 'public/models';
-const HERO_MAX_TRIS = 15000;
+const HERO_MAX_TRIS = 20000;
+const HERO_SKIN_ROUGHNESS = 0.55;
 const NPC_MAX_TRIS = 8000;
-const TEXTURE_SIZE = 1024;
+const TEXTURE_SIZE = 2048; // hero: the one character always close to the camera
 /** ONLY=regex: build just the outputs whose name matches (e.g. ONLY=^npc-mx to redo the Mixamo NPCs). */
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const want = (name) => !ONLY || ONLY.test(name);
@@ -30,8 +31,12 @@ const BLENDER = process.env.BLENDER ?? (existsSync(WIN_BLENDER) ? WIN_BLENDER : 
  * inPlace strips horizontal root motion; capLift stops the hips rising (for jumps).
  */
 const HERO = {
+  /**
+   * The hero's body: "Indian Teenager" by Nodeaxis Interactive (Sketchfab, CC-BY; see CREDITS.md),
+   * fitted onto this Mixamo skeleton (src) by fit_to_hero_rig.py, so it plays the clips below.
+   */
+  body: { fbx: 'sketchfab/indian-teenager/source/indian teenager.fbx', textures: 'sketchfab/indian-teenager/textures', drop: 'eyelash|teeth|cornea' },
   src: 'mixamo/hero.fbx',
-  simplifyRatio: 0.29, // 49k -> under 15k tris
   clips: [
     { name: 'idle', inPlace: true }, // in place: its root motion made the hero drift
     { name: 'idle_stick', inPlace: true }, // Standing Idle: ready stance while holding the lathi
@@ -73,8 +78,17 @@ const HERO = {
 const NPCS = [
 ];
 /** Mixamo characters used as NPCs (assets-source/mixamo-npcs/<name>.fbx -> npc-<name>.glb). */
-const MIXAMO_NPCS = Array.from({ length: 14 }, (_, i) => `mx${String(i + 1).padStart(2, '0')}`);
-const NPC_TEXTURE_SIZE = 512;
+const MIXAMO_NPCS = ['mx08', 'mx09', 'mx10']; // police body + tracksuit joggers (the rest of the crowd is SKETCHFAB_NPCS)
+const NPC_TEXTURE_SIZE = 1024;
+/**
+ * Sketchfab people (Nodeaxis Interactive's Indian series, CC-BY; CREDITS.md): assets-source/sketchfab/<dir>/source/*.fbx
+ * + textures/. Fitted onto the hero's Mixamo skeleton (fit_to_hero_rig.py), textures packed into one atlas
+ * (atlasMaterials), merged: 1 draw call each. Output npc-sf-<dir>.glb.
+ */
+const SKETCHFAB_NPCS = [
+  'indian-man-in-tshirt', 'indian-man-in-casuals', 'indian-man-in-pattern-shirt', 'indian-overweight-man-striped-shirt', 'indian-man-in-suit',
+  'modern-indian-woman', 'modern-indian-woman-2', 'indian-office-woman', 'indian-teenager-woman-in-hoodie',
+];
 // source name -> game name
 const NPC_CLIPS = { Idle: 'idle', Idle_Neutral: 'idle2', Walk: 'walk', Run: 'run', Wave: 'wave', HitRecieve: 'hit', Idle_Gun_Pointing: 'aim', Idle_Gun_Shoot: 'shoot', Death: 'fall' };
 
@@ -122,6 +136,82 @@ function mergeSkinnedMeshes(doc) {
     mesh.addPrimitive(joinPrimitives(prims));
     for (const p of prims) p.dispose();
   }
+}
+
+/**
+ * Every material's colour texture packed into ONE atlas (SIZE px) and every primitive pointed at a single
+ * material, so mergeSkinnedMeshes leaves one primitive: a person = 1 draw call. Slot size per material
+ * by how much it shows (face biggest); UVs are squeezed into the slot (2 px inset against bleeding).
+ * Materials with transparency make the atlas material alpha-tested and double-sided (hair cards).
+ */
+const ATLAS_SLOTS = [[/head/i, 512], [/hair/i, 512], [/top|shirt|dress|hoodie/i, 512], [/eye/i, 64], [/shoe/i, 128]];
+/** Triangle budget per part (by material name) for an NPC: the face keeps its shape, the rest gives way. */
+const PART_TRIS = [[/head/i, 2600], [/hair/i, 1400], [/top|shirt|dress|hoodie/i, 1000], [/bottom|pant|skirt/i, 800], [/body/i, 600], [/shoe/i, 300], [/eye/i, 60]];
+function simplifyParts(doc) {
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const name = prim.getMaterial()?.getName() ?? '';
+      const target = (PART_TRIS.find(([re]) => re.test(name)) ?? [null, 500])[1];
+      const tris = (prim.getIndices()?.getCount() ?? prim.getAttribute('POSITION').getCount()) / 3;
+      if (tris > target) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: target / tris, error: 0.05 });
+    }
+  }
+}
+async function atlasMaterials(doc, SIZE = 1024) {
+  const mats = doc.getRoot().listMaterials().filter((m) => m.getBaseColorTexture());
+  const free = [{ x: 0, y: 0, s: SIZE }];
+  const take = (want) => {
+    free.sort((a, b) => a.s - b.s);
+    let i = free.findIndex((f) => f.s >= want);
+    if (i < 0) throw new Error('atlas full');
+    let slot = free.splice(i, 1)[0];
+    while (slot.s > want) {
+      const h = slot.s / 2;
+      free.push({ x: slot.x + h, y: slot.y, s: h }, { x: slot.x, y: slot.y + h, s: h }, { x: slot.x + h, y: slot.y + h, s: h });
+      slot = { x: slot.x, y: slot.y, s: h };
+    }
+    return slot;
+  };
+  const want = (m) => (ATLAS_SLOTS.find(([re]) => re.test(m.getName())) ?? [null, 256])[1];
+  const placed = new Map();
+  for (const m of [...mats].sort((a, b) => want(b) - want(a))) placed.set(m, take(want(m)));
+  const comps = [];
+  let alpha = false;
+  for (const [m, slot] of placed) {
+    const img = m.getBaseColorTexture().getImage();
+    comps.push({ input: await sharp(img).resize(slot.s, slot.s, { fit: 'fill' }).ensureAlpha().png().toBuffer(), left: slot.x, top: slot.y });
+    if (m.getAlphaMode() !== 'OPAQUE') alpha = true;
+  }
+  const atlas = await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } } }).composite(comps).png().toBuffer();
+  const tex = doc.createTexture('atlas').setImage(new Uint8Array(atlas)).setMimeType('image/png');
+  const mat = doc.createMaterial('atlas').setBaseColorTexture(tex).setMetallicFactor(0).setRoughnessFactor(0.8);
+  if (alpha) mat.setAlphaMode('MASK').setAlphaCutoff(0.5).setDoubleSided(true);
+  const done = new Set();
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const slot = placed.get(prim.getMaterial());
+      const uv = prim.getAttribute('TEXCOORD_0');
+      if (!slot || !uv) {
+        prim.dispose(); // untextured bits (none expected after the drops)
+        continue;
+      }
+      if (!done.has(uv)) {
+        done.add(uv);
+        const a = uv.getArray().slice();
+        let out = 0;
+        for (let i = 0; i < a.length; i++) {
+          const v = a[i];
+          if (v < -0.001 || v > 1.001) out++;
+          const o = i % 2 ? slot.y : slot.x;
+          a[i] = (o + 2 + Math.min(1, Math.max(0, v)) * (slot.s - 4)) / SIZE;
+        }
+        if (out) console.warn(`[models] ${prim.getMaterial().getName()}: ${out} UVs outside 0..1 clamped`);
+        uv.setArray(a);
+      }
+      prim.setMaterial(mat);
+    }
+  }
+  for (const m of mats) m.dispose();
 }
 
 /** Remove vertex colours that are pure white (no visual effect, but they block primitive joining). */
@@ -200,20 +290,23 @@ async function finish(doc, name, srcBytes, before, limit) {
 // ---- Hero -------------------------------------------------------------------------------
 {
   if (want('hero')) {
-  const src = `${SRC}/${HERO.src}`;
+  const src = `${SRC}/${HERO.body.fbx}`;
   const tmp = `${TMP}/hero.glb`;
-  blender(src, tmp);
+  execFileSync(BLENDER, ['-b', '--factory-startup', '--python', 'scripts/blender/fit_to_hero_rig.py', '--', `${SRC}/${HERO.src}`, src, `${process.cwd()}/${SRC}/${HERO.body.textures}`, tmp, '--drop', HERO.body.drop, '--normals'], {
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
   const doc = await io.read(tmp);
   const before = stats(doc);
-  doc.createExtension(KHRMaterialsSpecular).dispose(); // Mixamo spec maps: not worth a texture
+  doc.createExtension(KHRMaterialsSpecular).dispose();
   for (const m of doc.getRoot().listMaterials()) {
-    m.setMetallicFactor(0); // FBX import guesses 0.5 metallic: skin would look like metal
-    if (m.getAlphaMode() === 'BLEND') m.setAlphaMode('MASK').setAlphaCutoff(0.5).setRoughnessFactor(0.7); // hair cards
+    // Skin keeps a soft sheen (it reads as skin, not clay); cotton, denim and leather stay matte.
+    m.setMetallicFactor(0).setRoughnessFactor(/Avatar(Head|Body)/.test(m.getName()) ? HERO_SKIN_ROUGHNESS : /Eye/.test(m.getName()) ? 0.15 : 0.9);
+    if (m.getAlphaMode() !== 'OPAQUE') m.setAlphaMode('MASK').setAlphaCutoff(0.5);
   }
   mergeSkinnedMeshes(doc);
   await doc.transform(
     weld(),
-    simplify({ simplifier: MeshoptSimplifier, ratio: HERO.simplifyRatio, error: 0.01 }),
+    simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, (HERO_MAX_TRIS * 0.9) / before.tris), error: 0.01 }),
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [TEXTURE_SIZE, TEXTURE_SIZE] }),
   );
   await finish(doc, 'hero', statSync(src).size, before, HERO_MAX_TRIS);
@@ -252,6 +345,30 @@ for (const name of MIXAMO_NPCS) {
   await doc.transform(
     weld(),
     simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, (NPC_MAX_TRIS * 0.85) / before.tris), error: 0.05 }),
+    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [NPC_TEXTURE_SIZE, NPC_TEXTURE_SIZE] }),
+  );
+  await finish(doc, out, statSync(src).size, before, NPC_MAX_TRIS);
+}
+
+// ---- Sketchfab NPCs ---------------------------------------------------------------------
+for (const dir of SKETCHFAB_NPCS) {
+  const out = `npc-sf-${dir}`;
+  if (!want(out)) continue;
+  const base = `${SRC}/sketchfab/${dir}`;
+  const fbx = readdirSync(`${base}/source`).find((f) => f.toLowerCase().endsWith('.fbx'));
+  const src = `${base}/source/${fbx}`;
+  const tmp = `${TMP}/${out}.glb`;
+  execFileSync(BLENDER, ['-b', '--factory-startup', '--python', 'scripts/blender/fit_to_hero_rig.py', '--', `${SRC}/${HERO.src}`, src, `${process.cwd()}/${base}/textures`, tmp, '--drop', 'eyelash|teeth|cornea|glasses'], {
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
+  const doc = await io.read(tmp);
+  const before = stats(doc);
+  doc.createExtension(KHRMaterialsSpecular).dispose();
+  await doc.transform(weld());
+  simplifyParts(doc);
+  await atlasMaterials(doc);
+  mergeSkinnedMeshes(doc);
+  await doc.transform(
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [NPC_TEXTURE_SIZE, NPC_TEXTURE_SIZE] }),
   );
   await finish(doc, out, statSync(src).size, before, NPC_MAX_TRIS);
