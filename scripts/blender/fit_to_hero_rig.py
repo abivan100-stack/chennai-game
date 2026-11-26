@@ -1,8 +1,11 @@
 """
-Put a Microsoft Rocketbox avatar (3ds Max Biped rig) on the hero's Mixamo skeleton, so every hero
-clip plays on it unchanged (run headless; scripts/build-models.mjs calls this).
+Put a rigged character (a Mixamo-named rig with its own rest pose / extra twist bones, or a 3ds Max
+Biped rig) on the hero's Mixamo skeleton, so every hero clip plays on it unchanged (run headless;
+scripts/build-models.mjs calls this).
 
-  blender -b --factory-startup --python scripts/blender/rocketbox_to_mixamo.py -- REF.fbx IN.fbx TEXDIR OUT.glb
+  blender -b --factory-startup --python scripts/blender/fit_to_hero_rig.py -- REF.fbx IN.fbx TEXDIR OUT.glb [--drop REGEX]
+
+--drop: meshes whose name matches are removed (eyelashes, teeth, corneas: unseen at game distance).
 
 1. Pose the Rocketbox body into the Mixamo T-pose: each mapped bone is turned (no twist) so the
    line to its child joint points the way the Mixamo bone's does.
@@ -22,6 +25,7 @@ from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 ref_path, src_path, tex_dir, dst = argv[:4]
+drop = re.compile(argv[argv.index("--drop") + 1], re.I) if "--drop" in argv else None
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
@@ -41,6 +45,9 @@ before = set(bpy.data.objects)
 bpy.ops.import_scene.fbx(filepath=src_path, automatic_bone_orientation=False)
 new = [o for o in bpy.data.objects if o not in before]
 rb = next(o for o in new if o.type == "ARMATURE")
+for o in [o for o in new if o.type == "MESH" and drop and drop.search(o.name)]:
+    new.remove(o)
+    bpy.data.objects.remove(o)
 meshes = [o for o in new if o.type == "MESH"]
 if rb.animation_data:
     rb.animation_data.action = None
@@ -56,6 +63,11 @@ for s, side in (("L", "Left"), ("R", "Right")):
         for k, suffix in enumerate(["", "1", "2"]):
             MAP[f"{s} Finger{i}{suffix}"] = f"{side}Hand{f}{k + 1}"
 MAP = {f"Bip01 {k}": v for k, v in MAP.items() if v in ref.data.bones}
+for b in rb.data.bones:  # a Mixamo-named rig: same names map straight across
+    n = re.sub(r"^mixamorigd*:", "", b.name)
+    if n in ref.data.bones and b.name not in MAP:
+        MAP[b.name] = n
+MAP = {k: v for k, v in MAP.items() if k in rb.data.bones}
 INV = {v: k for k, v in MAP.items()}
 
 # Which joint each bone points at (Mixamo names): the T-pose is matched on these lines.
@@ -96,6 +108,8 @@ joints = {m: rb_head(k).copy() for k, m in MAP.items()}
 scale = ref_head("Hips").z / joints["Hips"].z
 for o in meshes:
     bpy.context.view_layer.objects.active = o
+    if o.data.shape_keys:  # facial blend shapes: not animated in the game, and they block the bake
+        o.shape_key_clear()
     for mod in [md for md in o.modifiers if md.type == "ARMATURE"]:
         bpy.ops.object.modifier_apply(modifier=mod.name)
     mw = o.matrix_world.copy()
@@ -187,11 +201,14 @@ for mat in bpy.data.materials:
         if n.type != "TEX_IMAGE" or not n.image:
             continue
         base = os.path.basename(n.image.filepath.replace("\\", "/"))
-        if "_color" not in base:
+        if "_color" not in base.lower():
             nt.nodes.remove(n)
             continue
-        n.image.filepath = os.path.join(tex_dir, base)
-        n.image.reload()
+        stem = os.path.splitext(base)[0]
+        found = [f for f in os.listdir(tex_dir) if os.path.splitext(f)[0] == stem]
+        if found:
+            n.image.filepath = os.path.join(tex_dir, found[0])
+            n.image.reload()
 
 bpy.ops.export_scene.gltf(
     filepath=dst,
@@ -201,4 +218,4 @@ bpy.ops.export_scene.gltf(
     export_morph=False,
     export_animations=False,
 )
-print(f"[rocketbox_to_mixamo] wrote {dst} (scale {scale:.3f}, {len(MAP)} bones mapped)")
+print(f"[fit_to_hero_rig] wrote {dst} (scale {scale:.3f}, {len(MAP)} bones mapped)")

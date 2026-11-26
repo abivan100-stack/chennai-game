@@ -6,7 +6,8 @@ Every third-party asset shipped in `public/models/`. Add a row here whenever you
 
 | Asset | Game file(s) | Author | Source | License |
 |---|---|---|---|---|
-| Hero character (Mixamo "Ch42") | `hero.glb` | Adobe Mixamo | https://www.mixamo.com | [Mixamo terms](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html): free to use in personal and commercial projects; not to be redistributed as standalone asset files |
+| "Indian Teenager" (the hero's body, fitted onto the Mixamo skeleton; facial blend shapes, eyelashes, teeth, corneas dropped; simplified) | `hero.glb` | Nodeaxis Interactive (ar.jethin) | https://sketchfab.com/3d-models/indian-teenager-b2804b40f671431ca7b5cc53b239175e | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Hero skeleton (Mixamo "Ch42" rig; the source of every hero animation's bind pose) | (in `hero.glb`) | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as below) |
 | Breathing Idle, Walking, Running, Jumping animations | `idle.glb`, `walk.glb`, `run.glb`, `jump.glb` | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 | Talking, Yelling, Stand To Sit, Sit To Stand, Driving animations | `talk.glb`, `yell.glb`, `sit_down.glb`, `stand_up.glb`, `drive.glb` (talk + yell are also retargeted onto the NPCs at load) | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |
 | Punching, Stable Sword Outward Slash (lathi), Flying Kick, Body Block, Fist Fight A combo animations | `punch.glb`, `swing.glb`, `kick.glb`, `block.glb`, `combo.glb` (combo + punch are also retargeted onto the NPCs) | Adobe Mixamo | https://www.mixamo.com | Mixamo terms (as above) |

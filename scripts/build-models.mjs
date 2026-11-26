@@ -30,8 +30,12 @@ const BLENDER = process.env.BLENDER ?? (existsSync(WIN_BLENDER) ? WIN_BLENDER : 
  * inPlace strips horizontal root motion; capLift stops the hips rising (for jumps).
  */
 const HERO = {
+  /**
+   * The hero's body: "Indian Teenager" by Nodeaxis Interactive (Sketchfab, CC-BY; see CREDITS.md),
+   * fitted onto this Mixamo skeleton (src) by fit_to_hero_rig.py, so it plays the clips below.
+   */
+  body: { fbx: 'sketchfab/indian-teenager/source/indian teenager.fbx', textures: 'sketchfab/indian-teenager/textures', drop: 'eyelash|teeth|cornea' },
   src: 'mixamo/hero.fbx',
-  simplifyRatio: 0.36, // 49k -> ~18k tris (x2 with its shadow: the market view sits at the 600k budget)
   clips: [
     { name: 'idle', inPlace: true }, // in place: its root motion made the hero drift
     { name: 'idle_stick', inPlace: true }, // Standing Idle: ready stance while holding the lathi
@@ -200,20 +204,22 @@ async function finish(doc, name, srcBytes, before, limit) {
 // ---- Hero -------------------------------------------------------------------------------
 {
   if (want('hero')) {
-  const src = `${SRC}/${HERO.src}`;
+  const src = `${SRC}/${HERO.body.fbx}`;
   const tmp = `${TMP}/hero.glb`;
-  blender(src, tmp);
+  execFileSync(BLENDER, ['-b', '--factory-startup', '--python', 'scripts/blender/fit_to_hero_rig.py', '--', `${SRC}/${HERO.src}`, src, `${process.cwd()}/${SRC}/${HERO.body.textures}`, tmp, '--drop', HERO.body.drop], {
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
   const doc = await io.read(tmp);
   const before = stats(doc);
-  doc.createExtension(KHRMaterialsSpecular).dispose(); // Mixamo spec maps: not worth a texture
+  doc.createExtension(KHRMaterialsSpecular).dispose();
   for (const m of doc.getRoot().listMaterials()) {
-    m.setMetallicFactor(0); // FBX import guesses 0.5 metallic: skin would look like metal
-    if (m.getAlphaMode() === 'BLEND') m.setAlphaMode('MASK').setAlphaCutoff(0.5).setRoughnessFactor(0.7); // hair cards
+    m.setMetallicFactor(0).setRoughnessFactor(0.85); // skin and cotton are matte
+    if (m.getAlphaMode() !== 'OPAQUE') m.setAlphaMode('MASK').setAlphaCutoff(0.5);
   }
   mergeSkinnedMeshes(doc);
   await doc.transform(
     weld(),
-    simplify({ simplifier: MeshoptSimplifier, ratio: HERO.simplifyRatio, error: 0.01 }),
+    simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, (HERO_MAX_TRIS * 0.9) / before.tris), error: 0.01 }),
     textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [TEXTURE_SIZE, TEXTURE_SIZE] }),
   );
   await finish(doc, 'hero', statSync(src).size, before, HERO_MAX_TRIS);

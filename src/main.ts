@@ -46,7 +46,6 @@ import { createDealer } from './world/dealer';
 import { frame } from './world/kit';
 import { HOME_LOTS } from './world/layout';
 import { Sound } from './audio/sound';
-import { applyChennaiLook } from './characters/chennaiLook';
 import { createSanthome } from './world/santhome';
 import { createMandaveli } from './world/mandaveli';
 import { createPosters } from './world/posters';
@@ -340,7 +339,6 @@ async function main() {
   const spawn = saved ? new THREE.Vector3(saved.player.x, saved.player.y + 0.05, saved.player.z) : new THREE.Vector3(25 - 6.2, SIDEWALK_HEIGHT + CAPSULE_LIFT + 0.05, 7);
   const autoSpot = saved ? new THREE.Vector3(saved.auto.x, 0, saved.auto.z) : new THREE.Vector3(25 - 4.2, 0, -4); // tight to the kerb so traffic can pass
   const player = new PlayerController(world, scene, spawn, characters.hero);
-  applyChennaiLook(player.model); // full-sleeve shirt, trousers, shoes, belt, vibhuti
   if (saved) player.mesh.rotation.y = saved.player.yaw;
   // A save from before the temple posts (or any glitch) may have the auto inside a block: back to its kerb.
   const offRoad = blocks().some((b) => (b.kind === 'temple' || b.kind === 'tank') && autoSpot.x > b.x0 && autoSpot.x < b.x1 && autoSpot.z > b.z0 && autoSpot.z < b.z1);
