@@ -16,6 +16,7 @@ const SRC = 'assets-source';
 const TMP = 'assets-source/build';
 const OUT = 'public/models';
 const HERO_MAX_TRIS = 20000;
+const HERO_SKIN_ROUGHNESS = 0.55;
 const NPC_MAX_TRIS = 8000;
 const TEXTURE_SIZE = 2048; // hero: the one character always close to the camera
 /** ONLY=regex: build just the outputs whose name matches (e.g. ONLY=^npc-mx to redo the Mixamo NPCs). */
@@ -206,14 +207,15 @@ async function finish(doc, name, srcBytes, before, limit) {
   if (want('hero')) {
   const src = `${SRC}/${HERO.body.fbx}`;
   const tmp = `${TMP}/hero.glb`;
-  execFileSync(BLENDER, ['-b', '--factory-startup', '--python', 'scripts/blender/fit_to_hero_rig.py', '--', `${SRC}/${HERO.src}`, src, `${process.cwd()}/${SRC}/${HERO.body.textures}`, tmp, '--drop', HERO.body.drop], {
+  execFileSync(BLENDER, ['-b', '--factory-startup', '--python', 'scripts/blender/fit_to_hero_rig.py', '--', `${SRC}/${HERO.src}`, src, `${process.cwd()}/${SRC}/${HERO.body.textures}`, tmp, '--drop', HERO.body.drop, '--normals'], {
     stdio: ['ignore', 'ignore', 'inherit'],
   });
   const doc = await io.read(tmp);
   const before = stats(doc);
   doc.createExtension(KHRMaterialsSpecular).dispose();
   for (const m of doc.getRoot().listMaterials()) {
-    m.setMetallicFactor(0).setRoughnessFactor(0.85); // skin and cotton are matte
+    // Skin keeps a soft sheen (it reads as skin, not clay); cotton, denim and leather stay matte.
+    m.setMetallicFactor(0).setRoughnessFactor(/Avatar(Head|Body)/.test(m.getName()) ? HERO_SKIN_ROUGHNESS : /Eye/.test(m.getName()) ? 0.15 : 0.9);
     if (m.getAlphaMode() !== 'OPAQUE') m.setAlphaMode('MASK').setAlphaCutoff(0.5);
   }
   mergeSkinnedMeshes(doc);

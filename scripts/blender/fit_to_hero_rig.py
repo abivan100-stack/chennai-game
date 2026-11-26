@@ -3,7 +3,7 @@ Put a rigged character (a Mixamo-named rig with its own rest pose / extra twist 
 Biped rig) on the hero's Mixamo skeleton, so every hero clip plays on it unchanged (run headless;
 scripts/build-models.mjs calls this).
 
-  blender -b --factory-startup --python scripts/blender/fit_to_hero_rig.py -- REF.fbx IN.fbx TEXDIR OUT.glb [--drop REGEX]
+  blender -b --factory-startup --python scripts/blender/fit_to_hero_rig.py -- REF.fbx IN.fbx TEXDIR OUT.glb [--drop REGEX] [--normals]
 
 --drop: meshes whose name matches are removed (eyelashes, teeth, corneas: unseen at game distance).
 
@@ -25,6 +25,7 @@ from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 ref_path, src_path, tex_dir, dst = argv[:4]
+normals = "--normals" in argv  # keep normal maps (the hero: skin pores, knit, denim)
 drop = re.compile(argv[argv.index("--drop") + 1], re.I) if "--drop" in argv else None
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -192,7 +193,7 @@ for o in [ref, rb] + [o for o in new if o.type == "EMPTY"]:
 for a in list(bpy.data.actions):
     bpy.data.actions.remove(a)
 
-# Textures: colour maps from TEXDIR; normal / specular maps are dropped (not shipped).
+# Textures from TEXDIR: colour maps (+ normal maps with --normals); the rest are dropped.
 for mat in bpy.data.materials:
     if not mat.use_nodes:
         continue
@@ -201,7 +202,8 @@ for mat in bpy.data.materials:
         if n.type != "TEX_IMAGE" or not n.image:
             continue
         base = os.path.basename(n.image.filepath.replace("\\", "/"))
-        if "_color" not in base.lower():
+        low = base.lower()
+        if "_color" not in low and not (normals and "_normal" in low):
             nt.nodes.remove(n)
             continue
         stem = os.path.splitext(base)[0]
