@@ -318,8 +318,11 @@ export class Crowd {
     for (let k = 0; k < AMBIENT; k++) {
       const b = this.streetBlocks[(k * 7) % this.streetBlocks.length];
       const path = blockLoop(b.i, b.j, 0.7 + ((k * 37) % 14) / 10, k % 2 === 1);
-      const name = `${AMBIENT_NAMES[k % AMBIENT_NAMES.length]}${k >= AMBIENT_NAMES.length ? ' ' + String.fromCharCode(65 + (k % 26)) + '.' : ''}`;
-      const npc = new Npc(this.scene, this.world, this.assets.get(models[(k * 5) % models.length])!, {
+      const asset = this.assets.get(models[(k * 5) % models.length])!;
+      // AMBIENT_NAMES alternate men / women: a name that fits the body.
+      const names = AMBIENT_NAMES.filter((_, i) => i % 2 === (asset.female ? 1 : 0));
+      const name = `${names[k % names.length]}${k >= names.length ? ' ' + String.fromCharCode(65 + (k % 26)) + '.' : ''}`;
+      const npc = new Npc(this.scene, this.world, asset, {
         name, path, position: along(path, (k * 0.37) % 1), height: 1.58 + ((k * 13) % 25) / 100, pace: k % 11 === 5 ? 'run' : 'walk',
       });
       this.npcs.push(npc);
