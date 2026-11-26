@@ -342,8 +342,8 @@ function windSway(m: THREE.MeshStandardMaterial, leaves = false) {
 }
 
 /** Leaf cards per m² of canopy surface, and the limits per tree. */
-const LEAF_DENSITY = 1.2;
-const LEAF_CARDS: [number, number] = [30, 110];
+const LEAF_DENSITY = 1.0;
+const LEAF_CARDS: [number, number] = [26, 90];
 const LEAF_ALPHA_TEST = 0.5;
 
 /**

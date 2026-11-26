@@ -15,7 +15,7 @@ import sharp from 'sharp';
 const SRC = 'assets-source';
 const TMP = 'assets-source/build';
 const OUT = 'public/models';
-const HERO_MAX_TRIS = 30000;
+const HERO_MAX_TRIS = 20000;
 const NPC_MAX_TRIS = 8000;
 const TEXTURE_SIZE = 2048; // hero: the one character always close to the camera
 /** ONLY=regex: build just the outputs whose name matches (e.g. ONLY=^npc-mx to redo the Mixamo NPCs). */
@@ -31,7 +31,7 @@ const BLENDER = process.env.BLENDER ?? (existsSync(WIN_BLENDER) ? WIN_BLENDER : 
  */
 const HERO = {
   src: 'mixamo/hero.fbx',
-  simplifyRatio: 0.6, // 49k -> under 30k tris (sharp silhouette close up; one draw call either way)
+  simplifyRatio: 0.36, // 49k -> ~18k tris (x2 with its shadow: the market view sits at the 600k budget)
   clips: [
     { name: 'idle', inPlace: true }, // in place: its root motion made the hero drift
     { name: 'idle_stick', inPlace: true }, // Standing Idle: ready stance while holding the lathi
